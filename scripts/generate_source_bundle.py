@@ -40,7 +40,7 @@ EXCLUDED_FILES = {
     "dart_test.yaml",
 }
 
-INCLUDED_ROOT_FILES = {"README.md"}
+INCLUDED_ROOT_FILES = {"README.md", "CLAUDE.md"}
 
 
 def is_excluded_file(rel_path: Path) -> bool:
