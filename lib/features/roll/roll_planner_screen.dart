@@ -51,8 +51,6 @@ class RollPlannerScreen extends ConsumerWidget {
         children: [
           Text('Current leg: \$${leg.strike} ${leg.optionType.name}, exp ${_dateText(leg.expiration)}'),
           const SizedBox(height: 16),
-          for (final result in results) _CandidateCard(result: result, controller: controller),
-          const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: state.candidates.length >= 3
                 ? null
@@ -60,6 +58,8 @@ class RollPlannerScreen extends ConsumerWidget {
             icon: const Icon(Icons.add),
             label: const Text('Add candidate'),
           ),
+          const SizedBox(height: 8),
+          for (final result in results) _CandidateCard(result: result, controller: controller),
           if (state.candidateWarning != null)
             Padding(
               padding: const EdgeInsets.only(top: 12),
@@ -155,60 +155,57 @@ Future<void> _showAddCandidateDialog(
           final nonFriday = !isFriday(newExpiry);
           return AlertDialog(
             title: const Text('New candidate'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: strikeController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'New strike (\$)'),
-                ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: debitController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(
-                          labelText: totalPerContract
-                              ? 'Buyback debit (\$ total for contract)'
-                              : 'Buyback debit (\$ per share)',
-                        ),
-                      ),
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Switch(
-                          value: totalPerContract,
-                          onChanged: (v) {
-                            setDialogState(() => totalPerContract = v);
-                            ref
-                                .read(preferencesControllerProvider.notifier)
-                                .update((p) => p.copyWith(totalPerContractToggle: v));
-                          },
-                        ),
-                        const Text('Total/contract', style: TextStyle(fontSize: 10)),
-                      ],
-                    ),
-                  ],
-                ),
-                TextField(
-                  controller: creditController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(
-                    labelText: totalPerContract
-                        ? 'New credit (\$ total for contract)'
-                        : 'New credit (\$ per share)',
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: strikeController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'New strike (\$)'),
                   ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Text('New expiry: ${_dateText(newExpiry)}'),
-                    const Spacer(),
-                    TextButton(
+                  TextField(
+                    controller: debitController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: totalPerContract
+                          ? 'Buyback debit (\$ total for contract)'
+                          : 'Buyback debit (\$ per share)',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Switch(
+                        value: totalPerContract,
+                        onChanged: (v) {
+                          setDialogState(() => totalPerContract = v);
+                          ref
+                              .read(preferencesControllerProvider.notifier)
+                              .update((p) => p.copyWith(totalPerContractToggle: v));
+                        },
+                      ),
+                      const Flexible(
+                        child: Text('Treat prices as total per contract', style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                  TextField(
+                    controller: creditController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: totalPerContract
+                          ? 'New credit (\$ total for contract)'
+                          : 'New credit (\$ per share)',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text('New expiry: ${_dateText(newExpiry)}'),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
                       onPressed: () async {
                         final picked = await showDatePicker(
                           context: context,
@@ -220,29 +217,29 @@ Future<void> _showAddCandidateDialog(
                       },
                       child: const Text('Change'),
                     ),
-                  ],
-                ),
-                // Feature Invariant 22: the planner's existing picker already
-                // worked -- only this warning is new, and it never blocks.
-                if (nonFriday)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Not a Friday -- index and month-end products legitimately differ.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.tertiary,
+                  ),
+                  // Feature Invariant 22: the planner's existing picker already
+                  // worked -- only this warning is new, and it never blocks.
+                  if (nonFriday)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        'Not a Friday -- index and month-end products legitimately differ.',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.tertiary,
+                        ),
                       ),
                     ),
-                  ),
-                if (dialogError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      dialogError!,
-                      style: TextStyle(color: Theme.of(context).colorScheme.error),
+                  if (dialogError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        dialogError!,
+                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
             actions: [
               TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),

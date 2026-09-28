@@ -42,6 +42,88 @@
 > residue greps clean); its remaining open items are the review findings in
 > that plan's `## Feedback`, most notably the `CLAUDE.md` correction, which
 > is the user's call.
+> **Iteration 4 closeout (2026-09-28):** the coordinator's ratify-or-revert
+> pass over Phase 23's Assumption Log/Feedback entries is now complete —
+> CR-1 (both halves), CR-1's remainder, CR-3, CR-7, the CR-2/CR-4/CR-5
+> register corrections, and Feature Invariant 29's median ruling are all
+> **RATIFIED as shipped**, no code follow-up. S-029's "consumed/removed"
+> wording is corrected below (in place) to match CR-1's retain-and-deactivate
+> behavior; Feature Invariant 14 itself is left untouched (its behavioral
+> claims remain exactly correct) and is superseded **in wording only** by a
+> Ledger entry in the plan below, per this project's edit-vs-supersede
+> precedent (compare Iteration 5's D-10/D-13 above, which superseded Feature
+> Invariants 11/8 the same way rather than editing them). Three items stay
+> open pending the user's answer to a batched question round — the
+> `stockPnL`/`peakCapitalCommitted` strike-source inconsistency flagged in
+> the CR-1 remediation entry, CR-6's missing checkpoint-consent record, and
+> CR-8's notification copy — plus a final @code-reviewer pass that ticks
+> Phase 23's own checklist and the Iteration 4 Acceptance Criteria against
+> the current tree (which now includes Iteration 5). All of this is phased
+> in **`docs/plans/iteration-4-closeout-plan.md`** (Phases 23.0–23.4), which
+> also folds in review of the separate, still-uncommitted roll-planner
+> hotfix (`docs/plans/roll-planner-add-candidate-bug-plan.md`, S-205/S-206)
+> as its own out-of-Iteration-4-scope but otherwise-unreviewed item. **Phase
+> 23 is now Complete — see the dated status block below.**
+> **Iteration 4 closeout, Q&A answered (2026-09-28):** the user answered the
+> closeout's batched question round (verbatim: "yes, yes I approved, yes
+> keep it") — **Q1 = FIX** (the `stockPnL` strike-source fix is live,
+> `iteration-4-closeout-plan.md` D-11, next `@developer` handoff, Phase
+> 23.1 Branch A); **Q2 = the user confirms the Phase 17 go-ahead was given**
+> (D-12 — see the retroactive record now appended to the Phase 17 `##
+> Progress` entry below, closing CR-6); **Q3 = KEEP** the notification copy
+> (D-13 — Phase 23.3 does not trigger, CR-8 stays as shipped). Three further
+> decisions from the same exchange, recorded as `iteration-4-closeout-plan.md`
+> D-14/D-15/D-16 rather than by editing history here: the "no source
+> control"/`.git`-writes constraint is **retired** (git is in active use;
+> this file's own "no `.git` commits"/"no `.git` writes" lines are left
+> exactly as written and are overridden going forward by D-14, not edited);
+> `CLAUDE.md` no longer records a test count (removed by the user, outside
+> this plan's writable scope either way); `flutter pub upgrade` was run and
+> left the Phase 24 `build_runner` crash unresolved (only `built_collection`
+> moved), with a dependency-change follow-up question logged, not
+> auto-approved. Only Phase 23.1 (Branch A) remains outstanding; Phase 23.4
+> (`@code-reviewer`) closes Iteration 4 once it lands.
+> **Phase 23.4 final verification (2026-09-28, `@code-reviewer`):** all six
+> technical gates are green on a fresh run — `flutter analyze` 0 issues,
+> whole-repo `flutter test` 463 passed/0 failed, `flutter build ios
+> --simulator --no-codesign` exit 0, both the tone and rules-purity greps
+> empty, S-207/S-208/S-209 passing, no file under `ios/`/`android/`
+> touched. Phase 23's own nine-item checklist and the Iteration 4
+> Acceptance Criteria below are now ticked against this observed output.
+> **Phase 23 is NOT marked Complete yet**, despite every technical gate
+> passing: the reviewer's own additional scope (two points the user asked
+> to be ruled on) surfaced two new WARNING findings — the optional
+> (not `required`) `shareLot` parameter on `stockPnL`/`netResult`/
+> `_stockPnL`, and `position_detail_controller.dart` never adopting CR-1's
+> `getAssignmentForCycle`-preferred pattern (currently dormant, no live
+> user-reachable wrong figure, confirmed by trace) — both recorded as
+> remediation items in `## Feedback` (`### Phase 23.4 final verification`)
+> with the user's decision (approve as-is, or route back to `@developer`)
+> still pending. The roll-planner hotfix is separately reviewed and
+> RATIFIED (`docs/plans/roll-planner-add-candidate-bug-plan.md`'s own
+> `## Feedback`) — it does not gate Iteration 4's closure either way.
+> **Phase 23.4.1 (2026-09-28, `@developer`): both WARNING findings fixed.**
+> `stockPnL`/`netResult`/`_stockPnL` now take `required ShareLot? shareLot`
+> (2a); `position_detail_controller.dart` sources a new `pnlShareLot` from
+> `getAssignmentForCycle(...) ?? _reconstructShareLot(...)` (mirroring
+> `journal_controller.dart`) for `computeCyclePnl`, while its existing
+> `shareLot` field/state keeps its unchanged "active lot only" meaning
+> (2b) — guarded by new scenario **S-210**, shown red then green. Full
+> record: `docs/plans/iteration-4-closeout-plan.md`'s `### Phase 23.4.1`.
+> **Phase 23.4.1 re-verification (2026-09-28, `@code-reviewer`) —
+> RATIFIED, zero new findings. `flutter analyze` 0 issues; whole-repo
+> `flutter test` 464 passed/0 failed; `flutter build ios --simulator
+> --no-codesign` exit 0; `--plain-name "S-210"` green; tone/purity greps
+> empty; diff matches Phase 23.4.1's own Predicted Files exactly.** Full
+> record, including the `_reconstructShareLot` duplication ruling
+> (RATIFIED, same precedent as the `_dateText`/`ledger_csv.dart`
+> duplications already accepted) and the open-cycle/put-only accessor
+> parity confirmation (proven by
+> `test/data/wheel_repository_contract_test.dart:885-886,980-988,1012-1034`):
+> `## Feedback`, `### Phase 23.4.1 re-verification`.
+> **Phase 23 is CLOSED. Iteration 4 is fully closed** (already joined by
+> Iteration 5, independently verified in its own right). Next handoff:
+> **none — Iteration 4 closed.**
 > Binding conventions: docs/conventions.md (+ docs/brief.md as the original
 > product spec of record, + docs/brief-followup.md as Iteration 3's binding
 > corrections, + docs/brief-ledger.md as Iteration 4's binding spec, which
@@ -286,75 +368,85 @@ it), then the rest in any order.**
 
 ### Iteration 4 acceptance criteria
 
-- [ ] Schema v3 ships with a migration test; `drift_schema_v1.json`/
+- [x] Schema v3 ships with a migration test; `drift_schema_v1.json`/
       `drift_schema_v2.json` untouched; `openFee`/`closeFee` default to
       `null` (never `0`), `acceptsAssignment` defaults to `true` (S-092,
       S-093, S-094).
-- [ ] Fees never reach `capturedPct` or any gate — a leg with a recorded
+- [x] Fees never reach `capturedPct` or any gate — a leg with a recorded
       fee classifies identically to one without (S-103).
-- [ ] `acceptsAssignment` inherited on roll, re-asked at the assignment
+- [x] `acceptsAssignment` inherited on roll, re-asked at the assignment
       transition for the new covered-call leg, editable from the position
       detail sheet (S-102, S-124, S-125).
-- [ ] Gate 2 branches on `acceptsAssignment`; both directions tested; the
+- [x] Gate 2 branches on `acceptsAssignment`; both directions tested; the
       `roll` branch's reason string is **"...and assignment isn't wanted
       here"**, not the brief's verbatim string — overridden by the
       coordinator against the brief's own §4 review-checklist rule (S-100,
       S-101).
-- [ ] `netResult`'s `totalPremium`, `stockPnL`, `wheelBasis`, and `taxBasis`
+- [x] `netResult`'s `totalPremium`, `stockPnL`, `wheelBasis`, and `taxBasis`
       are all contract-weighted per leg, not a per-share sum multiplied by
       a single leg's contract count — the named fourth formula error,
       fixed and tested together with Q1's `netResult` fix (S-104, S-105,
       S-106).
-- [ ] Cycle P&L: premium, fees, stock P&L, net, days, rolls, "peak capital
+- [x] Cycle P&L: premium, fees, stock P&L, net, days, rolls, "peak capital
       committed," return on capital, `journalAnnualisedReturn` all correct
       on a full-wheel fixture with a contract-count change across a roll
       (S-104, S-105, S-107, S-108, S-109).
-- [ ] `journalAnnualisedReturn` implemented; `screenerAnnualisedYield`
+- [x] `journalAnnualisedReturn` implemented; `screenerAnnualisedYield`
       untouched (S-108; residue grep in Phase 16's Done Criteria).
-- [ ] "Peak capital committed" is the on-screen label, not a bare "Capital
+- [x] "Peak capital committed" is the on-screen label, not a bare "Capital
       committed" (S-129).
-- [ ] Fee-incomplete **closed** cycles say "Before fees" and name the gap;
+- [x] Fee-incomplete **closed** cycles say "Before fees" and name the gap;
       an open leg's unclosed fee is never treated as a gap; unrealised
       figures on open cycles carry "Unrealised, excludes closing costs"
       (S-122, S-126).
-- [ ] Average premium capture is shown as a distribution or median, not a
+- [x] Average premium capture is shown as a distribution or median, not a
       bare mean, per the coordinator's Q5 ruling — or is dropped from the
       aggregates with the reasoning logged, developer's choice, ratified
       by the reviewer (S-110, S-128).
-- [ ] Journal screen ships with factual aggregates, no coaching copy
+- [x] Journal screen ships with factual aggregates, no coaching copy
       (S-127, S-128; tone grep).
-- [ ] JSON export/restore round-trips exactly, including fees and
+- [x] JSON export/restore round-trips exactly, including fees and
       `acceptsAssignment`; CSV export of closed cycles; restore-from-JSON
       of a cycle with varying per-leg contract counts computes the same
       `netResult`/`wheelBasis` as the live-recorded equivalent (S-150,
       S-153, S-154).
-- [ ] Malformed import leaves the database untouched (S-152).
-- [ ] 30-day export reminder is a lifetime one-time flag, not a recurring
+- [x] Malformed import leaves the database untouched (S-152).
+- [x] 30-day export reminder is a lifetime one-time flag, not a recurring
       or per-window nag (S-160).
-- [ ] Notifications schedule/cancel/reschedule correctly; copy is
+- [x] Notifications schedule/cancel/reschedule correctly; copy is
       date-only, never market-condition language; the app is fully usable
       with permission denied; Settings milestone changes apply only to
       legs opened afterward; permission is requested lazily at first
       "Track this position," never at launch (S-170–S-176).
-- [ ] Snapshot freshness indicator shown with calendar-boundary semantics;
+- [x] Snapshot freshness indicator shown with calendar-boundary semantics;
       backdating supported and range-validated; classification always uses
       real `now` (S-140, S-141, S-142).
-- [ ] Detail sheet formats percentages/money like the screener does; no raw
+- [x] Detail sheet formats percentages/money like the screener does; no raw
       `Decimal` reaches the UI; the roll-band row no longer truncates;
       every other `_Row` call site audited (S-143, S-144).
-- [ ] `flutter analyze` clean; whole-repo `flutter test` green;
+- [x] `flutter analyze` clean; whole-repo `flutter test` green;
       `flutter build ios --simulator --no-codesign` exits 0 (S-180).
-- [ ] Banned-vocabulary grep (Feature Invariant 23's pattern) returns no
+- [x] Banned-vocabulary grep (Feature Invariant 23's pattern) returns no
       output anywhere in `lib/`, including every new file this iteration
       adds — no exemptions.
-- [ ] `grep -rl "package:flutter" lib/domain/rules/` returns no output.
-- [ ] **Standing audit obligation discharged**: the Phase 23 reviewer
+- [x] `grep -rl "package:flutter" lib/domain/rules/` returns no output.
+- [x] **Standing audit obligation discharged**: the Phase 23 reviewer
       sweeps every dollar-denominated figure in the codebase (not only the
       four named ones) for a per-share component combined without its
       contract/share multiplier, and reports the sweep's result in
       `## Feedback` even if it finds nothing (Feature Invariant 25).
-- [ ] `android/` is untouched; no file under `ios/` beyond `flutter
+- [x] `android/` is untouched; no file under `ios/` beyond `flutter
       create`'s own defaults; no `.git` writes.
+
+**Ticked (2026-09-28, Phase 23.4) against observed, reproduced-fresh
+output**: `flutter analyze` → "No issues found!"; whole-repo `flutter
+test` → 463 passed, 0 failed (every S-id above is a green test name in
+that run); `flutter build ios --simulator --no-codesign` → exit 0; banned-
+vocabulary grep and `grep -rl "package:flutter" lib/domain/rules/` both
+return no output. The last bullet's "no `.git` writes" clause is
+**retired per D-14** (`docs/plans/iteration-4-closeout-plan.md`) — git is
+in active use; not evaluated pass/fail. Its `android/`/`ios/` half is
+verified via `git diff --stat` (no file under either directory).
 
 ## Feature Invariants
 
@@ -707,6 +799,13 @@ already states project-wide.
     iteration touches any file under `android/`, adds Android manifest
     entries, or claims Android verification. Matches this project's
     standing iOS-only scope from its very first instruction.
+36. **`stockPnL`'s put-side strike is `shareLot?.assignmentStrike ??
+    assignedPutLeg.strike`**, the same retained-record-preferred,
+    leg-value-legacy-fallback rule the CR-1 remediation established for
+    `peakCapitalCommitted`/`wheelBasis` (`## Feedback`, `### CR-1
+    remediation`); the call-side `contracts` term is unaffected (Feature
+    Invariant 25). Added by `docs/plans/iteration-4-closeout-plan.md`'s
+    D-8/fix (D-11, Phase 23.1 Branch A).
 
 ## Scenarios
 
@@ -1013,9 +1112,18 @@ tailExtrinsicThreshold=$0.05, minIvRank=30, minAnnualisedYield=20`.
   (100 shares) and an open covered-call Leg (`strike=$52, contracts=1`).
 - Trigger: user taps "Mark assigned" on the call leg.
 - Expected outcome: call `Leg.closedAt=now, closeReason=assigned`; the
-  `ShareLot` is consumed/removed (shares sold at `$52`);
+  `ShareLot` **is deactivated — `getShareLotForCycle` returns `null` for
+  this cycle from this point on (asserted below, unchanged) — and retained
+  as the cycle's assignment record, readable via `getAssignmentForCycle`**
+  (shares sold at `$52`); corrected here per CR-1 (`## Feedback`) and the
+  Iteration 4 closeout plan's D-7 — this entry originally read "consumed/
+  removed," written before CR-1's retention fix and no longer accurate about
+  the row, though the "active lot" behavior it was actually pinning was and
+  remains exactly `null`;
   `WheelCycle.status → closed, outcome → calledAway, endedAt=now`. Per
-  Feature Invariant 14. Realized cycle P&L is **not** computed/displayed
+  Feature Invariant 14 (whose own "consumes the `ShareLot`" wording predates
+  CR-1 the same way and is addressed by the same D-7 entry rather than by
+  editing the invariant). Realized cycle P&L is **not** computed/displayed
   this run (Journal is M5) — this scenario only proves the terminal state is
   recorded correctly so M5 can compute it later without a data gap.
 - Edge case of: none.
@@ -3246,19 +3354,32 @@ step 4 return no output.
 
 ### Phase 23: Verification (@code-reviewer)
 
-1. [ ] Re-run `flutter analyze`, full `flutter test`, and `flutter build
+1. [x] Re-run `flutter analyze`, full `flutter test`, and `flutter build
        ios --simulator --no-codesign` fresh; confirm all three are
        clean/green/exit-0 independently of the developer's own report.
-2. [ ] Confirm every scenario S-092–S-180 has a corresponding passing
+       **Verified (2026-09-28, Phase 23.4, post-`flutter pub upgrade`
+       lockfile, D-16):** `flutter analyze` → "No issues found!"; `flutter
+       test` (whole repo) → 463 passed, 0 failed; `flutter build ios
+       --simulator --no-codesign` → exit 0 (`✓ Built
+       build/ios/iphonesimulator/Runner.app`).
+2. [x] Confirm every scenario S-092–S-180 has a corresponding passing
        test (or, for S-180, a build-log artifact) — spot-check the
        mapping. Specifically confirm S-106's test was updated in place
        from S-014's original signature/fixture and its `--plain-name` tag
        changed, per the S-041/S-042 precedent.
-3. [ ] Re-run the banned-vocabulary grep across all of `lib/`, zero file
+       **Verified (2026-09-28):** whole-repo run above is green across
+       every S-id in this range (test names carry their S-id, confirmed by
+       spot-check of the run's own output); `--plain-name "S-106"` is
+       present and passing (`test/domain/rules/basis_test.dart`). S-180 is
+       the build-log artifact itself, produced above.
+3. [x] Re-run the banned-vocabulary grep across all of `lib/`, zero file
        exemptions, including every new file this iteration added
        (`journal_screen.dart`, `notification_scheduler.dart`,
        `help_topics.dart` still, etc.).
-4. [ ] **Manual reviewer checklist item (not a grep)**: confirm Gate 2's
+       **Verified (2026-09-28):** `grep -rniE
+       "recommend|we suggest|our analysis|buy signal|sell
+       signal|opportunity|guaranteed|you should" lib/` → no output.
+4. [x] **Manual reviewer checklist item (not a grep)**: confirm Gate 2's
        `roll` reason string actually shipped as **"...and assignment
        isn't wanted here"** (Feature Invariant 30), not the brief's
        verbatim text — this is the one place this iteration deliberately
@@ -3268,7 +3389,12 @@ step 4 return no output.
        (journal aggregates, notification copy, fee-gap banner, unrealised
        qualifier) for the "action verb + named security/position"
        pattern.
-5. [ ] **Standing audit obligation (Feature Invariant 25), discharged
+       **Verified (2026-09-28):** unchanged since the prior session's
+       review (no diff touches Gate 2, notification copy, or any
+       user-facing string this pass — confirmed via `git diff --stat`);
+       re-confirmed clean by this pass's own tone grep (item 3) covering
+       the same strings.
+5. [x] **Standing audit obligation (Feature Invariant 25), discharged
        independently of Phase 16's own pass**: sweep every
        dollar-denominated figure in `lib/domain/rules/`,
        `lib/domain/models/`, and `lib/state/` for a per-share component
@@ -3277,20 +3403,47 @@ step 4 return no output.
        result is a recorded finding, not silence, per the coordinator's
        own instruction ("there may be a fourth" — there was, and there
        could be a fifth).
-6. [ ] Confirm `DriftWheelRepository`/`InMemoryWheelRepository` parity for
+       **Verified (2026-09-28):** already discharged and recorded at
+       `### Standing audit obligation (Feature Invariant 25) — Phase 23's
+       independent pass` (`## Feedback`, clean, no fifth instance); this
+       pass's own diff (`stockPnL`'s new `shareLot` term) is the same
+       contract-weighted shape and introduces no new unweighted sum —
+       confirmed by direct read of the diff (above) and by S-207/S-208/
+       S-209 passing.
+6. [x] Confirm `DriftWheelRepository`/`InMemoryWheelRepository` parity for
        every new/extended Phase 15/19 method via their contract tests
        actually exercising both.
-7. [ ] Confirm the Phase 17 checkpoint was actually honored — its Done
+       **Verified (2026-09-28):** unchanged this pass (no repository
+       method added or changed by Phase 23.1 — `getAssignmentForCycle`
+       already existed under CR-1 and is only consumed); `test/data/
+       wheel_repository_contract_test.dart` is part of the green
+       whole-repo run above.
+7. [x] Confirm the Phase 17 checkpoint was actually honored — its Done
        Criteria (including the iOS build) were independently green and
        the user's go-ahead was recorded before Phase 18+ work began, per
        the developer's own session notes.
-8. [ ] Diff-review: confirm no file under `ios/` or `android/` was
+       **Verified (2026-09-28):** the go-ahead record is now present
+       (Phase 17 `## Progress` entry, "CR-6 closed... RETROACTIVE
+       RECORD," per D-12); technical Done Criteria were already
+       independently green and reproduced twice, per that same entry.
+8. [x] Diff-review: confirm no file under `ios/` or `android/` was
        modified beyond scaffold generation, and no `git` commits exist.
-9. [ ] Review `## Assumption Log`'s Iteration 4 entries — ratify each
+       **Verified (2026-09-28):** `git diff --stat` shows no file under
+       `ios/` or `android/`. The "no `git` commits exist" half is
+       **retired per D-14** (`docs/plans/iteration-4-closeout-plan.md`) —
+       not evaluated pass/fail, per the user's own instruction that git is
+       now in active use.
+9. [x] Review `## Assumption Log`'s Iteration 4 entries — ratify each
        into a binding Feature Invariant or revert and open a remediation
        item in `## Feedback`. In particular, ratify or revert Phase
        16/17's Decide-and-Log choice for Feature Invariant 29's
        presentation shape (distribution vs. median vs. dropped).
+       **Verified (2026-09-28):** already discharged — the coordinator's
+       ratify-or-revert pass (`docs/plans/iteration-4-closeout-plan.md`
+       D-1–D-7) ratified every open item, including Feature Invariant 29's
+       median shape (D-6). No new Iteration 4 Assumption Log entries were
+       opened by Phase 23.1 (see that plan's own `## Assumption Log`,
+       empty).
 
 **Done Criteria**: all of the above pass; plan's `## Progress` and
 `## Acceptance Criteria` checkboxes reflect verified reality, not
@@ -3892,6 +4045,18 @@ preferences alone.
       gate treated as satisfied by the user's later direction to continue
       Iteration 4's remaining phases, which is the closest available
       evidence).
+      **CR-6 closed (Iteration 4 closeout Phase 23.2, 2026-09-28) — RETROACTIVE
+      RECORD, not a contemporaneous one.** The user confirms, in answering
+      this closeout's Question Round Q2 (verbatim: "yes I approved"), that
+      they gave the go-ahead at this checkpoint before Phase 18 started. This
+      line is written 2026-09-28, well after Phases 18–22 executed, and is
+      explicitly labelled as such — it records the user's present-day
+      confirmation of a past event, not a note made at the time. See
+      `docs/plans/iteration-4-closeout-plan.md`'s D-12 for the full
+      disposition and why it supersedes the recommended default ("log it as
+      a permanent, non-blocking documentation gap") rather than selecting
+      it: the user supplied the missing fact itself instead of picking
+      either offered option.
 - [x] Phase 18: Snapshot staleness + display fixes — **Complete**.
       `lib/domain/rules/snapshot_freshness.dart` (new): `Freshness`
       (`fresh`/`recent`/`old`/`stale`) and pure `freshnessOf({takenAt, now})`
@@ -4082,7 +4247,7 @@ preferences alone.
       `closeDirect` classification-date twin) remain unchanged in their
       Iteration 4 `## Assumption Log` entries for Phase 23 to ratify or
       revert.
-- [ ] Phase 23: Verification — **run, findings open**. All three Done
+- [x] Phase 23: Verification — **Complete (2026-09-28).** All three Done
       Criteria independently reproduced by the reviewer: `flutter analyze`
       0 issues; whole-repo `flutter test` 380 passed, 0 failed;
       `flutter build ios --simulator --no-codesign` exit 0. Every scenario
@@ -4131,8 +4296,22 @@ preferences alone.
       Verified: `flutter analyze` 0 issues; whole-repo `flutter test`
       **390 passed, 0 failed** (388 before this turn; +2 new guards, no
       existing test changed behavior). The two items the developer queued
-      are ruled on in `## Feedback`. Phase 23 stays open pending the
-      coordinator's CR-2/CR-4/CR-5/CR-6 ratification.
+      are ruled on in `## Feedback`.
+      **Closed (2026-09-28), via `docs/plans/iteration-4-closeout-plan.md`
+      Phases 23.0–23.4.1.** The coordinator's ratify-or-revert pass
+      (D-1–D-7) ratified CR-2/CR-4/CR-5/CR-6 and CR-1/CR-3/CR-7; the user's
+      Q1–Q3 answers (D-11–D-13) resolved the `stockPnL` strike-source
+      inconsistency (fix, Feature Invariant 36), the Phase 17 go-ahead
+      record (retroactive, this file's Phase 17 entry), and the
+      notification copy (keep); Phase 23.4's own final-verification pass
+      found two further WARNING findings (2a/2b, optional `shareLot` and
+      `position_detail_controller.dart`'s un-adopted CR-1 pattern), and
+      Phase 23.4.1 fixed both, re-verified clean (`flutter analyze` 0
+      issues, whole-repo `flutter test` 464 passed/0 failed, iOS build
+      exit 0, `S-210` green). Full record: this file's status header and
+      `## Feedback` (`### Phase 23.4 final verification`, `### Phase
+      23.4.1 re-verification`), and `iteration-4-closeout-plan.md` in
+      full. **Iteration 4 is fully closed.**
 
 ## Assumption Log
 
@@ -5749,11 +5928,23 @@ interface gains `getAssignmentForCycle(cycleId)` alongside the unchanged
   question with its own blast radius (it changes a formula), so it is
   flagged here for the reviewer/planner rather than changed inside a data
   fix.
+  **Superseded (2026-09-28, Phase 23.4): fixed.** The user answered Q1 =
+  FIX in `docs/plans/iteration-4-closeout-plan.md` (D-8/D-11); `stockPnL`
+  now sources the put-side strike the same way, per Feature Invariant 36
+  (`## Feature Invariants`, item 36) and S-207–S-209 — see Phase 23.1 in
+  the closeout plan for the full change, not restated here.
 - *Scope.* Data layer only, plus `ledger_csv.dart` (also `lib/data/`).
   `lib/state/journal/journal_controller.dart`'s `_reconstructShareLot`
   consumer was @developer's follow-up; it is closed below.
 
 ### CR-1 remainder, CR-3, CR-7, CR-8 (@developer)
+
+**Forward pointer (2026-09-28, Phase 23.4).** The `stockPnL`/
+`peakCapitalCommitted` strike-source inconsistency this section's sibling
+entry (`### CR-1 remediation`) flagged and left unfixed is now fixed —
+Feature Invariant 36, `docs/plans/iteration-4-closeout-plan.md` D-8/D-11,
+Phase 23.1, S-207–S-209. Land here for the JournalController/CR-3/CR-7/CR-8
+record below; land there for the strike-source fix itself.
 
 - **CR-1's remaining consumer is closed.** `JournalController.load` now
   reads `getAssignmentForCycle(cycle.id)` and falls back to
@@ -5806,4 +5997,191 @@ interface gains `getAssignmentForCycle(cycleId)` alongside the unchanged
   isn't silently dropped: if the coordinator wants strictly descriptive
   copy, "At N DTE." alone would pass every existing rule — a one-line
   change plus the register and two assertions, planner-owned.
+
+### Phase 23.4 final verification (@code-reviewer) — 2026-09-28
+
+**Scope.** `docs/plans/iteration-4-closeout-plan.md`'s Phase 23.4. Layers in
+scope: `lib/domain/rules/` (`cycle_pnl.dart`), `lib/data/export/`
+(`ledger_csv.dart`), their tests, this plan's own checkboxes/doc text, plus
+two specific rulings requested outside Phase 23.1's own diff
+(`stockPnL`/`netResult`'s parameter shape; `position_detail_controller.dart`'s
+`shareLot` source). Skipped: no other layer changed this session besides the
+separately-reviewed roll-planner screen (see that plan's own `## Feedback`).
+
+**Fresh run (post-`flutter pub upgrade` lockfile, D-16):** `flutter analyze`
+→ No issues found. Whole-repo `flutter test` → **463 passed, 0 failed**
+(matches Phase 23.1's own claimed count exactly). `flutter build ios
+--simulator --no-codesign` → exit 0. Tone grep and
+`grep -rl "package:flutter" lib/domain/rules/` both empty. `git diff --stat`
+confirms no file under `ios/`/`android/`. `flutter test --plain-name
+"S-207"`/`"S-208"`/`"S-209"` all pass as Phase 23.1 recorded.
+
+**Diff vs Predicted Files (Phase 23.1):** conforms. Actual touched-file set
+adds only `CLAUDE.md` (user's own edit, D-14/D-15, outside this plan's
+writable scope) and `pubspec.lock` (D-16, user-authorised) beyond Phase
+23.1's own Predicted Files — both already accounted for in the Ledger, not
+new findings.
+
+**Ruling 2a — `ShareLot? shareLot` optional, not `required`, on
+`stockPnL`/`netResult` (`lib/domain/rules/cycle_pnl.dart:71,82-90`) and
+`_stockPnL` (`lib/data/export/ledger_csv.dart:105`).**
+🟡 **WARNING** — `computeCyclePnl` (the only production entry point per its
+own doc comment, `cycle_pnl.dart:174-177`) already declares `shareLot` as
+`required`, so no current caller is at risk — confirmed by
+`grep -rn "stockPnL(\|netResult(" lib/`: every `lib/` call site is inside
+`cycle_pnl.dart`/`ledger_csv.dart` itself. The risk is forward-looking: these
+three functions are public, and omitting the param is indistinguishable at
+the call site from deliberately passing `null` (Dart has no way to tell
+"forgot to thread it" from "legitimately absent"), silently landing on the
+legacy-fallback strike for a cycle that actually has a retained record —
+exactly the defect class D-8 closed, relocated to a future call site instead
+of today's. The only guard today is Phase 23.1's own residue grep (step 7),
+which is procedural, not structural, and runs only when someone remembers to
+run it. **Remediation** (→ `@developer`): change all three signatures to
+`required ShareLot? shareLot`, forcing every caller — including any future
+one — to pass the value or an explicit `null`. **Guard**: the change is
+self-guarding (a compile error on any omitted call site); no test needed
+beyond `flutter analyze` passing after the edit.
+
+**Ruling 2b — `position_detail_controller.dart:273` sources `shareLot` from
+`getShareLotForCycle` only; `JournalController`/`ledger_csv.dart` prefer
+`getAssignmentForCycle`.** Traced the live navigation graph rather than
+trusting the conductor's "out of scope" judgment: `positions_list_screen.dart:89`
+loads only `getOpenLegs()`, and `context.push('/positions/${leg.id}')` is the
+sole route into `PositionDetailController` (`positions_list_screen.dart:180`).
+Per Feature Invariant 14, only marking a **call** leg assigned closes a
+cycle, and that flow's completion screen navigates via
+`context.go('/positions')` (`assignment_flow_screen.dart:78`), which replaces
+the whole route stack — it never returns to `position_detail_sheet.dart` with
+the now-closed cycle. The one path that **does** leave the sheet open on a
+closed cycle is `closeDirect` on a **put** leg (Feature Invariant 16 ends the
+cycle; `closeDirect` calls bare `load()` in place, not a navigation), but that
+cycle was never assigned, so `getShareLotForCycle` and `getAssignmentForCycle`
+both return `null` — no figure disagreement is possible for that specific
+reachable case. **Confirmed, not overturned: no live, user-reachable wrong
+figure exists today.** 🟡 **WARNING**, not CRITICAL — because the
+`CycleSummaryCard`'s `isClosed: state.cycle?.status == WheelCycleStatus.closed`
+prop (`position_detail_sheet.dart`) already anticipates rendering a closed
+cycle's `cyclePnl`, and `position_detail_controller.dart` is the one of the
+three `computeCyclePnl` callers that never adopted CR-1's
+retained-record-preferred pattern — the same "relies on no caller doing X
+today" reasoning D-3/CR-3 already named as the reasoning class that produced
+the original defect. **Remediation** (→ `@developer`): source
+`position_detail_controller.dart`'s `shareLot` the same way
+`journal_controller.dart:113-116` does (`getAssignmentForCycle(cycle.id) ??`
+reconstruction/`getShareLotForCycle`), for consistency across all three
+`computeCyclePnl` callers. **Guard**: a `PositionDetailController` test that
+loads a **closed** cycle directly (bypassing navigation, as
+`position_detail_controller_test.dart` already does at line ~304) with a
+retained assignment record whose strike differs from the put leg's own, and
+asserts `cyclePnl!.stockPnL`/`peakCapitalCommitted` match the equivalent
+Journal figure for the same fixture — red before the fix (today's
+`getShareLotForCycle`-only code returns the pre-CR-1 figure), green after.
+
+**Roll-planner hotfix**: reviewed separately; verdict (RATIFY) recorded in
+`docs/plans/roll-planner-add-candidate-bug-plan.md`'s own `## Feedback`, not
+here, per that plan's out-of-Iteration-4-scope framing.
+
+**Disposition (superseded below, 2026-09-28): Phase 23 stays open** at the
+time of this entry. Every technical Done Criterion for Phase 23.4 passes
+(see the status header update above), but these two new WARNING findings
+are unresolved — per this reviewer's own standing rule, warnings block
+automatic closure and route to the user for a decision (approve as-is, or
+send back to `@developer`). Phase 23's nine-item checklist and the
+Iteration 4 Acceptance Criteria are ticked above against verified reality
+(true regardless of 2a/2b, since neither is a new defect in already-shipped
+Iteration 1-4 functionality); only the plan's own "Phase 23 Complete"
+designation is withheld pending that decision. **The user routed both to
+`@developer` — see `### Phase 23.4.1 re-verification` below for the
+closing disposition.**
+
+### Phase 23.4.1 re-verification (@code-reviewer) — 2026-09-28
+
+**Scope.** Re-verification of `docs/plans/iteration-4-closeout-plan.md`'s
+`### Phase 23.4.1` (@developer's fix for both WARNING findings above).
+Layers in scope: `lib/domain/rules/cycle_pnl.dart`,
+`lib/data/export/ledger_csv.dart`, `lib/state/positions/
+position_detail_controller.dart`, and their tests. No other layer changed
+in this turn.
+
+**Fresh run, independent of the developer's own report:** `flutter analyze`
+→ No issues found. Whole-repo `flutter test` → **464 passed, 0 failed**
+(matches the developer's claimed count exactly — 463 baseline + S-210).
+`flutter test --plain-name "S-210"` → 1 passed, 0 failed, standalone.
+`flutter build ios --simulator --no-codesign` → exit 0. Tone grep and
+`grep -rl "package:flutter" lib/domain/rules/` both empty.
+`grep -rn "stockPnL(\|netResult(" lib/ test/` → 13 hits, independently
+recounted, all inside `cycle_pnl.dart`/`ledger_csv.dart`/`cycle_pnl_test.dart`
+— zero call sites on the old optional shape.
+
+**Diff vs Phase 23.4.1's own Predicted Files:** conforms exactly —
+`cycle_pnl.dart`, `ledger_csv.dart`, `position_detail_controller.dart`,
+`position_detail_controller_test.dart`, plus this plan's own docs. No new
+Feature Invariant added (37 does not exist), matching the "not expected"
+prediction.
+
+**2a re-verified by direct diff read**, not by re-trusting the claim: both
+`stockPnL`'s and `netResult`'s `ShareLot? shareLot` parameter
+(`cycle_pnl.dart:74,89`) and `_stockPnL`'s (`ledger_csv.dart:106`) now read
+`required ShareLot? shareLot`. This closes the finding as specified — a
+future omitted argument is now a compile error, not a silent fallback.
+
+**2b re-verified by direct diff read.** `position_detail_controller.dart`'s
+existing `shareLot` local and `PositionDetailState.shareLot` field are
+byte-for-byte unchanged (confirmed — the diff touches only the
+`computeCyclePnl` call site's argument). The new `pnlShareLot` local reads
+`(await _repo.getAssignmentForCycle(cycle.id)) ??
+_reconstructShareLot(cycleLegs)`, and feeds `computeCyclePnl` instead. The
+guard test (**S-210**,
+`docs/plans/iteration-4-closeout-plan.md` `## Scenarios`) loads a closed
+cycle with a mismatched retained assignment strike directly (bypassing
+navigation) and asserts `stockPnL`/`netResult`/`peakCapitalCommitted`
+parity with the Journal's own S-207 figures — passes.
+The claimed red-first figure (`Actual: Decimal:<200>`) is corroborated by
+independent arithmetic rather than re-trusted outright: pre-fix, a closed
+cycle's `getShareLotForCycle` is `null` (Feature Invariant 14), so
+`stockPnL` falls back to the put leg's own strike `$50.00`, giving
+`(52.00-50.00) x 100 x 1 = $200.00` — exactly the claimed figure. Reverting
+the source to literally re-run red was not done, since that would require a
+source edit outside this review's writable scope; the arithmetic match plus
+the passing post-fix `S-210` is sufficient corroboration.
+
+**`_reconstructShareLot` duplication: RATIFIED, no remediation.** Same
+shape and reasoning as two already-accepted duplications in this codebase:
+the `_dateText` y-m-d formatter duplicated across five feature files (this
+file's own `## Feedback`, "not consolidated... noted here as a candidate
+for a future cleanup pass") and `ledger_csv.dart`'s Feature-Invariant-11-
+forced duplication of the rules-engine money formulas (`## Feedback`,
+"`ledger_csv.dart`'s duplicated money formulas... RATIFIED as-is; do NOT
+narrow the invariant"). Four lines, private, doc-commented, and
+cross-checked by S-210 against the Journal's own figure for the identical
+fixture. DRY violations are "rarely blocking" per this reviewer's own
+standing rule; the Assumption Log's own flag (promote to a shared location
+if a third `computeCyclePnl` caller ever needs the same fallback) is the
+correct disposition, not acted on now.
+
+**Open-cycle / put-only accessor parity — confirmed by existing tests, not
+assumed.** While a cycle is `holdingShares`,
+`test/data/wheel_repository_contract_test.dart:885-886` proves
+`getShareLotForCycle` returns the *exact* `ShareLot` object
+`recordAssignment` just created (object equality); `:980-988` (inside the
+`getAssignmentForCycle` group) exercises both accessors on the same
+still-open cycle and gets the same recorded values from each. For a
+put-only cycle that never reached an assignment, `:1012-1034` asserts both
+`getAssignmentForCycle` and `getShareLotForCycle` return `null` — and
+`_reconstructShareLot` independently also returns `null` for such a cycle
+by construction (`assignedPutLeg(legs) == null`). No
+`PositionDetailController`-level test asserts a specific open-cycle
+`cyclePnl` dollar figure before/after this change (the pre-existing
+open-cycle assertions at lines 299/517/527 check only `hasFeeGap`) — noted
+as a 💡 SUGGEST, not blocking: the repository-level object-identity proof
+plus the unchanged 464-test whole-suite pass (no open-cycle test
+regressed) is sufficient evidence of no behavior change, and
+`journal_controller.dart` has carried the identical gap since Phase 23.1
+without it being treated as blocking there either.
+
+**Disposition: zero new findings. Phase 23 is CLOSED, Iteration 4 is fully
+closed.** Both WARNING findings from the prior pass are fixed and verified
+independently, not merely re-trusted. See the status header above for the
+closing declaration.
 

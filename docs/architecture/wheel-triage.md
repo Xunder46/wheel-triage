@@ -167,7 +167,10 @@ a documented legacy fallback: `ledger_csv.dart`'s `_peakCapitalCommitted`
 and `journal_controller.dart`'s `_reconstructShareLot` (for a cycle closed
 before the record was retained, or a hand-built import — an approximation,
 never a preferred path). No schema change was needed: the row was already
-being written, only deleted.
+being written, only deleted. `stockPnL` (`cycle_pnl.dart`) and its
+`ledger_csv.dart` mirror `_stockPnL` follow the same rule for the put-side
+strike — `shareLot?.assignmentStrike ?? assignedPutLeg.strike` (Feature
+Invariant 36).
 
 Iteration 4 adds the export surface to the same interface:
 `exportToJson()`, `countCyclesForReplace()`, and `restoreFromJson(json)` —

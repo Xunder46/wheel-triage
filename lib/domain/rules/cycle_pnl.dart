@@ -57,14 +57,28 @@ Leg? calledAwayCallLeg(List<Leg> legs) {
 }
 
 /// Realised stock P&L: the called-away leg's own strike minus the
-/// put-assignment leg's own strike, times 100, times the CALLED-AWAY leg's
-/// own `contracts` (Feature Invariant 25 -- deliberately never
+/// put-side assignment strike, times 100, times the CALLED-AWAY leg's own
+/// `contracts` (Feature Invariant 25 -- deliberately never
 /// `ShareLot.contracts`, since Feature Invariant 26 allows a covered call's
 /// contract count to differ from the shares actually held). Zero when the
 /// cycle never reached a call-away (no shares ever sold back yet).
-Decimal stockPnL({required Leg? assignedPutLeg, required Leg? calledAwayCallLeg}) {
+///
+/// The put-side strike is `shareLot?.assignmentStrike ?? assignedPutLeg.strike`
+/// (Feature Invariant 36) -- the retained assignment record is preferred,
+/// the assigned leg's own strike is only a legacy fallback for a cycle with
+/// no retained record, the same rule CR-1 already established for
+/// `peakCapitalCommitted`/`wheelBasis`. [shareLot] is `required` (Phase
+/// 23.4 ruling 2a) precisely so a caller cannot omit it by accident --
+/// every caller must pass either the retained record or an explicit `null`,
+/// never silently land on the legacy fallback.
+Decimal stockPnL({
+  required Leg? assignedPutLeg,
+  required Leg? calledAwayCallLeg,
+  required ShareLot? shareLot,
+}) {
   if (assignedPutLeg == null || calledAwayCallLeg == null) return Decimal.zero;
-  return (calledAwayCallLeg.strike - assignedPutLeg.strike) *
+  final putStrike = shareLot?.assignmentStrike ?? assignedPutLeg.strike;
+  return (calledAwayCallLeg.strike - putStrike) *
       Decimal.fromInt(100) *
       Decimal.fromInt(calledAwayCallLeg.contracts);
 }
@@ -76,10 +90,11 @@ Decimal netResult({
   required List<Leg> legs,
   required Leg? assignedPutLeg,
   required Leg? calledAwayCallLeg,
+  required ShareLot? shareLot,
 }) =>
     cycleTotalPremium(legs) -
     totalFees(legs) +
-    stockPnL(assignedPutLeg: assignedPutLeg, calledAwayCallLeg: calledAwayCallLeg);
+    stockPnL(assignedPutLeg: assignedPutLeg, calledAwayCallLeg: calledAwayCallLeg, shareLot: shareLot);
 
 /// Number of rolls in the chain -- one per leg that was itself created by a
 /// roll (`rolledFromLegId != null`), never counting the first leg.
@@ -212,7 +227,12 @@ CyclePnl computeCyclePnl({
   final putLegs = legs.where((leg) => leg.optionType == OptionType.put).toList();
   final assignedPut = assignedPutLeg(legs);
   final calledAwayCall = calledAwayCallLeg(legs);
-  final net = netResult(legs: legs, assignedPutLeg: assignedPut, calledAwayCallLeg: calledAwayCall);
+  final net = netResult(
+    legs: legs,
+    assignedPutLeg: assignedPut,
+    calledAwayCallLeg: calledAwayCall,
+    shareLot: shareLot,
+  );
   final days = daysBetween(startedAt, endedAt ?? now);
   final peak = peakCapitalCommitted(putLegs: putLegs, shareLot: shareLot);
   final annualised = journalAnnualisedReturn(netResult: net, peakCapitalCommitted: peak, daysHeld: days);
@@ -220,7 +240,7 @@ CyclePnl computeCyclePnl({
   return CyclePnl(
     totalPremium: cycleTotalPremium(legs),
     totalFees: totalFees(legs),
-    stockPnL: stockPnL(assignedPutLeg: assignedPut, calledAwayCallLeg: calledAwayCall),
+    stockPnL: stockPnL(assignedPutLeg: assignedPut, calledAwayCallLeg: calledAwayCall, shareLot: shareLot),
     netResult: net,
     daysHeld: days,
     rollCount: rollCount(legs),

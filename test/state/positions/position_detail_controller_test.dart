@@ -336,6 +336,71 @@ void main() {
   });
 
   test(
+    'S-210: closed cycle sources cyclePnl\'s shareLot from the retained assignment '
+    'record (getAssignmentForCycle), not the active-lot getShareLotForCycle -- parity '
+    'with the Journal\'s own figure for a mismatched assignment strike (CR-1/S-207 '
+    'fixture, Phase 23.4 ruling 2b)',
+    () async {
+      final repo = InMemoryWheelRepository();
+      final underlying = await repo.getOrCreateUnderlying('CR1PD');
+      final putResult = await repo.createCycle(
+        underlyingId: underlying.id,
+        firstLeg: NewLegInput(
+          optionType: OptionType.put,
+          strike: Decimal.parse('50.00'),
+          expiration: DateTime.utc(2026, 3, 20),
+          contracts: 1,
+          openedAt: DateTime.utc(2026, 2, 1),
+          openCreditPerShare: Decimal.parse('1.20'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+      // Deliberately recorded at values the assigned leg does not hold --
+      // the same CR-1/S-207 fixture: strike 49.50 (the leg is 50.00), 2
+      // contracts (the leg has 1).
+      final assignment = await repo.recordAssignment(
+        legId: putResult.leg.id,
+        shareLot: NewShareLotInput(
+          assignedAt: DateTime.utc(2026, 3, 20),
+          assignmentStrike: Decimal.parse('49.50'),
+          contracts: 2,
+        ),
+      );
+      final callLeg = await repo.openNextLeg(
+        cycleId: assignment.cycle.id,
+        leg: NewLegInput(
+          optionType: OptionType.call,
+          strike: Decimal.parse('52.00'),
+          expiration: DateTime.utc(2026, 4, 17),
+          contracts: 1,
+          openedAt: DateTime.utc(2026, 3, 21),
+          openCreditPerShare: Decimal.parse('0.55'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+      await repo.recordCallAway(legId: callLeg.id, closedAt: DateTime.utc(2026, 4, 17));
+
+      // Load the closed cycle directly by the call leg's id, bypassing
+      // navigation (the same direct-load pattern S-120 above uses).
+      final container = ProviderContainer(overrides: [wheelRepositoryProvider.overrideWithValue(repo)]);
+      addTearDown(container.dispose);
+      container.listen(positionDetailControllerProvider(callLeg.id), (previous, next) {});
+      await container
+          .read(positionDetailControllerProvider(callLeg.id).notifier)
+          .load(now: DateTime.utc(2026, 4, 17));
+
+      final state = container.read(positionDetailControllerProvider(callLeg.id));
+      expect(state.cyclePnl, isNotNull);
+      // Same figures the Journal computes for this exact fixture (S-207) --
+      // stockPnL sourced from the retained assignment record (49.50), not
+      // the put leg's own strike (50.00).
+      expect(state.cyclePnl!.stockPnL, Decimal.parse('250.00'));
+      expect(state.cyclePnl!.netResult, Decimal.parse('425.00'));
+      expect(state.cyclePnl!.peakCapitalCommitted, Decimal.parse('9780.00'));
+    },
+  );
+
+  test(
     'S-124: acceptsAssignment editable from the position detail sheet, re-triages '
     'without a new snapshot',
     () async {

@@ -129,19 +129,37 @@ void main() {
         expect(totalFees(legs), Decimal.parse('5.20'));
       });
 
-      test('stockPnL: (callStrike - assignmentStrike) x 100 x the called-away leg\'s own contracts', () {
-        expect(
-          stockPnL(assignedPutLeg: assignedPutLeg(legs), calledAwayCallLeg: calledAwayCallLeg(legs)),
-          Decimal.parse('400.00'), // (52-50) x 100 x 2
-        );
-      });
+      test(
+        'S-209: stockPnL: (callStrike - assignmentStrike) x 100 x the called-away leg\'s '
+        'own contracts, shareLot explicitly supplied -- no-op since assignmentStrike == '
+        'putLeg.strike (\$50 both)',
+        () {
+          expect(
+            stockPnL(
+              assignedPutLeg: assignedPutLeg(legs),
+              calledAwayCallLeg: calledAwayCallLeg(legs),
+              shareLot: shareLot,
+            ),
+            Decimal.parse('400.00'), // (52-50) x 100 x 2
+          );
+        },
+      );
 
-      test('netResult = totalPremium - totalFees + stockPnL = 280.00 - 5.20 + 400.00 = 674.80', () {
-        expect(
-          netResult(legs: legs, assignedPutLeg: assignedPutLeg(legs), calledAwayCallLeg: calledAwayCallLeg(legs)),
-          Decimal.parse('674.80'),
-        );
-      });
+      test(
+        'S-209: netResult = totalPremium - totalFees + stockPnL = 280.00 - 5.20 + 400.00 = '
+        '674.80, shareLot explicitly supplied -- bit-for-bit unchanged from the pre-fix figure',
+        () {
+          expect(
+            netResult(
+              legs: legs,
+              assignedPutLeg: assignedPutLeg(legs),
+              calledAwayCallLeg: calledAwayCallLeg(legs),
+              shareLot: shareLot,
+            ),
+            Decimal.parse('674.80'),
+          );
+        },
+      );
 
       test('daysHeld and rollCount', () {
         final pnl = computeCyclePnl(
@@ -388,6 +406,154 @@ void main() {
       // max($50x100x2, $45x100x2, $48x100x2, $46.50x100x2)
       // = max($10000, $9000, $9600, $9300) = $10000.
       expect(peak, Decimal.parse('10000'));
+    },
+  );
+
+  group(
+    'S-207: mismatched assignment strike -- stockPnL/peakCapitalCommitted parity '
+    '(Feature Invariant 36, the exact CR-1 fixture)',
+    () {
+      final openedAt = DateTime.utc(2026, 2, 1);
+      final assignedAt = DateTime.utc(2026, 3, 20);
+      final endedAt = DateTime.utc(2026, 4, 17);
+
+      final putLeg = _leg(
+        id: 'put-0',
+        sequence: 0,
+        optionType: OptionType.put,
+        strike: Decimal.parse('50.00'),
+        contracts: 1,
+        openedAt: openedAt,
+        openCreditPerShare: Decimal.parse('1.20'),
+        closedAt: assignedAt,
+        closeReason: CloseReason.assigned,
+      );
+      // User-edited at assignment time: strike $49.50 (the put leg's own is
+      // $50.00), 2 contracts (the put leg's own is 1) -- values a
+      // reconstruction from the leg could not recover.
+      final shareLot = ShareLot(
+        id: 'lot-1',
+        cycleId: 'cycle-1',
+        assignedAt: assignedAt,
+        assignmentStrike: Decimal.parse('49.50'),
+        contracts: 2,
+      );
+      final callLeg = _leg(
+        id: 'call-0',
+        sequence: 1,
+        optionType: OptionType.call,
+        strike: Decimal.parse('52.00'),
+        contracts: 1,
+        openedAt: assignedAt,
+        openCreditPerShare: Decimal.parse('0.55'),
+        closedAt: endedAt,
+        closeReason: CloseReason.assigned,
+      );
+      final legs = [putLeg, callLeg];
+
+      test(
+        'stockPnL sources the put-side strike from the retained assignment record '
+        '(49.50), not the put leg\'s own strike (50.00): (52.00-49.50) x 100 x 1 = 250.00',
+        () {
+          expect(
+            stockPnL(
+              assignedPutLeg: assignedPutLeg(legs),
+              calledAwayCallLeg: calledAwayCallLeg(legs),
+              shareLot: shareLot,
+            ),
+            Decimal.parse('250.00'),
+          );
+        },
+      );
+
+      test('netResult = 175.00 - 0 + 250.00 = 425.00', () {
+        expect(
+          netResult(
+            legs: legs,
+            assignedPutLeg: assignedPutLeg(legs),
+            calledAwayCallLeg: calledAwayCallLeg(legs),
+            shareLot: shareLot,
+          ),
+          Decimal.parse('425.00'),
+        );
+      });
+
+      test(
+        'peakCapitalCommitted stays \$9,780.00 -- untouched by this fix, unaffected by '
+        'the put-side strike change to stockPnL',
+        () {
+          final peak = peakCapitalCommitted(putLegs: [putLeg], shareLot: shareLot);
+          expect(peak, Decimal.parse('9780.00'));
+        },
+      );
+
+      test(
+        'raw returnOnCapitalPct = 425.00 / 9780.00 x 100 = 4.345603...% -- '
+        'cycle_pnl.dart and ledger_csv.dart agree on every underlying dollar figure '
+        'bit-for-bit, but each file rounds this percentage separately (see '
+        'ledger_csv_test.dart\'s own CR-1 case for the CSV\'s one-decimal "4.3")',
+        () {
+          final net = netResult(
+            legs: legs,
+            assignedPutLeg: assignedPutLeg(legs),
+            calledAwayCallLeg: calledAwayCallLeg(legs),
+            shareLot: shareLot,
+          );
+          final peak = peakCapitalCommitted(putLegs: [putLeg], shareLot: shareLot);
+          final ror = returnOnCapital(netResult: net, peakCapitalCommitted: peak);
+          expect(ror, closeTo(4.3456, 0.0001));
+        },
+      );
+    },
+  );
+
+  group(
+    'S-208: legacy closed cycle, no retained assignment record -- leg-strike fallback '
+    '(edge case of S-207)',
+    () {
+      final openedAt = DateTime.utc(2026, 1, 1);
+      final assignedAt = DateTime.utc(2026, 1, 31);
+      final endedAt = DateTime.utc(2026, 3, 2);
+
+      final putLeg = _leg(
+        id: 'put-0',
+        sequence: 0,
+        optionType: OptionType.put,
+        strike: Decimal.parse('50.00'),
+        contracts: 1,
+        openedAt: openedAt,
+        openCreditPerShare: Decimal.parse('1.00'),
+        closedAt: assignedAt,
+        closeReason: CloseReason.assigned,
+      );
+      final callLeg = _leg(
+        id: 'call-0',
+        sequence: 1,
+        optionType: OptionType.call,
+        strike: Decimal.parse('52.00'),
+        contracts: 1,
+        openedAt: assignedAt,
+        openCreditPerShare: Decimal.parse('0.50'),
+        closedAt: endedAt,
+        closeReason: CloseReason.assigned,
+      );
+      final legs = [putLeg, callLeg];
+
+      test(
+        'stockPnL falls back to assignedPutLeg.strike when shareLot is null: '
+        '(52.00-50.00) x 100 x 1 = 200.00, bit-for-bit identical to the pre-fix formula\'s '
+        'output for this fixture -- proves no silent regression for legacy data',
+        () {
+          expect(
+            stockPnL(
+              assignedPutLeg: assignedPutLeg(legs),
+              calledAwayCallLeg: calledAwayCallLeg(legs),
+              shareLot: null,
+            ),
+            Decimal.parse('200.00'),
+          );
+        },
+      );
     },
   );
 }

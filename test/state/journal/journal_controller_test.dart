@@ -207,10 +207,13 @@ void main() {
       // `netResult` (and therefore return on capital) is NOT invariant, and
       // must not be asserted equal: a still-open cycle has no realized stock
       // P&L yet, since `stockPnL` only exists once the call is assigned
-      // (`netResult` 175 while open, 375 after call-away). Only the
-      // assignment-derived denominator is shared between the two states.
-      expect(closedPnl.netResult, Decimal.parse('375.00'));
-      expect(closedPnl.returnOnCapitalPct, closeTo(3.83, 0.01));
+      // (`netResult` 175 while open, 425 after call-away -- stockPnL =
+      // (52 - 49.50) x 100 x 1 = 250.00, the put-side strike sourced from
+      // the retained assignment record, not the put leg's own 50.00
+      // (Feature Invariant 36 / S-207)). Only the assignment-derived
+      // denominator is shared between the two states.
+      expect(closedPnl.netResult, Decimal.parse('425.00'));
+      expect(closedPnl.returnOnCapitalPct, closeTo(4.35, 0.01));
     },
   );
 }

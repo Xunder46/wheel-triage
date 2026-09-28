@@ -41,10 +41,14 @@ Future<String> buildClosedCyclesCsv(WheelRepository repository) async {
     final calledAwayCall = _calledAwayCallLeg(legs);
     final totalPremium = _cycleTotalPremium(legs);
     final fees = _totalFees(legs);
-    final stockPnL = _stockPnL(assignedPutLeg: assignedPut, calledAwayCallLeg: calledAwayCall);
+    final assignment = await repository.getAssignmentForCycle(cycle.id);
+    final stockPnL = _stockPnL(
+      assignedPutLeg: assignedPut,
+      calledAwayCallLeg: calledAwayCall,
+      shareLot: assignment,
+    );
     final netResult = totalPremium - fees + stockPnL;
     final days = _daysBetween(cycle.startedAt, cycle.endedAt ?? cycle.startedAt);
-    final assignment = await repository.getAssignmentForCycle(cycle.id);
     final peak = _peakCapitalCommitted(legs, assignment);
     final returnOnCapitalPct = peak <= Decimal.zero
         ? 0.0
@@ -94,9 +98,19 @@ Leg? _calledAwayCallLeg(List<Leg> legs) {
   return null;
 }
 
-Decimal _stockPnL({required Leg? assignedPutLeg, required Leg? calledAwayCallLeg}) {
+/// Mirrors `cycle_pnl.dart#stockPnL` (Feature Invariant 36): the put-side
+/// strike is [shareLot]'s retained `assignmentStrike` when present, else
+/// [assignedPutLeg]'s own strike (the legacy fallback for a cycle closed
+/// before that record was retained). `required` (Phase 23.4 ruling 2a) so
+/// no caller can omit it by accident.
+Decimal _stockPnL({
+  required Leg? assignedPutLeg,
+  required Leg? calledAwayCallLeg,
+  required ShareLot? shareLot,
+}) {
   if (assignedPutLeg == null || calledAwayCallLeg == null) return Decimal.zero;
-  return (calledAwayCallLeg.strike - assignedPutLeg.strike) *
+  final putStrike = shareLot?.assignmentStrike ?? assignedPutLeg.strike;
+  return (calledAwayCallLeg.strike - putStrike) *
       Decimal.fromInt(100) *
       Decimal.fromInt(calledAwayCallLeg.contracts);
 }

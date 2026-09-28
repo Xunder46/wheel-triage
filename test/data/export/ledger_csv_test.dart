@@ -167,14 +167,16 @@ void _runTests(WheelRepository Function() createRepository) {
     final lines = csv.trim().split('\n');
 
     // totalPremium = (1.20 x 100 x 1) + (0.55 x 100 x 1) = 175.00
-    // stockPnL     = (52 - 50) x 100 x 1 = 200.00
-    // netResult    = 175.00 + 200.00 = 375.00
+    // stockPnL     = (52 - 49.50) x 100 x 1 = 250.00 -- put-side strike
+    //   sourced from the RECORDED assignment (49.50), not the put leg's own
+    //   50.00 (Feature Invariant 36 / S-207).
+    // netResult    = 175.00 + 250.00 = 425.00
     // peak, from the RECORDED assignment (49.50, 2 contracts):
     //   perShareCredit = 120 / 200 = 0.60 -> basis 48.90 -> 48.90 x 100 x 2 = 9780
     //   (the put leg's own 50.00 x 100 x 1 = 5000 is lower, so 9780 wins)
-    //   returnOnCapital = 375 / 9780 = 3.8%
+    //   returnOnCapital = 425 / 9780 = 4.3456...% -> "4.3" (one decimal)
     // Reconstructing from the leg instead (50.00, 1 contract) gives
-    //   48.80 x 100 x 1 = 4880 -> peak 5000 -> 7.5% -- the CR-1 defect.
-    expect(lines[1], 'CR1,75,2,175.00,Called away,375.00,3.8');
+    //   48.80 x 100 x 1 = 4880 -> peak 5000 -- the CR-1 defect.
+    expect(lines[1], 'CR1,75,2,175.00,Called away,425.00,4.3');
   });
 }

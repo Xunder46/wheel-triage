@@ -270,12 +270,25 @@ class PositionDetailController extends StateNotifier<PositionDetailState> {
       // §4.1/§4.2 cycle P&L, contract-weighted throughout (Feature
       // Invariant 25) -- shown "Unrealised, excludes closing costs" while
       // `cycle.status != closed` (Feature Invariant 28, S-126).
+      //
+      // `shareLot` (state field) stays the ACTIVE lot only
+      // (`getShareLotForCycle`, non-null only while `holdingShares`) -- its
+      // documented meaning is unchanged, never repurposed. `computeCyclePnl`
+      // needs a different question answered: which strike to use for
+      // `stockPnL`/`peakCapitalCommitted`, for which the retained assignment
+      // record is preferred, matching `journal_controller.dart:113-116`
+      // (Feature Invariant 36, Phase 23.4 ruling 2b) -- the assigned put
+      // leg's own strike is only a legacy fallback for a cycle closed before
+      // that record was retained.
       final shareLot = cycle == null ? null : await _repo.getShareLotForCycle(cycle.id);
+      final pnlShareLot = cycle == null
+          ? null
+          : (await _repo.getAssignmentForCycle(cycle.id)) ?? _reconstructShareLot(cycleLegs);
       final cyclePnl = cycle == null
           ? null
           : computeCyclePnl(
               legs: cycleLegs,
-              shareLot: shareLot,
+              shareLot: pnlShareLot,
               startedAt: cycle.startedAt,
               endedAt: cycle.endedAt,
               now: effectiveNow,
@@ -508,3 +521,29 @@ String? _validateTakenAtRange({required DateTime takenAt, required Leg leg}) {
 
 String _dateOnly(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+/// Legacy fallback for [PositionDetailController.load]'s `pnlShareLot` --
+/// see that call site. Deliberately duplicated from
+/// `journal_controller.dart`'s own private `_reconstructShareLot` (same
+/// shape, same reasoning) rather than exported and shared across the two
+/// state files, to keep this Phase 23.4.1 remediation's diff bounded to
+/// this one file (see `docs/plans/iteration-4-closeout-plan.md`'s
+/// `## Assumption Log`). Only reached when the cycle has no retained
+/// assignment record (CR-1: a cycle closed before the row was retained, or
+/// a hand-built import), where the assigned put leg's own
+/// `strike`/`contracts` are the only stand-in available. They are *not*
+/// necessarily the assignment's, so this is an approximation, not an
+/// equivalent -- do not prefer it over the record. `null` when the cycle
+/// never reached a put-side assignment (it closed entirely on the put
+/// side).
+ShareLot? _reconstructShareLot(List<Leg> legs) {
+  final assigned = assignedPutLeg(legs);
+  if (assigned == null || assigned.closedAt == null) return null;
+  return ShareLot(
+    id: 'reconstructed-${assigned.id}',
+    cycleId: assigned.cycleId,
+    assignedAt: assigned.closedAt!,
+    assignmentStrike: assigned.strike,
+    contracts: assigned.contracts,
+  );
+}
