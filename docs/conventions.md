@@ -150,9 +150,11 @@ guard live everywhere, including there.
   visually largest element on the screener screen. A one-line note stating the
   thresholds are user-owned and editable accompanies it.
 - Tax basis note: wherever `taxBasis` appears in the UI, show the exact
-  disclaimer text from `docs/brief.md` §3.6 verbatim (or the App-Store
-  disclaimer from §10 wherever that specific one is called for) — do not
-  paraphrase either.
+  disclaimer text from `docs/brief.md` §3.6 verbatim — do not paraphrase it.
+- The app disclaimer (Settings and the first-run explainer) is the exact text
+  of `docs/brief-pro.md` D-P15, which replaces `brief.md` §10's suggested
+  wording — do not paraphrase it either. The app presents itself as a
+  journal and calculator for the user's own trades, never as anything more.
 
 ## 5. No data feed, and no network except the purchase SDK
 

@@ -596,7 +596,7 @@ h3 { margin: 0; font-family: var(--f-display); font-stretch: 108%; font-weight: 
             <span class="btn filled small" style="justify-self:start">Mark all expired (1)</span>
             <p class="def">Records WBD as expired worthless on Sep 25, no close debit. The close fee stays blank.</p>
             <div class="divider"></div>
-            <div class="sub">Needs its own action</div>
+            <div class="sub">Not in Mark all: last reading in the money</div>
             <div><b>AAL</b> $13 put ×2<div class="sub">Last reading Sep 23: stock $12.60, below the strike</div></div>
             <div class="btnrow"><span class="btn outlined small">Mark assigned</span><span class="btn outlined small">Mark expired</span></div>
           </div>
@@ -637,7 +637,7 @@ h3 { margin: 0; font-family: var(--f-display); font-stretch: 108%; font-weight: 
         <li><span class="n">3</span><span>Ledger strip with the premium definition on screen. The wording shown is a candidate; the planner pins the definition. Year to date is a sample figure (the sample book starts in July). <span class="ref">Stage 3 · OC-2</span></span></li>
         <li><span class="n">4</span><span>Current capital committed, named and defined apart from the Journal's peak figure. It includes the two legs past expiration until they're recorded. <span class="ref">D-P14 · OC-3</span></span></li>
         <li><span class="n">5</span><span>Concentration against wheel capital, stated as a fact in the neutral surface colour, not as a warning. Opens Portfolio (Pro). A free user sees the same line with a Pro tag, and tapping it opens the paywall. <span class="ref">D-P6 · D-P5</span></span></li>
-        <li><span class="n">6</span><span>Past expiration. WBD's last reading was out of the money, so it's in "Mark all expired". AAL's was in the money, so it needs its own action. Both record Sep 25 as the close date. Legs past expiration appear only here, not in the counts or the list. <span class="ref">Stage 3 · D-P13</span></span></li>
+        <li><span class="n">6</span><span>Past expiration. WBD's last reading was out of the money, so it's in "Mark all expired". AAL's was in the money, so it's left out and recorded on its own. Both record Sep 25 as the close date. Legs past expiration appear only here, not in the counts or the list. <span class="ref">Stage 3 · D-P13</span></span></li>
         <li><span class="n">7</span><span>The obligation at each date: cash if puts are assigned, shares delivered if calls are. <span class="ref">Stage 3</span></span></li>
         <li><span class="n">8</span><span>Badge and reason stay together on every row. A reading older than a day names its date, as the detail sheet does today. <span class="ref">conventions §4 · brief-ledger §7</span></span></li>
         <li><span class="n">9</span><span>Rows that need a reading (No data, or older than 7 days) get an inline Update: one tap to the sheet, two to saved. Other rows open the detail sheet, where Update snapshot is the primary action: two taps to the sheet, three to saved. <span class="ref">Stage 2 · OC-4</span></span></li>
@@ -645,8 +645,8 @@ h3 { margin: 0; font-family: var(--f-display); font-stretch: 108%; font-weight: 
       </ol>
       <p class="subhead">Variants</p>
       <div class="variants">
-        <div class="mini"><span class="mini-t">Empty state</span><b>No open positions yet</b><span>Record a trade you've placed at your broker, or run the numbers in the screener first.</span><div class="btnrow"><span class="btn filled small">Record a trade</span><span class="btn outlined small">Open screener</span></div></div>
-        <div class="mini"><span class="mini-t">No wheel capital set</span><span>Set your wheel capital in Settings to see concentration per underlying.</span><span class="link">Set wheel capital</span></div>
+        <div class="mini"><span class="mini-t">Empty state</span><b>Nothing recorded yet</b><span>Trades you record appear here, grouped by which of your rules applies.</span><div class="btnrow"><span class="btn filled small">Record a trade</span><span class="btn outlined small">Open screener</span></div></div>
+        <div class="mini"><span class="mini-t">No wheel capital set</span><span>Concentration per underlying appears once wheel capital is set in Settings.</span><span class="link">Wheel capital</span></div>
         <div class="mini"><span class="mini-t">Kept from today's app</span><span>The export reminder banner sits above the counts when it applies, once, dismissable. The first-run explainer still opens on a fresh install.</span></div>
       </div>
     </div>
@@ -705,7 +705,7 @@ h3 { margin: 0; font-family: var(--f-display); font-stretch: 108%; font-weight: 
       </ol>
       <p class="subhead">Variants</p>
       <div class="variants">
-        <div class="mini"><span class="mini-t">Call, no shares on record</span><div class="segm"><span>Put</span><span class="on">Call</span></div><span class="msg"><svg class="ic s"><use href="#i-info"/></svg><span>Calls are recorded against shares you hold from an assignment, and there are no CCL shares on record. Record this as a put, or open the screener.</span></span></div>
+        <div class="mini"><span class="mini-t">Call, no shares on record</span><div class="segm"><span>Put</span><span class="on">Call</span></div><span class="msg"><svg class="ic s"><use href="#i-info"/></svg><span>Calls are recorded against shares held from an assignment, and there are no CCL shares on record.</span></span></div>
         <div class="mini"><span class="mini-t">Call on shares with no open call</span><div class="segm"><span>Put</span><span class="on">Call</span></div><span class="msg"><svg class="ic s"><use href="#i-info"/></svg><span>Adds a covered call to your XYZ cycle: 100 shares, wheel-adjusted basis $X. It doesn't open a new cycle.</span></span></div>
         <div class="mini"><span class="mini-t">Hard reject (Feature Invariant 20)</span><div class="field"><span class="lbl">Credit per share</span><span class="val">$34.00</span></div><span class="msg err"><svg class="ic s"><use href="#i-warn"/></svg><span>A premium can't exceed the strike price. Did you enter the total for the contract? Divide by 100 — one contract covers 100 shares.</span></span></div>
         <div class="mini"><span class="mini-t">Other date</span><span class="chip on" style="justify-self:start">Thu Oct 15</span><span class="msg caution"><svg class="ic s"><use href="#i-warn"/></svg><span>Not a Friday — index and month-end products legitimately differ.</span></span></div>
@@ -928,7 +928,7 @@ h3 { margin: 0; font-family: var(--f-display); font-stretch: 108%; font-weight: 
           <div class="set an"><span class="mk" aria-hidden="true">4</span>
             <div class="set-h">About</div>
             <div class="set-row"><span>How this app works</span><svg class="ic s"><use href="#i-chev"/></svg></div>
-            <p class="disclaimer">This app performs arithmetic on numbers you enter. It does not provide investment advice, does not receive market data, and has no view on any security. Options trading involves substantial risk of loss, including losses exceeding your initial investment. You are responsible for your own decisions.</p>
+            <p class="disclaimer">Wheel Triage is a journal and calculator for your own options trades. It keeps a record of what you enter and checks those numbers against the thresholds you set. It is not investment advice. It has no market data connection and no view on any security.</p>
           </div>
         </div>
         <div class="navwrap">
@@ -951,7 +951,7 @@ h3 { margin: 0; font-family: var(--f-display); font-stretch: 108%; font-weight: 
         <li><span class="n">1</span><span>Current plan, renewal date, Manage subscription (the store's page) and Restore purchases. A free user sees "Free · 3 open cycles" and a row that opens the paywall. <span class="ref">Stage 5</span></span></li>
         <li><span class="n">2</span><span>Wheel capital and the concentration limit (25% by default). With no wheel capital set, no concentration flag appears anywhere. <span class="ref">D-P6 · Stage 3</span></span></li>
         <li><span class="n">3</span><span>Existing settings, unchanged: the Standard profile's thresholds, entry defaults, reminders, export and backup. <span class="ref">brief-ledger §5–§6</span></span></li>
-        <li><span class="n">4</span><span>The persistent disclaimer from brief §10, missing from today's app, also shown in the first-run explainer. <span class="ref">Stage 3</span></span></li>
+        <li><span class="n">4</span><span>The persistent disclaimer in D-P15's exact words, also shown in the first-run explainer and missing from today's app. It says what the app is and isn't, and tells the user nothing to do. <span class="ref">D-P15 · Stage 3</span></span></li>
       </ol>
     </div>
   </article>
@@ -1103,7 +1103,7 @@ h3 { margin: 0; font-family: var(--f-display); font-stretch: 108%; font-weight: 
               <div><span class="sc-k">Median premium capture</span><span class="sc-v">82%</span></div>
             </div>
             <p class="sc-def an"><span class="mk" aria-hidden="true">2</span>Return on capital: net result ÷ peak capital committed, over cycles closed in September. Before fees: 3 closed legs have no fee recorded.</p>
-            <div class="sc-foot">Wheel Triage · a calculator and ledger for the wheel strategy · not investment advice</div>
+            <div class="sc-foot">Wheel Triage · a journal and calculator for the wheel strategy · not investment advice</div>
           </div>
           <div class="set an"><span class="mk" aria-hidden="true">3</span>
             <div class="set-row"><span>Show dollar amounts</span><span class="switch off"></span></div>
@@ -1119,7 +1119,7 @@ h3 { margin: 0; font-family: var(--f-display); font-stretch: 108%; font-weight: 
       <h3 id="h-share">Share card</h3>
       <p>A fixed 1080 × 1350 image (4:5), drawn in the app's current theme and handed to the share sheet. The five cycles: BAC, KO, CCL (closed at a loss), UBER and SNAP (called away).</p>
       <ol class="notes">
-        <li><span class="n">1</span><span>Built only from cycles closed in the month. Descriptive statistics, no streaks, badges or praise. The footer says what the app is. <span class="ref">Stage 8 · D-P7</span></span></li>
+        <li><span class="n">1</span><span>Built only from cycles closed in the month. Descriptive statistics, no streaks, badges or praise. The footer says what the app is, in the disclaimer's own words. <span class="ref">Stage 8 · D-P7 · D-P15</span></span></li>
         <li><span class="n">2</span><span>Return on capital states its definition: (32 + 35 − 30 + 110 + 210) ÷ (3,800 + 6,250 + 4,000 + 7,000 + 1,800) = 357 ÷ 22,850 = 1.6%. It says "before fees" because 3 closed legs have no fee recorded. <span class="ref">brief-ledger §4.3 · OC-7</span></span></li>
         <li><span class="n">3</span><span>Dollar amounts and tickers are hidden by default. Turned on, the card adds "Net result $357.00 before fees" and "BAC · CCL · KO · SNAP · UBER". <span class="ref">Stage 8</span></span></li>
         <li><span class="n">4</span><span>All five figures at the same size, so no single number reads as the headline. The median is the Journal's own figure, never a mean. <span class="ref">FI-29 · OC-11</span></span></li>

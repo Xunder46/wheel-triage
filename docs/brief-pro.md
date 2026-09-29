@@ -68,6 +68,7 @@ Pro once their book outgrows the free tier.
 | D-P12 | **Calls on Record a trade.** A call on a ticker that has a `holdingShares` cycle with no open call is recorded as that cycle's covered call: no new cycle, never counted toward D-P2. Otherwise Record accepts puts only and says why in one line. The screener's "Track this position" follows the same rule, so the two save paths cannot diverge. Cycles opened with a call before this change keep loading; the planner decides how their figures are labelled. "Start from shares I already own" is Stage 14. | The screener's save path. `brief-ledger.md` §2 keeps the screener "as built"; this fixes its save path and does not extend it. |
 | D-P13 | **Expiry records the expiration date.** Batch expiry and the single-leg "Mark expired" record `closedAt` as the leg's expiration date whenever the action happens on or after that date, not the moment of the tap. Legs whose latest reading was in the money, and legs with no reading, are never part of "Mark all expired"; each needs its own action. | Current "Mark expired" behaviour, which records the tap time. |
 | D-P14 | **Current capital committed** (Today, Portfolio, concentration) is a separate, separately named figure from the Journal's **peak capital committed**, and its definition is stated on screen. The planner pins its formula; `brief.md` §5.5's put-side and covered-call-side definitions are the starting point. | — |
+| D-P15 | **The app presents itself as a journal and calculator, never as anything more.** The persistent disclaimer, in Settings and in the first-run explainer, reads exactly: *"Wheel Triage is a journal and calculator for your own options trades. It keeps a record of what you enter and checks those numbers against the thresholds you set. It is not investment advice. It has no market data connection and no view on any security."* It says what the app is and isn't, and tells the user nothing to do. The share-card footer and the store listing use the same "journal and calculator" wording. | `brief.md` §10's suggested disclaimer text ("something like…"). |
 
 ### Why the decisions added on 2026-09-28 read the way they do
 
@@ -92,6 +93,13 @@ Pro once their book outgrows the free tier.
   "this month" figure and the share card. An assigned put recorded as
   expired worthless corrupts the cycle and skips the assignment flow, which
   is why in-the-money and unread legs need their own action.
+- **D-P15.** The app is a tool and journal; it never asks or tells the user
+  to do anything with a trade. `brief.md` §10's suggested text carried two
+  lines that imply otherwise: "Options trading involves substantial risk of
+  loss…" reads like a broker's disclosure, as if the app were where trading
+  happens, and "You are responsible for your own decisions" implies the app
+  takes part in them. Both are dropped. The fourth sentence reuses the
+  first-run explainer's existing wording.
 
 ---
 
@@ -258,9 +266,10 @@ going?" at a glance.
 - [ ] Bottom navigation: Today, Journal, Record (+), Screener, Settings.
 - [ ] The export reminder banner and first-run explainer are retained; the
       empty state invites the first trade.
-- [ ] The persistent disclaimer from `brief.md` §10 appears in Settings and
-      in the first-run explainer. It is missing today: no string in `lib/`
-      says the app is not investment advice.
+- [ ] The persistent disclaimer appears in Settings and in the first-run
+      explainer, in D-P15's exact words (a test pins the string). It is
+      missing today: no string in `lib/` says the app is not investment
+      advice.
 
 ### Stage 4B — Accessibility and polish (the rest of M8)
 
@@ -381,7 +390,8 @@ ever leaving the device.
 - [ ] Shared as an image through the existing share sheet, at a fixed size
       suitable for social posts, correct in both themes.
 - [ ] Descriptive statistics only: no streaks, badges or praise. The footer
-      names the app and says it is a calculator and ledger, not advice.
+      names the app and says it is a journal and calculator, not advice
+      (D-P15).
 
 ### Stage 9 — Beta and App Store launch
 
@@ -392,8 +402,8 @@ ever leaving the device.
       from Apple's own TestFlight and Xcode Organizer crash data (no crash
       SDK, D-P3); feedback collected and triaged into the plan.
 - [ ] Store listing, screenshots and keywords position the app as a
-      calculator and ledger, with no advice or signal wording and no broker
-      or other brand names in the keywords.
+      journal and calculator (D-P15), with no advice or signal wording and
+      no broker or other brand names in the keywords.
 - [ ] Privacy policy and support URLs are live; the privacy label matches
       D-P3 exactly; the listing says trades never leave the phone; age
       rating answered as a tracking tool; review notes explain manual entry,
@@ -537,6 +547,10 @@ planning. Changes:
 - **D-P11–D-P14 added**: readings older than 7 days (overlapping count),
   calls on Record, expiry recording the expiration date, and current versus
   peak capital committed.
+- **D-P15 added**: the disclaimer's exact wording, which presents the app as
+  a journal and calculator and tells the user nothing to do. It replaces
+  `brief.md` §10's suggested text, and the share card and store listing use
+  the same wording.
 - **D-P3** now says "the only SDKs that may use the network", because the
   first draft's "the only third-party SDK allowed" contradicted D-P4's ML
   Kit. `docs/conventions.md` §5 added to what it supersedes.
@@ -551,7 +565,8 @@ planning. Changes:
 - **Stage 2**: "two taps" made concrete; batch expiry moved to Stage 3.
 - **Stage 3**: the first draft attributed stale-snapshot counting to Feature
   Invariant 19, which covers only "No data" (now D-P11); capital committed
-  is the current figure (D-P14); the missing §10 disclaimer added.
+  is the current figure (D-P14); the missing disclaimer added, in D-P15's
+  words.
 - **Stage 4** split into 4A (theme, before Stages 1–3) and 4B
   (accessibility, once every screen exists).
 - **Stage 8**: premium capture is the median (Feature Invariant 29), not an

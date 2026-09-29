@@ -227,6 +227,10 @@ actual §10 review risk; this sharpens it rather than lowering the bar.
   `netCredit <= 0` clearly as a debit roll but does not block it.
 - The tax disclaimer from §3.6 appears verbatim wherever tax basis appears. Do
   not paraphrase.
+- The app presents itself as a journal and calculator for the user's own
+  trades, never as anything more. The persistent disclaimer (Settings, first-run
+  explainer) is `docs/brief-pro.md` D-P15's exact text. Do not paraphrase it
+  either.
 
 ## Scenario register
 
@@ -268,8 +272,8 @@ and the iOS simulator build succeeds (`flutter build ios --simulator
 **Still not built**, now scheduled by `docs/brief-pro.md`: the portfolio view
 and assignment calendar (Stage 7), accessibility polish beyond the help system
 (Stage 4B), screenshot scan (Stage 6), broker CSV import (Stage 10, after
-launch), and the `brief.md` §10 disclaimer, which is missing from Settings and
-the first-run explainer (Stage 3).
+launch), and the disclaimer (exact wording in `docs/brief-pro.md` D-P15),
+which is missing from Settings and the first-run explainer (Stage 3).
 
 Known deviations from the brief's §2 stack, all reviewed and logged in the
 plans' `## Assumption Log`:
