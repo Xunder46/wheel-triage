@@ -56,6 +56,12 @@ class RecordFormState {
   final bool showOptional;
   final bool isSaving;
   final String? error;
+
+  /// Set together with [error] when the save was blocked by the free tier's
+  /// open-cycle limit (D-23/D-24). The screen shows [error] either way and
+  /// opens the paywall from this, then clears it — the trigger is an event,
+  /// not a status, so it must not survive a rebuild.
+  final String? paywallTrigger;
   final bool saved;
   final String? confirmation;
   final List<String> recentTickers;
@@ -77,6 +83,7 @@ class RecordFormState {
     this.showOptional = false,
     this.isSaving = false,
     this.error,
+    this.paywallTrigger,
     this.saved = false,
     this.confirmation,
     this.recentTickers = const [],
@@ -121,6 +128,8 @@ class RecordFormState {
     bool? isSaving,
     String? error,
     bool clearError = false,
+    String? paywallTrigger,
+    bool clearPaywallTrigger = false,
     bool? saved,
     String? confirmation,
     List<String>? recentTickers,
@@ -141,6 +150,9 @@ class RecordFormState {
     showOptional: showOptional ?? this.showOptional,
     isSaving: isSaving ?? this.isSaving,
     error: clearError ? null : (error ?? this.error),
+    paywallTrigger: (clearError || clearPaywallTrigger)
+        ? null
+        : (paywallTrigger ?? this.paywallTrigger),
     saved: saved ?? this.saved,
     confirmation: confirmation ?? this.confirmation,
     recentTickers: recentTickers ?? this.recentTickers,
@@ -287,12 +299,15 @@ class RecordController extends StateNotifier<RecordFormState> {
     if (!form.hasEnoughToSave) {
       state = form.copyWith(
         error: 'Enter ticker, strike, credit, expiration, and contracts first.',
+        // Defence in depth (D-30/R12): only the gate's own refusal may leave a
+        // trigger behind, so no other exit path can reopen the paywall.
+        clearPaywallTrigger: true,
       );
       return false;
     }
     final bound = creditBound;
     if (bound != null && bound.blocks) {
-      state = form.copyWith(error: bound.message);
+      state = form.copyWith(error: bound.message, clearPaywallTrigger: true);
       return false;
     }
 
@@ -316,7 +331,20 @@ class RecordController extends StateNotifier<RecordFormState> {
           );
 
       if (result.isRefused) {
-        state = state.copyWith(isSaving: false, error: result.refusalReason);
+        state = state.copyWith(
+          isSaving: false,
+          error: result.refusalReason,
+          clearPaywallTrigger: true,
+        );
+        return false;
+      }
+
+      if (result.isPaywallRequired) {
+        state = state.copyWith(
+          isSaving: false,
+          error: result.trigger,
+          paywallTrigger: result.trigger,
+        );
         return false;
       }
 
@@ -330,10 +358,23 @@ class RecordController extends StateNotifier<RecordFormState> {
       );
       return true;
     } catch (e) {
-      state = state.copyWith(isSaving: false, error: 'Could not record this trade: $e');
+      state = state.copyWith(
+        isSaving: false,
+        error: 'Could not record this trade: $e',
+        clearPaywallTrigger: true,
+      );
       return false;
     }
   }
+
+  /// The D-24 refusal line the gate produced on the last save, if the save
+  /// was refused for the free tier's limit (D-30). `null` in every other
+  /// case, including a save that failed for another reason.
+  String? get paywallTrigger => state.paywallTrigger;
+
+  /// Consumes the paywall trigger once the screen has opened the paywall, so
+  /// a later failure that is not the gate's cannot reopen it (D-30, R12).
+  void clearPaywallTrigger() => state = state.copyWith(clearPaywallTrigger: true);
 
   void reset() {
     state = RecordFormState(fridayOptions: nextFourFridays(_now));

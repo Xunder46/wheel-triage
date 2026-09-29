@@ -32,7 +32,7 @@ lib/data/            WheelRepository interface + DriftWheelRepository +
 lib/state/           Riverpod controllers/providers — orchestration between
                      domain/models and domain/rules, and the repository.
 lib/features/        Screens (screener, positions + Today, record, journal,
-                     settings, onboarding, export).
+                     settings, onboarding, export, paywall).
 lib/widgets/         Shared UI (BucketBadge, HelpChip, DeltaSparkline,
                      LegTitle, LabeledNumberField, AppBottomNav,
                      CycleSummaryCard, JournalRow).
@@ -40,7 +40,9 @@ lib/core/            Cross-cutting, dependency-free utilities (date/money
                      helpers and `format.dart`'s display formatters, the app
                      router, the theme and its colour tokens, the help-topic
                      registry, the notification id/copy/gateway layer, the
-                     export-reminder rule, the D-P15 disclaimer text).
+                     export-reminder rule, the D-P15 disclaimer text, and
+                     `purchases/` — the store seam, the product ids, the
+                     free-tier limit and every Pro string).
 ```
 
 Dependency direction is one-way: `rules ← models ← data ← state ← features`.
@@ -91,6 +93,22 @@ nowhere else; `lib/domain/models/user_preferences_defaults.dart` holds the
 one default (`wheelCapital` unset, 25%), and a value outside
 `wheelCapitalInRange` (`capital_committed.dart`) is ignored rather than
 written (`test/data/db/user_preferences_v5_migration_test.dart`, S-214).
+
+Schema v6 (Pro Wave 2, Phase 1) adds the single-row `entitlement_cache` table
+(D-25): `id` (always `'default'`), `is_active`, `plan_kind` (stored as the
+enum's `.name` through `ProPlanKindConverter`, never an index), `expires_at_ms`,
+`will_renew`, `billing_issue`, `purchased_at_ms` and `checked_at_ms`. The three
+timestamps are nullable and carry no default, so "never checked", "no expiry"
+and "no purchase date" backfill to `null` rather than to an epoch; every other
+column carries a SQL-level `withDefault` drawn from
+`lib/domain/models/entitlement_cache_defaults.dart`, which is what makes a
+fresh `onCreate` and the `5 -> 6` migration produce the same row from the same
+constants (`test/data/db/entitlement_v6_migration_test.dart`, S-255).
+`checked_at_ms` is the column that makes the state tri-valued: `null` means no
+read has ever succeeded, which is `unknown`, not `inactive` (D-26). The row is
+deliberately outside the export envelope — `exportToJson` never carries it and
+`restoreFromJson` never deletes or rewrites it, so a hand-edited backup cannot
+grant Pro and restoring an old ledger cannot revoke it (S-257).
 
 ## Rules engine (`lib/domain/rules/`)
 
@@ -362,6 +380,93 @@ one `const String`, rendered verbatim at the foot of Settings and as a footer
 under every first-run explainer card — never paraphrased, trimmed or placed
 behind a dismiss (S-249).
 
+## Pro (`lib/core/purchases/`, `lib/state/entitlements/`, `lib/features/paywall/`)
+
+Pro Wave 2 adds one capability — a paid tier — behind a seam thin enough to
+read in one sitting, and every rule below exists to keep the app's own
+arithmetic free of the store.
+
+**The seam** (`lib/core/purchases/purchase_gateway.dart`) is six methods and no
+more: `configure()`, `loadOfferings()`, `currentEntitlement()`,
+`purchase(String productId)`, `restore()`, `showManageSubscriptions()`. It
+imports exactly three things — `package:decimal/decimal.dart` and the
+`entitlement_status`/`pro_plan_kind` enums — so the interface cannot express a
+trade, a snapshot or a ledger row, and the only value that ever crosses it is a
+product-id `String`. `RevenueCatPurchaseGateway` is the one implementation that
+names `purchases_flutter`; `UnconfiguredPurchaseGateway` is the one that names
+nothing and is what a build with no store key gets, so the free tier and an
+empty store show the same honest nothing instead of a broken paywall
+(`test/core/purchases/network_boundary_test.dart`, S-265/S-287;
+`test/state/record/record_save_service_test.dart` and
+`test/state/entitlements/new_cycle_gate_test.dart`, S-264;
+`test/core/purchases/recording_gateway_isolation_test.dart`, S-288). Every Pro
+string lives in `lib/core/purchases/paywall_copy.dart`, which is pure Dart and
+never hard-codes a price, a period or a trial length — those come from the
+offer the store returned (D-31).
+
+The RevenueCat public key is **not** in the repository.
+`lib/core/purchases/purchase_configuration.dart` reads it from the environment,
+so the owner's build carries it and a checked-out tree can never reach a real
+store account by accident:
+
+```
+flutter build ios --simulator --no-codesign \
+  --dart-define=REVENUECAT_IOS_API_KEY=<the owner's public iOS key>
+```
+
+A build without the define gets `UnconfiguredPurchaseGateway` — the free tier,
+nothing for sale, no broken paywall. What the store does and does not receive is
+written down once, in `docs/privacy.md` (D-36).
+
+**The state** is tri-valued and deliberately never guesses (D-26).
+`EntitlementStatus` is `active` / `inactive` / `unknown`, and `unknown` is what
+a failed read produces: Pro is never forged from an absent answer, and the free
+tier is never inferred from one either. `EntitlementController`
+(`lib/state/entitlements/`) owns the whole story: `initialize()` configures the
+store, loads the cached row and *then* reads the store once — that order is what
+makes a lapsed-connection launch show the right plan instead of the free tier;
+`refresh()` re-reads; the cache row is written **only after a successful read**;
+and the store's own entitlement-update listener is registered in the
+constructor, which is why the provider is deliberately not `.autoDispose`. There
+are exactly three refresh points — launch, `AppLifecycleState.resumed` (through
+`EntitlementLifecycleScope`, which refreshes on nothing else) and a store push —
+plus one conditional read after a purchase or restore that reported a purchase
+(`test/widgets/entitlement_lifecycle_scope_test.dart`, S-270).
+
+**The gate** is D-P2's free-tier limit, and it is evaluated in exactly one place:
+`NewCycleGate.evaluate()` (`lib/state/entitlements/new_cycle_gate.dart`) returns
+`NewCycleAllowed` or `NewCycleBlocked(line:, openCycleCount:)`, and is allowed
+iff the entitlement is active **or** the open-cycle count is under
+`kFreeTierOpenCycles`. `kFreeTierOpenCycles` is written down once, in
+`lib/core/purchases/pro_plans.dart`; the copy builders take it as a *parameter*
+rather than reading it, so a second evaluation site cannot appear by accident.
+`RecordSaveService.save` — D-19's single write path for a new leg — is its only
+production caller, and it sets `paywallTrigger` on the refusal, which both
+`RecordController` and `ScreenerController` surface as a getter. Nothing is
+written when the gate refuses (S-260).
+
+**The paywall** (`lib/features/paywall/`) is reached three ways, all of them
+through `showPaywall(context, trigger:)` — the only `context.push('/paywall')`
+in `lib/`: a refused save or track (which carries the D-24 line the state layer
+produced), a Pro-only feature that does not exist yet (`ProFeaturePaywallTrigger`),
+and the Settings row's own door (`SettingsPaywallTrigger`). The screen decides
+nothing: `PaywallController` maps the visible offers through `planRowFor` into a
+`PaywallPlanRow` display DTO, so no `lib/features/` file names a store type or
+reads the entitlement to decide what to sell. It never opens on launch — a
+paywall is an answer to something the user did, never a greeting
+(`test/features/paywall/paywall_entry_points_test.dart`, S-277).
+
+**The Settings row** (`lib/features/settings/pro_plan_section.dart`) renders what
+the user is on and the ways out of it (D-34): the plan and its renewal or
+purchase line, the billing-retry note when the store reports one (display only —
+a subscription in billing retry is still Pro), the free tier's count as
+`Free · 2 of 3 open cycles`, and Manage subscription / Restore purchases /
+See Pro plans as the state allows. It reads the count through
+`openCycleCountProvider` — a **count, not a gate evaluation** — because
+`lib/features/` never reaches into persistence, and it reads
+`kFreeTierOpenCycles` itself so `paywall_copy.dart` stays out of the limit's
+business.
+
 ### Drift-risk areas
 
 These are the places where the same fact is reachable from two directions,
@@ -380,6 +485,8 @@ rather than synchronized by discipline:
 | A preference | `PreferencesController` | A per-screen copy that stops tracking Settings |
 | Repository behaviour | `WheelRepository` + its contract suite | One implementation gaining a method the other lacks |
 | A threshold bound | `validateRuleProfile` | A widget re-implementing a range check |
+| An entitlement fact | `EntitlementController` | A screen caching `isActive` and keeping its own idea of Pro |
+| A Pro string | `lib/core/purchases/paywall_copy.dart` | The paywall and the Settings row wording the same state two ways |
 
 ## Export/import (`lib/data/export/`, `lib/state/export/`)
 
@@ -507,7 +614,9 @@ the repository directly) and the notification-milestone checkbox editor
 with its denied-permission note — plus Pro Wave 1's two: the wheel capital
 (whole dollars) and the concentration limit (a percentage), both written
 through `PreferencesController` and both refusing an out-of-range value
-rather than clamping it. `lib/core/disclaimer.dart`'s D-P15 text is the
+rather than clamping it — plus Pro Wave 2's plan section
+(`pro_plan_section.dart`, D-34) at the very top of the list, above
+"Defaults for new entries". `lib/core/disclaimer.dart`'s D-P15 text is the
 screen's footer, and the same string is the footer of every first-run
 explainer card. Profile create/clone/edit stays out of
 scope; Iteration 5's D-1 narrows the feature to editing the single

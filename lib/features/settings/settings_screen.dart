@@ -18,6 +18,7 @@ import '../../state/preferences/preferences_provider.dart';
 import '../../state/rule_profiles/rule_profile_editor_controller.dart';
 import '../../state/rule_profiles/rule_profile_providers.dart';
 
+import 'pro_plan_section.dart';
 import 'rule_profile_section.dart';
 
 /// The Settings screen: the delta-convention default, the "total per
@@ -123,6 +124,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
+                const ProPlanSection(),
                 Text('Defaults for new entries', style: textTheme.titleMedium),
                 const SizedBox(height: 8),
                 Text(

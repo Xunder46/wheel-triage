@@ -593,9 +593,10 @@ class DriftWheelRepository implements WheelRepository {
 
     // Defensive "resilient read" — same spirit as getPreferences above and
     // unreachable in practice, since onCreate/the 5->6 migration always
-    // inserts this row. `getSingleOrNull` on the fixed id is also what
-    // enforces the single-row contract (D-25/S-256): if a second row ever
-    // appeared, this read would throw rather than silently pick one.
+    // inserts this row. The fixed id is what enforces the single-row contract
+    // (D-25/S-256): this read and `saveEntitlementCache` both address the row
+    // by `EntitlementCacheDefaults.rowId`, so the read can never resolve more
+    // than the one row, and a write can never append a second.
     await _db.seedEntitlementCache();
     return const EntitlementCacheData();
   }

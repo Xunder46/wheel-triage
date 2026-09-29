@@ -7,6 +7,8 @@ import '../../domain/models/share_lot.dart';
 import '../../domain/models/underlying.dart';
 import '../../domain/models/wheel_cycle.dart';
 import '../../domain/rules/basis.dart';
+import '../entitlements/entitlement_providers.dart';
+import '../entitlements/new_cycle_gate.dart';
 import '../notifications/notification_providers.dart';
 import '../preferences/preferences_provider.dart';
 import '../repository_providers.dart';
@@ -15,7 +17,14 @@ import '../rule_profiles/rule_profile_providers.dart';
 /// What a save did (D-19's result type). [created] opened a new cycle,
 /// [attached] appended a leg to an existing share-holding cycle (D-12) and
 /// [refused] wrote nothing and carries the one line to show.
-enum RecordSaveOutcome { created, attached, refused }
+///
+/// [paywallRequired] is the free tier's own outcome (D-23): the book is at the
+/// limit and the entitlement is not active, so no row of any table was
+/// written. It is separate from [refused] because the two mean different
+/// things to the screen — a refusal is the user's input being wrong, a paywall
+/// requirement is the plan — and because the screen shows the D-24 line either
+/// way while only one of them opens the paywall (D-30).
+enum RecordSaveOutcome { created, attached, refused, paywallRequired }
 
 class RecordSaveResult {
   const RecordSaveResult._({
@@ -24,6 +33,7 @@ class RecordSaveResult {
     this.legId,
     this.cycleId,
     this.refusalReason,
+    this.trigger,
   });
 
   const RecordSaveResult.created({
@@ -51,15 +61,27 @@ class RecordSaveResult {
   const RecordSaveResult.refused({required String reason})
     : this._(outcome: RecordSaveOutcome.refused, refusalReason: reason);
 
+  /// D-23's outcome: nothing was written because the free tier's open-cycle
+  /// limit is reached and the entitlement is not active. [trigger] is the
+  /// finished D-24 line, built by the gate, which the screen shows and hands
+  /// to the paywall.
+  const RecordSaveResult.paywallRequired({required String trigger})
+    : this._(outcome: RecordSaveOutcome.paywallRequired, trigger: trigger);
+
   final RecordSaveOutcome outcome;
   final String? ticker;
   final String? legId;
   final String? cycleId;
   final String? refusalReason;
 
+  /// The D-24 line to show when [outcome] is `paywallRequired`, and `null`
+  /// otherwise.
+  final String? trigger;
+
   bool get isRefused => outcome == RecordSaveOutcome.refused;
   bool get isCreated => outcome == RecordSaveOutcome.created;
   bool get isAttached => outcome == RecordSaveOutcome.attached;
+  bool get isPaywallRequired => outcome == RecordSaveOutcome.paywallRequired;
 }
 
 /// D-12's host-cycle resolution for a call, plus the one-line explanation
@@ -241,6 +263,16 @@ class RecordSaveService {
       cycleId = host.cycle!.id;
       outcome = RecordSaveOutcome.attached;
     } else {
+      // D-23's gate, and the only place it is consulted. It runs *before*
+      // `getOrCreateUnderlying` deliberately: a blocked save must not create
+      // an underlying the user did not ask for (S-234's principle), and a
+      // refusal that wrote an `Underlying` row would leave the book holding a
+      // ticker with no trade behind it.
+      final NewCycleGate gate = _ref.read(newCycleGateProvider);
+      final decision = await gate.evaluate();
+      if (decision is NewCycleBlocked) {
+        return RecordSaveResult.paywallRequired(trigger: decision.line);
+      }
       final underlying = await repo.getOrCreateUnderlying(normalized);
       final result = await repo.createCycle(underlyingId: underlying.id, firstLeg: newLeg);
       legId = result.leg.id;

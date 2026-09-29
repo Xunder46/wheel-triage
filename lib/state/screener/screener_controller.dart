@@ -42,6 +42,11 @@ class ScreenerFormState {
   final bool acceptsAssignment;
   final bool isSaving;
   final String? error;
+
+  /// Set together with [error] when the save was blocked by the free tier's
+  /// open-cycle limit (D-23/D-24) — the screener is gated identically
+  /// (S-266). Cleared by the screen once the paywall is open.
+  final String? paywallTrigger;
   final bool tracked;
 
   const ScreenerFormState({
@@ -59,6 +64,7 @@ class ScreenerFormState {
     this.acceptsAssignment = true,
     this.isSaving = false,
     this.error,
+    this.paywallTrigger,
     this.tracked = false,
   });
 
@@ -101,6 +107,8 @@ class ScreenerFormState {
     bool? isSaving,
     String? error,
     bool clearError = false,
+    String? paywallTrigger,
+    bool clearPaywallTrigger = false,
     bool? tracked,
   }) => ScreenerFormState(
     ticker: ticker ?? this.ticker,
@@ -117,6 +125,9 @@ class ScreenerFormState {
     acceptsAssignment: acceptsAssignment ?? this.acceptsAssignment,
     isSaving: isSaving ?? this.isSaving,
     error: clearError ? null : (error ?? this.error),
+    paywallTrigger: (clearError || clearPaywallTrigger)
+        ? null
+        : (paywallTrigger ?? this.paywallTrigger),
     tracked: tracked ?? this.tracked,
   );
 }
@@ -169,6 +180,14 @@ class ScreenerController extends StateNotifier<ScreenerFormState> {
 
   final Ref _ref;
   final DateTime _now;
+
+  /// The D-24 refusal line the gate produced on the last track attempt, if it
+  /// was refused for the free tier's limit (D-30). `null` in every other case.
+  String? get paywallTrigger => state.paywallTrigger;
+
+  /// Consumes the paywall trigger once the screen has opened the paywall, so
+  /// a later failure that is not the gate's cannot reopen it (D-30, R12).
+  void clearPaywallTrigger() => state = state.copyWith(clearPaywallTrigger: true);
 
   void _applyDefaultExpiration() {
     final exp = defaultExpiration(_now);
@@ -246,7 +265,12 @@ class ScreenerController extends StateNotifier<ScreenerFormState> {
   Future<bool> trackThisPosition({DateTime? now}) async {
     final form = state;
     if (!form.hasEnoughToTrack) {
-      state = form.copyWith(error: 'Enter ticker, strike, stock price, credit, and expiration first.');
+      state = form.copyWith(
+        error: 'Enter ticker, strike, stock price, credit, and expiration first.',
+        // Defence in depth (D-30/R12): only the gate's own refusal may leave a
+        // trigger behind, so no other exit path can reopen the paywall.
+        clearPaywallTrigger: true,
+      );
       return false;
     }
 
@@ -257,7 +281,7 @@ class ScreenerController extends StateNotifier<ScreenerFormState> {
       strike: form.strike!,
     );
     if (bound.blocks) {
-      state = form.copyWith(error: bound.message);
+      state = form.copyWith(error: bound.message, clearPaywallTrigger: true);
       return false;
     }
 
@@ -289,14 +313,31 @@ class ScreenerController extends StateNotifier<ScreenerFormState> {
           );
 
       if (result.isRefused) {
-        state = state.copyWith(isSaving: false, error: result.refusalReason);
+        state = state.copyWith(
+          isSaving: false,
+          error: result.refusalReason,
+          clearPaywallTrigger: true,
+        );
+        return false;
+      }
+
+      if (result.isPaywallRequired) {
+        state = state.copyWith(
+          isSaving: false,
+          error: result.trigger,
+          paywallTrigger: result.trigger,
+        );
         return false;
       }
 
       state = state.copyWith(isSaving: false, tracked: true);
       return true;
     } catch (e) {
-      state = state.copyWith(isSaving: false, error: 'Could not save this position: $e');
+      state = state.copyWith(
+        isSaving: false,
+        error: 'Could not save this position: $e',
+        clearPaywallTrigger: true,
+      );
       return false;
     }
   }

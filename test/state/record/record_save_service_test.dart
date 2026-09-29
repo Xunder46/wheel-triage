@@ -2,11 +2,15 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:wheel_triage/core/purchases/purchase_gateway.dart';
 import 'package:wheel_triage/data/in_memory_wheel_repository.dart';
 import 'package:wheel_triage/data/wheel_repository.dart';
 import 'package:wheel_triage/domain/models/leg.dart';
+import 'package:wheel_triage/domain/models/pro_plan_kind.dart';
 import 'package:wheel_triage/domain/models/rule_profile_ids.dart';
+import 'package:wheel_triage/domain/models/snapshot.dart';
 import 'package:wheel_triage/domain/models/wheel_cycle.dart';
+import 'package:wheel_triage/state/entitlements/entitlement_providers.dart';
 import 'package:wheel_triage/state/notifications/notification_providers.dart';
 import 'package:wheel_triage/state/preferences/preferences_provider.dart';
 import 'package:wheel_triage/state/record/record_save_service.dart';
@@ -14,6 +18,7 @@ import 'package:wheel_triage/state/repository_providers.dart';
 import 'package:wheel_triage/state/rule_profiles/rule_profile_providers.dart';
 
 import '../../support/fake_notification_gateway.dart';
+import '../../support/fake_purchase_gateway.dart';
 import '../../support/rule_profile_fixtures.dart';
 
 final _now = DateTime(2026, 9, 28, 10);
@@ -71,26 +76,48 @@ Future<Set<String>> _underlyingIds(InMemoryWheelRepository repo) async {
   return ids;
 }
 
+/// Counts the free-tier gate's only observable side effect — the book read —
+/// so "the gate is consulted" (S-259) and "the gate is never called"
+/// (S-263) are assertions rather than claims.
+class _CountingRepository extends InMemoryWheelRepository {
+  int openCycleReads = 0;
+
+  @override
+  Future<List<WheelCycle>> getOpenCycles() {
+    openCycleReads++;
+    return super.getOpenCycles();
+  }
+}
+
 void main() {
-  late InMemoryWheelRepository repo;
+  late _CountingRepository repo;
   late ProviderContainer container;
   late FakeNotificationGateway gateway;
+  late FakePurchaseGateway store;
 
   setUp(() {
-    repo = InMemoryWheelRepository();
+    repo = _CountingRepository();
     gateway = FakeNotificationGateway();
+    store = FakePurchaseGateway();
     container = ProviderContainer(
       overrides: [
         wheelRepositoryProvider.overrideWithValue(repo),
         notificationGatewayProvider.overrideWithValue(gateway),
+        purchaseGatewayProvider.overrideWithValue(store),
       ],
     );
     container.listen(preferencesControllerProvider, (previous, next) {});
+    container.listen(entitlementControllerProvider, (previous, next) {});
   });
 
   tearDown(() => container.dispose());
 
   RecordSaveService service() => container.read(recordSaveServiceProvider);
+
+  Future<void> entitle(EntitlementSnapshot snapshot) async {
+    store.snapshot = snapshot;
+    await container.read(entitlementControllerProvider.notifier).initialize();
+  }
 
   group('S-228: Record a trade — the minimum path', () {
     test(
@@ -341,6 +368,221 @@ void main() {
       final intc = legs.firstWhere((l) => l.openCreditPerShare == Decimal.parse('0.40'));
       expect(ccl.ruleProfileVersionId, RuleProfileVersionIds.standardV1);
       expect(intc.ruleProfileVersionId, RuleProfileVersionIds.forVersion(RuleProfileIds.standard, 2));
+    });
+  });
+
+  group('S-259/S-260: the free tier\'s new-cycle gate', () {
+    /// Two `sellingPuts` cycles and one call-less `holdingShares` cycle —
+    /// S-260's fixture, at exactly the limit.
+    Future<void> threeOpenCycles() async {
+      await _openPutCycle(repo, ticker: 'A');
+      await _openPutCycle(repo, ticker: 'B');
+      await _assignShares(repo, ticker: 'C', strike: Decimal.parse('30'));
+      expect(await repo.getOpenCycles(), hasLength(3));
+    }
+
+    test('S-259: three open cycles and Pro — the fourth is created, with the '
+        'version pin and the reminders unchanged', () async {
+      await threeOpenCycles();
+      await entitle(
+        const EntitlementSnapshot.active(
+          planKind: ProPlanKind.annual,
+          willRenew: true,
+        ),
+      );
+      final readsBefore = repo.openCycleReads;
+
+      final result = await service().save(
+        ticker: 'D',
+        side: OptionType.put,
+        strike: Decimal.parse('12'),
+        expiration: DateTime(2026, 10, 16),
+        contracts: 1,
+        openCreditPerShare: Decimal.parse('0.50'),
+        now: _now,
+      );
+
+      expect(result.outcome, RecordSaveOutcome.created);
+      expect(result.ticker, 'D');
+      expect(await repo.getOpenCycles(), hasLength(4));
+
+      final created = (await repo.getOpenLegs()).firstWhere(
+        (l) => l.strike == Decimal.parse('12'),
+      );
+      expect(created.ruleProfileVersionId, RuleProfileVersionIds.standardV1);
+      expect(gateway.scheduled, isNotEmpty);
+      for (final entry in gateway.scheduled.values) {
+        expect(entry.when.isAfter(_now), isTrue);
+      }
+
+      // Consulted, not bypassed (S-259).
+      expect(repo.openCycleReads, greaterThan(readsBefore));
+    });
+
+    test('S-260: three open cycles and free — the fourth is refused with the '
+        'D-24 line and writes nothing at all', () async {
+      await threeOpenCycles();
+      final snapshotted = (await repo.getOpenLegs()).first;
+      await repo.appendSnapshot(
+        NewSnapshotInput(
+          legId: snapshotted.id,
+          takenAt: _now,
+          optionMark: Decimal.parse('1.20'),
+          underlyingPrice: Decimal.parse('30'),
+          deltaAsEntered: -0.32,
+          deltaConvention: DeltaConvention.position,
+        ),
+      );
+      await entitle(const EntitlementSnapshot.inactive());
+
+      final underlyingsBefore = await _underlyingIds(repo);
+      final cyclesBefore = await repo.getOpenCycles();
+      final legsBefore = await repo.getAllLegs();
+      final closedBefore = await repo.getClosedCycles();
+      final snapshotsBefore = await repo.getSnapshotsForLeg(snapshotted.id);
+
+      final result = await service().save(
+        ticker: 'ZZZ',
+        side: OptionType.put,
+        strike: Decimal.parse('12'),
+        expiration: DateTime(2026, 10, 16),
+        contracts: 1,
+        openCreditPerShare: Decimal.parse('0.50'),
+        now: _now,
+      );
+
+      expect(result.outcome, RecordSaveOutcome.paywallRequired);
+      expect(result.isPaywallRequired, isTrue);
+      expect(
+        result.trigger,
+        'You have 3 open cycles, the free plan\'s limit, so recording a fourth '
+        'needs Pro. Everything you\'ve already recorded stays available on '
+        'every plan.',
+      );
+
+      // The check precedes `getOrCreateUnderlying`: no row of any table.
+      expect(await _underlyingIds(repo), underlyingsBefore);
+      expect(await repo.getOpenCycles(), hasLength(cyclesBefore.length));
+      expect(await repo.getAllLegs(), hasLength(legsBefore.length));
+      expect(await repo.getClosedCycles(), hasLength(closedBefore.length));
+      expect(await repo.getSnapshotsForLeg(snapshotted.id), snapshotsBefore);
+      expect(await repo.getOpenLegs(), hasLength(2));
+      expect(gateway.scheduled, isEmpty);
+    });
+
+    test('S-260: an unknown entitlement is refused exactly as free is', () async {
+      await threeOpenCycles();
+      await entitle(const EntitlementSnapshot.unknown());
+      final before = await repo.getAllLegs();
+
+      final result = await service().save(
+        ticker: 'ZZZ',
+        side: OptionType.put,
+        strike: Decimal.parse('12'),
+        expiration: DateTime(2026, 10, 16),
+        contracts: 1,
+        openCreditPerShare: Decimal.parse('0.50'),
+        now: _now,
+      );
+
+      expect(result.outcome, RecordSaveOutcome.paywallRequired);
+      expect(await repo.getAllLegs(), hasLength(before.length));
+      expect(await repo.getOpenCycles(), hasLength(3));
+    });
+
+    test('S-263: a covered call at the limit attaches and never consults the '
+        'gate', () async {
+      await threeOpenCycles();
+      await entitle(const EntitlementSnapshot.inactive());
+      final readsBefore = repo.openCycleReads;
+
+      final result = await service().save(
+        ticker: 'C',
+        side: OptionType.call,
+        strike: Decimal.parse('31'),
+        expiration: DateTime(2026, 10, 16),
+        contracts: 1,
+        openCreditPerShare: Decimal.parse('0.45'),
+        now: _now,
+      );
+
+      expect(result.outcome, RecordSaveOutcome.attached);
+      // Asserted before the test's own read: the counter cannot tell the two
+      // apart, so the test must not add to it first.
+      expect(repo.openCycleReads, readsBefore);
+      expect(await repo.getOpenCycles(), hasLength(3));
+    });
+
+    test('S-263: a refused call at the limit is refused by D-P12, not by the '
+        'free tier', () async {
+      await threeOpenCycles();
+      await entitle(const EntitlementSnapshot.inactive());
+
+      final result = await service().save(
+        ticker: 'A',
+        side: OptionType.call,
+        strike: Decimal.parse('31'),
+        expiration: DateTime(2026, 10, 16),
+        contracts: 1,
+        openCreditPerShare: Decimal.parse('0.45'),
+        now: _now,
+      );
+
+      expect(result.outcome, RecordSaveOutcome.refused);
+      expect(result.refusalReason, contains('there are no A shares on record'));
+    });
+
+    test('S-264: a call-less holdingShares cycle counts, a closed cycle does '
+        'not, and closing one frees a slot immediately', () async {
+      await _assignShares(repo, ticker: 'C', strike: Decimal.parse('30'));
+      await _openPutCycle(repo, ticker: 'A');
+      for (final ticker in ['X', 'Y']) {
+        final opened = await _openPutCycle(repo, ticker: ticker);
+        await repo.closeLeg(
+          legId: opened.leg.id,
+          reason: CloseReason.closedEarly,
+          closeDebitPerShare: Decimal.parse('0.10'),
+          closedAt: _now,
+        );
+      }
+      await entitle(const EntitlementSnapshot.inactive());
+
+      // Two closed cycles are excluded; the call-less one is included.
+      expect(await repo.getOpenCycles(), hasLength(2));
+
+      final second = await service().save(
+        ticker: 'D',
+        side: OptionType.put,
+        strike: Decimal.parse('12'),
+        expiration: DateTime(2026, 10, 16),
+        contracts: 1,
+        openCreditPerShare: Decimal.parse('0.50'),
+        now: _now,
+      );
+      expect(second.outcome, RecordSaveOutcome.created);
+      expect(await repo.getOpenCycles(), hasLength(3));
+
+      final d = (await repo.getOpenLegs()).firstWhere(
+        (l) => l.strike == Decimal.parse('12'),
+      );
+      await repo.closeLeg(
+        legId: d.id,
+        reason: CloseReason.closedEarly,
+        closeDebitPerShare: Decimal.parse('0.20'),
+        closedAt: _now,
+      );
+      expect(await repo.getOpenCycles(), hasLength(2));
+
+      final third = await service().save(
+        ticker: 'E',
+        side: OptionType.put,
+        strike: Decimal.parse('13'),
+        expiration: DateTime(2026, 10, 16),
+        contracts: 1,
+        openCreditPerShare: Decimal.parse('0.55'),
+        now: _now,
+      );
+      expect(third.outcome, RecordSaveOutcome.created);
     });
   });
 }

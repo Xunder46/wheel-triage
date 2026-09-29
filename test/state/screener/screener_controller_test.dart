@@ -2,17 +2,21 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:wheel_triage/core/purchases/purchase_gateway.dart';
 import 'package:wheel_triage/data/in_memory_wheel_repository.dart';
 import 'package:wheel_triage/data/wheel_repository.dart';
 import 'package:wheel_triage/domain/models/leg.dart';
+import 'package:wheel_triage/domain/models/pro_plan_kind.dart';
 import 'package:wheel_triage/domain/models/rule_profile_ids.dart';
 import 'package:wheel_triage/domain/models/wheel_cycle.dart';
 import 'package:wheel_triage/domain/rules/credit_bound.dart';
+import 'package:wheel_triage/state/entitlements/entitlement_providers.dart';
 import 'package:wheel_triage/state/preferences/preferences_provider.dart';
 import 'package:wheel_triage/state/repository_providers.dart';
 import 'package:wheel_triage/state/rule_profiles/rule_profile_providers.dart';
 import 'package:wheel_triage/state/screener/screener_controller.dart';
 
+import '../../support/fake_purchase_gateway.dart';
 import '../../support/rule_profile_fixtures.dart';
 
 final _fixedNow = DateTime(2026, 1, 1);
@@ -543,6 +547,152 @@ void main() {
       // The ticker is uppercased by the form, as it always was.
       expect((await repo.getUnderlying((await repo.getCycle(leg.cycleId))!.underlyingId))!.ticker,
           'CCL');
+    });
+  });
+
+  group('S-266: the screener\'s new-cycle save is gated identically', () {
+    late InMemoryWheelRepository repo;
+    late ProviderContainer container;
+    late FakePurchaseGateway store;
+
+    setUp(() {
+      repo = InMemoryWheelRepository();
+      store = FakePurchaseGateway();
+      container = ProviderContainer(
+        overrides: [
+          wheelRepositoryProvider.overrideWithValue(repo),
+          purchaseGatewayProvider.overrideWithValue(store),
+          screenerControllerProvider.overrideWith(
+            (ref) => ScreenerController(ref, now: _fixedNow),
+          ),
+        ],
+      );
+      container.listen(screenerControllerProvider, (previous, next) {});
+      container.listen(screenerOutputsProvider, (previous, next) {});
+      container.listen(preferencesControllerProvider, (previous, next) {});
+      container.listen(entitlementControllerProvider, (previous, next) {});
+    });
+
+    tearDown(() => container.dispose());
+
+    ScreenerController controller() => container.read(screenerControllerProvider.notifier);
+
+    Future<void> entitle(EntitlementSnapshot snapshot) async {
+      store.snapshot = snapshot;
+      await container.read(entitlementControllerProvider.notifier).initialize();
+    }
+
+    /// Three open cycles, one of them a call-less `holdingShares` cycle on T.
+    Future<void> threeOpenCycles() async {
+      for (final ticker in ['A', 'B']) {
+        final underlying = await repo.getOrCreateUnderlying(ticker);
+        await repo.createCycle(
+          underlyingId: underlying.id,
+          firstLeg: NewLegInput(
+            optionType: OptionType.put,
+            strike: Decimal.parse('30'),
+            expiration: DateTime(2026, 2, 20),
+            contracts: 1,
+            openedAt: _fixedNow,
+            openCreditPerShare: Decimal.parse('1.00'),
+            ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+          ),
+        );
+      }
+      final underlying = await repo.getOrCreateUnderlying('T');
+      final put = await repo.createCycle(
+        underlyingId: underlying.id,
+        firstLeg: NewLegInput(
+          optionType: OptionType.put,
+          strike: Decimal.parse('30'),
+          expiration: DateTime(2026, 2, 20),
+          contracts: 1,
+          openedAt: _fixedNow,
+          openCreditPerShare: Decimal.parse('1.00'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+      await repo.recordAssignment(
+        legId: put.leg.id,
+        shareLot: NewShareLotInput(
+          assignedAt: _fixedNow,
+          assignmentStrike: Decimal.parse('30'),
+          contracts: 1,
+        ),
+      );
+      expect(await repo.getOpenCycles(), hasLength(3));
+    }
+
+    test('the put case sets state.error to the D-24 line and writes nothing',
+        () async {
+      await threeOpenCycles();
+      await entitle(const EntitlementSnapshot.inactive());
+      final legsBefore = await repo.getAllLegs();
+
+      controller()
+        ..setTicker('xyz')
+        ..setSide(OptionType.put)
+        ..setStrike(Decimal.parse('45'))
+        ..setSpot(Decimal.parse('47'))
+        ..setCredit(Decimal.parse('0.60'))
+        ..setDteConvenience(35)
+        ..setIv(45)
+        ..setIvRank(40)
+        ..setContracts(2);
+
+      final ok = await controller().trackThisPosition(now: _fixedNow);
+
+      expect(ok, isFalse);
+      expect(
+        container.read(screenerControllerProvider).error,
+        'You have 3 open cycles, the free plan\'s limit, so recording a fourth '
+        'needs Pro. Everything you\'ve already recorded stays available on '
+        'every plan.',
+      );
+      // No new underlying, cycle or leg — the gate precedes the write.
+      expect(await repo.getAllLegs(), hasLength(legsBefore.length));
+      expect(await repo.getOpenCycles(), hasLength(3));
+    });
+
+    test('the call case attaches and reports success', () async {
+      await threeOpenCycles();
+      await entitle(const EntitlementSnapshot.inactive());
+
+      controller()
+        ..setTicker('T')
+        ..setSide(OptionType.call)
+        ..setStrike(Decimal.parse('28'))
+        ..setSpot(Decimal.parse('28'))
+        ..setCredit(Decimal.parse('0.30'))
+        ..setDteConvenience(35)
+        ..setContracts(1);
+
+      final ok = await controller().trackThisPosition(now: _fixedNow);
+
+      expect(ok, isTrue);
+      final state = container.read(screenerControllerProvider);
+      expect(state.error, isNull);
+      expect(state.tracked, isTrue);
+      expect(await repo.getOpenCycles(), hasLength(3));
+    });
+
+    test('a Pro user saves a fourth cycle through the same path', () async {
+      await threeOpenCycles();
+      await entitle(const EntitlementSnapshot.active(planKind: ProPlanKind.annual));
+
+      controller()
+        ..setTicker('xyz')
+        ..setSide(OptionType.put)
+        ..setStrike(Decimal.parse('45'))
+        ..setSpot(Decimal.parse('47'))
+        ..setCredit(Decimal.parse('0.60'))
+        ..setDteConvenience(35)
+        ..setContracts(2);
+
+      final ok = await controller().trackThisPosition(now: _fixedNow);
+
+      expect(ok, isTrue);
+      expect(await repo.getOpenCycles(), hasLength(4));
     });
   });
 }

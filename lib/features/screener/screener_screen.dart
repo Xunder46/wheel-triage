@@ -9,6 +9,7 @@ import '../../state/preferences/preferences_provider.dart';
 import '../../state/screener/screener_controller.dart';
 import '../../widgets/help_chip.dart';
 import '../../widgets/labeled_number_field.dart';
+import '../paywall/paywall_route.dart';
 
 /// §5.1's entry screener: type a candidate trade, see the outputs, either
 /// "Just calculating" (nothing persisted) or "Track this position" (creates
@@ -160,12 +161,29 @@ class ScreenerScreen extends ConsumerWidget {
                       ? null
                       : () async {
                           final ok = await controller.trackThisPosition();
-                          if (ok && context.mounted) {
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(const SnackBar(content: Text('Position tracked.')));
-                            controller.reset();
+                          if (!context.mounted) return;
+                          if (!ok) {
+                            // D-30's first entry point: the free tier's
+                            // refusal is answered by the paywall. The screen
+                            // decides nothing about Pro -- it renders the line
+                            // the state layer produced (D-28).
+                            final refusal = controller.paywallTrigger;
+                            if (refusal != null) {
+                              // Consume it: the paywall owns the trigger from
+                              // here, so a later failure that is not the
+                              // gate's must not reopen it (D-30, R12).
+                              controller.clearPaywallTrigger();
+                              showPaywall(
+                                context,
+                                trigger: NewCyclePaywallTrigger(refusal),
+                              );
+                            }
+                            return;
                           }
+                          ScaffoldMessenger.of(
+                            context,
+                          ).showSnackBar(const SnackBar(content: Text('Position tracked.')));
+                          controller.reset();
                         },
                   child: form.isSaving
                       ? const SizedBox(

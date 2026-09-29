@@ -4,14 +4,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:wheel_triage/core/app_router.dart';
+import 'package:wheel_triage/core/purchases/paywall_copy.dart';
+import 'package:wheel_triage/core/purchases/pro_plans.dart';
+import 'package:wheel_triage/core/purchases/purchase_gateway.dart';
 import 'package:wheel_triage/data/in_memory_wheel_repository.dart';
 import 'package:wheel_triage/data/wheel_repository.dart';
 import 'package:wheel_triage/domain/models/leg.dart';
 import 'package:wheel_triage/domain/models/rule_profile_ids.dart';
+import 'package:wheel_triage/features/paywall/paywall_screen.dart';
 import 'package:wheel_triage/features/record/record_trade_screen.dart';
+import 'package:wheel_triage/state/entitlements/entitlement_providers.dart';
 import 'package:wheel_triage/state/record/record_controller.dart';
 import 'package:wheel_triage/state/repository_providers.dart';
 import 'package:wheel_triage/widgets/help_chip.dart';
+
+import '../../support/fake_purchase_gateway.dart';
 
 final _now = DateTime(2026, 9, 28, 10); // a Monday
 
@@ -225,7 +232,8 @@ void main() {
       tester,
     ) async {
       await pumpScreen(tester);
-      controllerOf(tester)
+      final controller = controllerOf(tester);
+      controller
         ..setTicker('CCL')
         ..setSide(OptionType.put)
         ..setStrike(Decimal.parse('19'))
@@ -251,7 +259,8 @@ void main() {
 
     testWidgets('the reminder line names the milestones that will fire', (tester) async {
       await pumpScreen(tester);
-      controllerOf(tester)
+      final controller = controllerOf(tester);
+      controller
         ..setTicker('CCL')
         ..setStrike(Decimal.parse('19'))
         ..setCredit(Decimal.parse('0.34'))
@@ -279,7 +288,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      controllerOf(tester)
+      final controller = controllerOf(tester);
+      controller
         ..setTicker('CCL')
         ..setSide(OptionType.put)
         ..setStrike(Decimal.parse('19'))
@@ -328,6 +338,128 @@ void main() {
         'annualised_yield',
       ].where((id) => !present.contains(id)).toList();
       expect(missing, isEmpty, reason: 'missing HelpChip(s) for: $missing');
+    });
+  });
+
+  group('S-276: a fourth-cycle refusal is answered on the screen', () {
+    testWidgets('the D-24 line renders and the paywall opens carrying it', (tester) async {
+      tester.view.physicalSize = const Size(900, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      // The free tier, at its limit.
+      for (var i = 0; i < kFreeTierOpenCycles; i++) {
+        await _openCycle(repo, ticker: 'T$i', openedAt: _now.subtract(const Duration(days: 10)));
+      }
+      final gateway = FakePurchaseGateway(snapshot: const EntitlementSnapshot.inactive());
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ...overrides(),
+            purchaseGatewayProvider.overrideWithValue(gateway),
+          ],
+          child: MaterialApp.router(routerConfig: buildAppRouter(initialLocation: '/record')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(tester.element(find.byType(RecordTradeScreen)));
+      await container.read(entitlementControllerProvider.notifier).refresh();
+      await tester.pumpAndSettle();
+
+      final controller = controllerOf(tester);
+      controller
+        ..setTicker('CCL')
+        ..setSide(OptionType.put)
+        ..setStrike(Decimal.parse('19'))
+        ..setCredit(Decimal.parse('0.34'))
+        ..setExpiration(DateTime(2026, 10, 16))
+        ..setContracts(2);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Record trade'));
+      await tester.pumpAndSettle();
+
+      final refusal = newCycleRefusalLine(count: kFreeTierOpenCycles, limit: kFreeTierOpenCycles);
+      // Nothing was recorded, and the reason is on the screen it was refused
+      // on -- not only on the paywall.
+      expect(await repo.getOpenLegs(), hasLength(kFreeTierOpenCycles));
+      expect(find.text(refusal), findsWidgets);
+      expect(find.byType(PaywallScreen), findsOneWidget);
+      expect(
+        tester.widget<Text>(find.byKey(const ValueKey('paywall-trigger-line'))).data,
+        refusal,
+      );
+      // The screen itself decided nothing about Pro: it read a trigger the
+      // state layer produced, and it consumed it -- the paywall owns the
+      // trigger from here, so it must not fire again (R12).
+      expect(controller.state.paywallTrigger, isNull);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('a later, unrelated failure after the paywall is dismissed does not reopen it', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(900, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      for (var i = 0; i < kFreeTierOpenCycles; i++) {
+        await _openCycle(repo, ticker: 'T$i', openedAt: _now.subtract(const Duration(days: 10)));
+      }
+      final gateway = FakePurchaseGateway(snapshot: const EntitlementSnapshot.inactive());
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ...overrides(),
+            purchaseGatewayProvider.overrideWithValue(gateway),
+          ],
+          child: MaterialApp.router(routerConfig: buildAppRouter(initialLocation: '/record')),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(tester.element(find.byType(RecordTradeScreen)));
+      await container.read(entitlementControllerProvider.notifier).refresh();
+      await tester.pumpAndSettle();
+
+      final controller = controllerOf(tester);
+      controller
+        ..setTicker('CCL')
+        ..setSide(OptionType.put)
+        ..setStrike(Decimal.parse('19'))
+        ..setCredit(Decimal.parse('0.34'))
+        ..setExpiration(DateTime(2026, 10, 16))
+        ..setContracts(2);
+      await tester.pumpAndSettle();
+
+      // The gate refuses, and the paywall opens.
+      await tester.tap(find.text('Record trade'));
+      await tester.pumpAndSettle();
+      expect(find.byType(PaywallScreen), findsOneWidget);
+
+      // The user declines and comes back to the form...
+      await tester.tap(find.byKey(const ValueKey('paywall-not-now')));
+      await tester.pumpAndSettle();
+      expect(find.byType(PaywallScreen), findsNothing);
+
+      // ...then fails for an unrelated reason. The trigger was consumed, so
+      // the paywall must not reopen on a failure that has nothing to do with
+      // the free tier (R12).
+      controller.setTicker('');
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Record trade'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(PaywallScreen), findsNothing);
+      expect(
+        find.text('Enter ticker, strike, credit, expiration, and contracts first.'),
+        findsOneWidget,
+      );
+      expect(controller.state.paywallTrigger, isNull);
+      expect(tester.takeException(), isNull);
     });
   });
 }

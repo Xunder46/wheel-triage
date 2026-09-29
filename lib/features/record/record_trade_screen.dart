@@ -13,6 +13,7 @@ import '../../state/record/record_controller.dart';
 import '../../state/record/record_save_service.dart';
 import '../../widgets/help_chip.dart';
 import '../../widgets/labeled_number_field.dart';
+import '../paywall/paywall_route.dart';
 
 /// D-16's "Record a trade": the day-after-the-fill entry point, reachable in
 /// one tap from Today. It writes exactly what the screener's "Track this
@@ -53,7 +54,20 @@ class _RecordTradeScreenState extends ConsumerState<RecordTradeScreen> {
     final controller = ref.read(recordControllerProvider.notifier);
     final messenger = ScaffoldMessenger.of(context);
     final ok = await controller.save();
-    if (!mounted || !ok) return;
+    if (!mounted) return;
+    if (!ok) {
+      // D-30's first entry point: the free tier's refusal is answered by the
+      // paywall. The screen decides nothing about Pro -- it renders the line
+      // the state layer produced (D-28).
+      final refusal = controller.paywallTrigger;
+      if (refusal != null) {
+        // Consume it: the paywall owns the trigger from here, so a later
+        // failure that is not the gate's must not reopen it (D-30, R12).
+        controller.clearPaywallTrigger();
+        showPaywall(context, trigger: NewCyclePaywallTrigger(refusal));
+      }
+      return;
+    }
     messenger.showSnackBar(
       SnackBar(content: Text(ref.read(recordControllerProvider).confirmation ?? 'Recorded.')),
     );

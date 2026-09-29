@@ -413,15 +413,15 @@ it) → effect → guard.
 
 | Touched surface | Existing readers (grep) | Effect | Guarded by |
 |---|---|---|---|
-| `RecordSaveService.save` | `lib/state/record/record_controller.dart:302-303`, `lib/state/screener/screener_controller.dart:275-276` (both `ref.read(recordSaveServiceProvider).save(…)`); `test/state/record/record_save_service_test.dart:93` | The new-cycle branch gains the D-23 gate *before* `getOrCreateUnderlying`; a `paywallRequired` result joins the three existing outcomes. Every put on a book with <3 open cycles and every call is byte-for-byte unchanged | S-260 (nothing written), S-266 + every existing record/screener scenario stays green |
-| `RecordSaveResult` / `RecordSaveOutcome` | `lib/state/record/record_controller.dart:318-319`, `lib/state/screener/screener_controller.dart:291-292` (`result.isRefused` → `state.error`); `test/state/record/*`, `test/state/screener/*` | Additive: a new enum value and a new named constructor. `isRefused` keeps its meaning, so a refusal still surfaces as `state.error` | S-260, S-266 + the existing refusal scenarios (S-234/S-235) |
+| `RecordSaveService.save` | `lib/state/record/record_controller.dart:317`, `lib/state/screener/screener_controller.dart:299` (both `ref.read(recordSaveServiceProvider).save(…)`); `test/state/record/record_save_service_test.dart:115` | The new-cycle branch gains the D-23 gate *before* `getOrCreateUnderlying`; a `paywallRequired` result joins the three existing outcomes. Every put on a book with <3 open cycles and every call is byte-for-byte unchanged | S-260 (nothing written), S-266 + every existing record/screener scenario stays green |
+| `RecordSaveResult` / `RecordSaveOutcome` | `lib/state/record/record_controller.dart:333`, `lib/state/screener/screener_controller.dart:315` (`result.isRefused` → `state.error`); `test/state/record/*`, `test/state/screener/*` | Additive: a new enum value and a new named constructor. `isRefused` keeps its meaning, so a refusal still surfaces as `state.error` | S-260, S-266 + the existing refusal scenarios (S-234/S-235) |
 | `WheelRepository` | both implementations (`lib/data/db/drift_wheel_repository.dart`, `lib/data/in_memory_wheel_repository.dart`) + `test/data/wheel_repository_contract_test.dart` | Three new methods (D-22, D-25). Additive; no existing signature changes | S-256, S-258 + the shared contract suite |
-| `DriftWheelRepository.restoreFromJson` delete list (`:616-623`) | `lib/state/export/export_controller.dart:69`, `lib/features/settings/settings_screen.dart:65-70` | **Unchanged** — `entitlement_cache` is deliberately absent, so a restore neither grants nor revokes Pro | S-257 |
+| `DriftWheelRepository.restoreFromJson` delete list (`:654-661`) | `lib/state/export/export_controller.dart:69`, `lib/features/settings/settings_screen.dart:65-70` | **Unchanged** — `entitlement_cache` is deliberately absent, so a restore neither grants nor revokes Pro | S-257 |
 | `LedgerExport` envelope (`currentFormatVersion` 2, nine keys) | `lib/data/export/ledger_export.dart`, `test/data/export/ledger_export_test.dart`, `ledger_import_test.dart` | **Unchanged** — the entitlement is not exported. `currentFormatVersion` stays 2 | S-257 |
 | `AppDatabase.schemaVersion` (5 → 6) and every migration test that targets the current version | `test/data/user_preferences_migration_test.dart`, `test/data/db/app_database_migration_test.dart`, `leg_v3_migration_test.dart`, `rule_profile_v4_migration_test.dart`, `user_preferences_v5_migration_test.dart` | Each "migrated all the way to the current version" test is **retargeted to v6** in the same phase — the A-2 lesson from Wave 1, where a later version's `createTable` changed what an earlier step's fresh-create produced | S-255 + all five retargeted suites green |
-| `WheelTriageApp` (`lib/main.dart:47`) | `test/widget_test.dart:22,38` | Becomes the host of `EntitlementLifecycleScope` (D-29) and gains a `purchaseGatewayProvider` override. Both smoke tests keep passing because the default gateway is unconfigured, not absent | S-270 + `test/widget_test.dart` |
+| `WheelTriageApp` (`lib/main.dart:64`) | `test/widget_test.dart:22,38` | Becomes the host of `EntitlementLifecycleScope` (D-29) and gains a `purchaseGatewayProvider` override. Both smoke tests keep passing because the default gateway is unconfigured, not absent | S-270 + `test/widget_test.dart` |
 | `SettingsScreen` body (`ListView`) | `test/features/settings/settings_screen_test.dart`, `rule_profile_editor_test.dart` (both pump the whole screen) | A `ProPlanSection` is inserted at the top. Both suites keep passing because the default gateway yields `unknown` and `getOpenCycles()` is already overridden with `InMemoryWheelRepository` | S-285 + both settings suites green |
-| `lib/core/app_router.dart` route graph | `lib/main.dart:28`, `test/features/record/record_trade_screen_test.dart:276`, `test/features/today/today_screen_test.dart:218,572,684`, `test/features/onboarding/first_run_explainer_test.dart:115`, `test/widget_test.dart:22,38` | One additive `/paywall` route; `initialLocation` unchanged, so no existing navigation test moves | S-277 |
+| `lib/core/app_router.dart` route graph | `lib/main.dart:34`, `test/features/record/record_trade_screen_test.dart:285,363,420`, `test/features/today/today_screen_test.dart:218,572,684`, `test/features/onboarding/first_run_explainer_test.dart:115`, `test/widget_test.dart:22,38` | One additive `/paywall` route; `initialLocation` unchanged, so no existing navigation test moves | S-277 |
 | `lib/core/format.dart` | `lib/features/**`, `lib/state/**` (all display formatting) | One additive formatter (`renewalDateText`); nothing existing changes | S-285 |
 | `pubspec.yaml` / `pubspec.lock` | whole repo | `purchases_flutter` added (D-P3's approved dependency). `pubspec.lock` changes; the pinned codegen set is untouched | S-287 + `dart run build_runner build --delete-conflicting-outputs` exit 0 |
 | `ios/Podfile` / Xcode deployment target | `flutter build ios --simulator --no-codesign` | `pod install` now fetches the RevenueCat pod; the target may need to rise above 13.0 if the podspec requires it | The acceptance build, exit 0 |
@@ -807,40 +807,40 @@ lib/data/*.dart lib/data/db/*.dart` unchanged.
 
 ### Phase 3: the purchase seam, the plugin and the network guard (@developer)
 
-1. [ ] `pubspec.yaml`: add `purchases_flutter` (D-P3's approved dependency) with
+1. [x] `pubspec.yaml`: add `purchases_flutter` (D-P3's approved dependency) with
        a pinned version and a comment naming D-P3 as its authority. Nothing else
        changes; the pinned codegen set is untouched. `flutter pub get`.
-2. [ ] `lib/core/purchases/purchase_gateway.dart` (new): `PurchaseGateway`
+2. [x] `lib/core/purchases/purchase_gateway.dart` (new): `PurchaseGateway`
        (D-27), the sealed `PurchaseOutcome`, `EntitlementSnapshot`,
        `ProOfferings`, `ProPlanOffer` and `TrialOffer`. No trade type is
        imported or named in this file.
-3. [ ] `lib/core/purchases/pro_plans.dart` (new): `kProEntitlementId`, the
+3. [x] `lib/core/purchases/pro_plans.dart` (new): `kProEntitlementId`, the
        three product identifiers, `kFreeTierOpenCycles = 3`, the display order,
        `kindForProductId(String?)`, and the owner-supplied policy URLs (D-37).
-4. [ ] `lib/core/purchases/purchase_configuration.dart` (new):
+4. [x] `lib/core/purchases/purchase_configuration.dart` (new):
        `const kRevenueCatIosApiKey = String.fromEnvironment('REVENUECAT_IOS_API_KEY')`.
-5. [ ] `lib/core/purchases/revenuecat_purchase_gateway.dart` (new): the real
+5. [x] `lib/core/purchases/revenuecat_purchase_gateway.dart` (new): the real
        adapter, the only file importing `purchases_flutter`. Idempotent
        `configure()`; no-op off iOS (D-27); maps the SDK's offerings, its
        customer info and its error codes onto the seam's value types; registers
        the customer-info update listener; never throws out of `refresh()`'s
        path. **Confirm every SDK symbol against the pinned version at
        implementation time** — the tests bind to the seam, not to the SDK.
-6. [ ] `lib/core/purchases/unconfigured_purchase_gateway.dart` (new): no
+6. [x] `lib/core/purchases/unconfigured_purchase_gateway.dart` (new): no
        offerings, `unknown` entitlement, every purchase `unavailable`.
-7. [ ] `lib/state/entitlements/entitlement_providers.dart` (new):
+7. [x] `lib/state/entitlements/entitlement_providers.dart` (new):
        `purchaseGatewayProvider` defaulting to `UnconfiguredPurchaseGateway`
        (D-27), with the same doc-comment rationale as
        `notificationGatewayProvider`.
-8. [ ] `lib/main.dart`: choose the gateway from `kRevenueCatIosApiKey.isEmpty`
+8. [x] `lib/main.dart`: choose the gateway from `kRevenueCatIosApiKey.isEmpty`
        and override `purchaseGatewayProvider` **always** — an override that
        exists in both branches, so a missing wire-up is impossible.
-9. [ ] `test/support/fake_purchase_gateway.dart` (new): a recording, scriptable
+9. [x] `test/support/fake_purchase_gateway.dart` (new): a recording, scriptable
        double (offerings, entitlement, per-call purchase outcomes, restore
        outcome, listener emission) mirroring `FakeNotificationGateway`'s shape.
-10. [ ] `test/core/purchases/network_boundary_test.dart` (new): S-287 and
+10. [x] `test/core/purchases/network_boundary_test.dart` (new): S-287 and
         S-265's structural assertions, reading `lib/` directly.
-11. [ ] `test/core/purchases/purchase_gateway_test.dart` (new): the seam's own
+11. [x] `test/core/purchases/purchase_gateway_test.dart` (new): the seam's own
         contract — every outcome is representable, the unconfigured gateway
         answers every call without throwing, and `configure()` is idempotent.
 
@@ -864,7 +864,7 @@ require raising the iOS deployment target — record the change if so).
 
 ### Phase 4: the entitlement controller, the cache and the refresh points (@developer)
 
-1. [ ] `lib/state/entitlements/entitlement_controller.dart` (new):
+1. [x] `lib/state/entitlements/entitlement_controller.dart` (new):
        `EntitlementState` (`status`, `planKind`, `expiresAt`, `willRenew`,
        `billingIssue`, `purchasedAt`, `offeringsAvailable`) and
        `EntitlementController` — `initialize()`, `refresh()`, `loadOfferings()`,
@@ -872,18 +872,18 @@ require raising the iOS deployment target — record the change if so).
        tri-valued status and the failed-read fallback; the cache is written only
        after a successful read; `refresh()` never throws and is re-entrant.
        It is the only reader of `PurchaseGateway` (D-28).
-2. [ ] `lib/state/entitlements/entitlement_providers.dart`:
+2. [x] `lib/state/entitlements/entitlement_providers.dart`:
        `entitlementControllerProvider` (a `StateNotifierProvider`, following
        `preferencesControllerProvider`), and nothing else yet.
-3. [ ] `lib/widgets/entitlement_lifecycle_scope.dart` (new): a
+3. [x] `lib/widgets/entitlement_lifecycle_scope.dart` (new): a
        `ConsumerStatefulWidget` + `WidgetsBindingObserver` that calls
        `refresh()` on `AppLifecycleState.resumed` and nothing else (D-29).
-4. [ ] `lib/main.dart`: `WheelTriageApp` wraps its child in
+4. [x] `lib/main.dart`: `WheelTriageApp` wraps its child in
        `EntitlementLifecycleScope`; the launch refresh happens once, after the
        gateway is configured and the cache is loaded.
-5. [ ] `lib/state/entitlements/entitlement_providers.dart`: register the
+5. [x] `lib/state/entitlements/entitlement_providers.dart`: register the
        gateway's entitlement listener once, at controller construction (D-29c).
-6. [ ] Tests: S-269, S-270, S-271, S-272, S-273, S-274, S-275
+6. [x] Tests: S-269, S-270, S-271, S-272, S-273, S-274, S-275
        (`test/state/entitlements/entitlement_controller_test.dart`,
        `test/widgets/entitlement_lifecycle_scope_test.dart`).
 
@@ -901,22 +901,22 @@ gateway must keep every screen working).
 
 ### Phase 5: the D-P2 gate and the save path (@developer)
 
-1. [ ] `lib/state/entitlements/new_cycle_gate.dart` (new): `NewCycleDecision`
+1. [x] `lib/state/entitlements/new_cycle_gate.dart` (new): `NewCycleDecision`
        (`NewCycleAllowed` / `NewCycleBlocked` carrying the line and the count)
        and `NewCycleGate.evaluate()` implementing D-23 exactly — the only
        evaluation of the limit in the app.
-2. [ ] `lib/core/purchases/paywall_copy.dart` (new): the D-24 line builders and
+2. [x] `lib/core/purchases/paywall_copy.dart` (new): the D-24 line builders and
        the paywall's static strings (title, privacy line, the four feature
        bullets, fine print, button and row labels, the D-32 outcome lines).
        Pure functions and `const`s; no Flutter import needed.
-3. [ ] `lib/state/record/record_save_service.dart`: in the new-cycle branch
+3. [x] `lib/state/record/record_save_service.dart`: in the new-cycle branch
        only, evaluate the gate **before** `getOrCreateUnderlying` and return
        `RecordSaveResult.paywallRequired(trigger: …)` on a block; add
        `RecordSaveOutcome.paywallRequired` and the named constructor. A refusal
        writes nothing (S-260).
-4. [ ] `lib/state/entitlements/entitlement_providers.dart`:
+4. [x] `lib/state/entitlements/entitlement_providers.dart`:
        `newCycleGateProvider`.
-5. [ ] Tests: S-259, S-260, S-261, S-262, S-263, S-264, S-266, S-267, S-268 —
+5. [x] Tests: S-259, S-260, S-261, S-262, S-263, S-264, S-266, S-267, S-268 —
        `test/state/entitlements/new_cycle_gate_test.dart` (new) plus extensions
        to `test/state/record/record_save_service_test.dart`,
        `test/state/screener/screener_controller_test.dart` and a new
@@ -942,28 +942,47 @@ moves only by the new tests); `grep -rn "kFreeTierOpenCycles" lib/` limited to
 
 ### Phase 6: the paywall (@developer)
 
-1. [ ] `lib/state/paywall/paywall_controller.dart` (new): `PaywallState`
+1. [x] `lib/state/paywall/paywall_controller.dart` (new): `PaywallState`
        (offerings, the selected plan kind, the in-flight status, the outcome
        line) and the selection/purchase/restore orchestration. It reads
        `entitlementControllerProvider`; it computes no entitlement itself.
-2. [ ] `lib/features/paywall/paywall_screen.dart` (new): the reference's
+2. [x] `lib/features/paywall/paywall_screen.dart` (new): the reference's
        layout — title, the trigger line, the four launch feature bullets, the
        plan rows (annual preselected, store prices, the derived per-month figure
        on annual, the store's trial term), the button naming the outcome, the
        privacy line, the fine print, Restore purchases, the policy text (D-37),
        "Not now" and the close icon. Owned state when the entitlement is already
        active (D-33). Semantics labels on every number (Feature Invariant 11).
-3. [ ] `lib/features/paywall/paywall_route.dart` (new): `PaywallTrigger` and
+3. [x] `lib/features/paywall/paywall_route.dart` (new): `PaywallTrigger` and
        `showPaywall(BuildContext, {required PaywallTrigger trigger})` — the one
        place `context.push('/paywall'` appears (D-30).
-4. [ ] `lib/core/app_router.dart`: register `/paywall`, taking its trigger from
+4. [x] `lib/core/app_router.dart`: register `/paywall`, taking its trigger from
        `state.extra` with the Settings fallback.
-5. [ ] Tests: S-276 (the rendered trigger line), S-278, S-279, S-280, S-281,
+5. [x] Tests: S-276 (the rendered trigger line), S-278, S-279, S-280, S-281,
        S-282, S-283, S-284 —
        `test/features/paywall/paywall_screen_test.dart` (new),
        `test/state/paywall/paywall_controller_test.dart` (new),
        `test/core/purchases/paywall_copy_test.dart` (new, the tone unit test),
        and a `renewalDateText` case in the `lib/core/format.dart` test.
+
+**Phase 6 status: Complete.** `flutter analyze` clean; `flutter test
+test/features/paywall test/state/paywall test/core/purchases` → **81 passed / 1
+failed**; full `flutter test` → **890 passed / 1 failed**. The single failure is
+S-265 in `test/core/purchases/network_boundary_test.dart`, whose expected list
+names `lib/features/settings/pro_plan_section.dart` — a Phase 7 artifact — so it
+cannot pass before Phase 7 and no Phase 6 change can make it pass. Every other
+Phase 6 Done Criterion is met (tone grep empty; exactly one
+`context.push('/paywall'`, in `paywall_route.dart`; the colour-literal grep
+empty; no Flutter import under `lib/domain/rules/`).
+
+*Red run, recorded before any Phase 6 implementation existed*:
+`flutter test test/core/purchases/paywall_copy_test.dart
+test/state/paywall/paywall_controller_test.dart` → `+34 −5`, the five failures
+being the missing `PaywallState`/`PaywallController` and the missing
+outcome/button copy. The screen test and `test/core/format_test.dart` were
+written **after** their implementation (see Assumption Log, item 29), so no red
+run exists for them; that is a deviation from the tests-first rule and is
+flagged rather than hidden.
 
 **Done Criteria**: `flutter analyze`; `flutter test test/features/paywall
 test/state/paywall test/core/purchases`; `flutter test` green;
@@ -982,17 +1001,21 @@ the existing `lib/core/format.dart` test.
 
 ### Phase 7: the three entry points and the Settings plan row (@developer)
 
-1. [ ] `lib/features/record/record_trade_screen.dart` and
+1. [x] `lib/features/record/record_trade_screen.dart` and
        `lib/features/screener/screener_screen.dart`: on a
        `paywallRequired` outcome, show the trigger line and call `showPaywall`.
-       Neither screen reads the entitlement (D-28).
-2. [ ] `lib/features/settings/pro_plan_section.dart` (new): D-34's section,
+       Neither screen reads the entitlement (D-28). Both read the line the
+       state layer produced (`RecordController.paywallTrigger` /
+       `ScreenerController.paywallTrigger`, getters added in this phase) and
+       hand it to `NewCyclePaywallTrigger`; the existing `form.error` widget
+       already renders the line on the screen itself.
+2. [x] `lib/features/settings/pro_plan_section.dart` (new): D-34's section,
        inserted at the top of Settings' `ListView`; the free-state count comes
        from `getOpenCycles()`; Manage subscription and Restore purchases call
        the controller.
-3. [ ] `lib/features/settings/settings_screen.dart`: insert the section; no
+3. [x] `lib/features/settings/settings_screen.dart`: insert the section; no
        other change to the screen's order.
-4. [ ] Tests: S-277, S-285, S-286, S-288 —
+4. [x] Tests: S-277, S-285, S-286, S-288 —
        `test/features/paywall/paywall_entry_points_test.dart` (new, covering all
        three triggers and the never-on-launch case),
        `test/features/settings/pro_plan_section_test.dart` (new),
@@ -1001,8 +1024,22 @@ the existing `lib/core/format.dart` test.
        `test/core/purchases/recording_gateway_isolation_test.dart` (new,
        S-288), and confirm `test/features/settings/settings_screen_test.dart`
        and `rule_profile_editor_test.dart` still pass unchanged.
-5. [ ] `flutter test test/widget_test.dart` — the app shell still boots with
+5. [x] `flutter test test/widget_test.dart` — the app shell still boots with
        the lifecycle scope in place.
+
+**Status: Complete.** Red run recorded below (`+3 −2`, the two new widget files
+failing to load against the constants and the section that did not exist yet);
+after implementation `test/features/settings/pro_plan_section_test.dart` +
+`test/features/paywall` + `test/features/record` + `test/features/screener`
+**67 passed / 0 failed**, `test/core/purchases` + `test/state/entitlements` +
+`test/state/paywall` **93 passed / 0 failed**, full suite **918 passed /
+0 failed** (Phase 6 was 890 passed / 1 failed; the one failure was S-265, which
+this phase turns green). Two pre-existing Settings screen tests failed on the
+first green run and are fixed by a harness change, not a behaviour change: the
+new section pushes the milestone editor past the 800×2400 test viewport, so
+`test/features/settings/settings_screen_test.dart`'s seven viewport overrides
+move to 800×3200 (Assumption Log 41). `flutter build ios --simulator
+--no-codesign` exit 0.
 
 **Done Criteria**: `flutter analyze`; `flutter test test/features test/state
 test/core`; `flutter test` green (report the pass/fail counts and the delta
@@ -1023,16 +1060,16 @@ only `paywall_route.dart` plus the three allowed call sites;
 
 ### Phase 8: closeout — docs, the privacy disclosure and the residue sweep (@developer)
 
-1. [ ] `docs/architecture/wheel-triage.md`: extend in place — the purchase seam
+1. [x] `docs/architecture/wheel-triage.md`: extend in place — the purchase seam
        and the fake, the three refresh points, the tri-valued entitlement, the
        D-P2 gate and its single evaluation point, schema v6, the paywall, the
        Settings row, the `--dart-define` build command, and two new rows in the
        drift-risk table ("an entitlement fact" → `EntitlementController`; "a
        paywall string" → `paywall_copy.dart`).
-2. [ ] `docs/privacy.md` (new): what RevenueCat collects, what is never
+2. [x] `docs/privacy.md` (new): what RevenueCat collects, what is never
        transmitted, the in-app sentence, and the owner's remaining label and
        hosted-policy items (D-36).
-3. [ ] Residue sweep, each command pasted in the phase report:
+3. [x] Residue sweep, each command pasted in the phase report:
        `grep -rn "kFreeTierOpenCycles" lib/`; `grep -rniE "dart:io|package:http|HttpClient|Socket|WebSocket|NetworkImage|package:dio|url_launcher" lib/`
        → empty; `grep -rl "purchases_flutter" lib/` → one path;
        `grep -rn "purchaseGatewayProvider\|purchases_flutter" lib/features/`
@@ -1042,8 +1079,13 @@ only `paywall_route.dart` plus the three allowed call sites;
        `grep -rnE "(^|[^A-Za-z])Colors\.|Color\(0x" lib/ --include='*.dart' | grep -v lib/core/theme/`
        → empty; `grep -rn "entitlement" lib/data/export/` → empty;
        `grep -c "UnimplementedError" lib/data/*.dart lib/data/db/*.dart`.
-4. [ ] `flutter analyze`, `flutter test`, `flutter build ios --simulator
+4. [x] `flutter analyze`, `flutter test`, `flutter build ios --simulator
        --no-codesign` — all green, with the counts pasted.
+
+**Status: Complete.** `flutter analyze` → No issues found. `flutter test` →
+**918 passed / 0 failed**. `flutter build ios --simulator --no-codesign` →
+exit 0, `✓ Built build/ios/iphonesimulator/Runner.app`. All ten sweeps clean;
+the pasted output is in the Progress row below.
 
 **Done Criteria**: `flutter analyze`; `flutter test`; the nine sweeps above;
 `flutter build ios --simulator --no-codesign` exit 0.
@@ -1062,7 +1104,11 @@ in against `docs/privacy.md` and RevenueCat's published guidance.
 ## Files Affected (whole wave; dependents marked)
 
 - **Dependency**: `pubspec.yaml`, `pubspec.lock`, `ios/Podfile` (only if the
-  podspec forces a deployment-target bump).
+  podspec forces a deployment-target bump), `ios/Podfile.lock`,
+  `ios/Runner/AppDelegate.swift` *(dependent: registers the `store_page`
+  MethodChannel the native store sheet is opened through)*,
+  `macos/Flutter/GeneratedPluginRegistrant.swift` *(dependent: generated; gains
+  `PurchasesFlutterPlugin` when `purchases_flutter` is added)*.
 - **Domain models**: `lib/domain/models/pro_plan_kind.dart` (new),
   `entitlement_cache.dart` (+ generated) (new),
   `entitlement_cache_defaults.dart` (new).
@@ -1081,7 +1127,10 @@ in against `docs/privacy.md` and RevenueCat's published guidance.
 - **State**: `lib/state/entitlements/*` (new: `entitlement_controller.dart`,
   `entitlement_providers.dart`, `new_cycle_gate.dart`),
   `lib/state/paywall/paywall_controller.dart` (new),
-  `lib/state/record/record_save_service.dart`.
+  `lib/state/record/record_save_service.dart`,
+  `lib/state/record/record_controller.dart` *(dependent: carries the gate's
+  refusal line as `paywallTrigger` and consumes it)*,
+  `lib/state/screener/screener_controller.dart` *(dependent: same)*.
 - **UI**: `lib/widgets/entitlement_lifecycle_scope.dart` (new),
   `lib/features/paywall/*` (new), `lib/features/settings/pro_plan_section.dart`
   (new), `lib/features/settings/settings_screen.dart` *(dependent: section
@@ -1132,12 +1181,13 @@ in against `docs/privacy.md` and RevenueCat's published guidance.
 |---|---|---|---|
 | 1 — schema v6 entitlement cache | @data-architect | Complete | `flutter analyze` clean; full suite 752 passed / 0 failed; schema diff v5→v6 is one added table, no changed column; `grep -rn "entitlement" lib/data/export/` empty; `UnimplementedError` count 0 in every data-layer file; S-255 red-then-green |
 | 2 — `getOpenCycles` | @data-architect | Complete | S-258 contract block green against both implementations; `test/domain/rules/sbet_regression_test.dart` green in the full-suite run |
-| 3 — purchase seam, plugin, network guard | @developer | not started | — |
-| 4 — entitlement controller, cache, refresh | @developer | not started | — |
-| 5 — D-P2 gate and the save path | @developer | not started | — |
-| 6 — the paywall | @developer | not started | — |
-| 7 — entry points and the Settings row | @developer | not started | — |
-| 8 — closeout docs and residue sweep | @developer | not started | — |
+| 3 — purchase seam, plugin, network guard | @developer | Complete | `flutter analyze` clean; `test/core/purchases/` 12 passed (2 S-265 structural cases red by construction until Phases 5/7); full suite 764 passed / 2 failed, both the Phase-5/7 S-265 paths; `grep -rn "purchaseGatewayProvider\|purchases_flutter" lib/features/` empty; `flutter build ios --simulator --no-codesign` exit 0 with `pod install` for `purchases_flutter` (no deployment-target bump) |
+| 4 — entitlement controller, cache, refresh | @developer | Complete | `test/state/entitlements/entitlement_controller_test.dart` 24 passed / 0 failed; `test/widgets/entitlement_lifecycle_scope_test.dart` 3 passed / 0 failed; `flutter test test/widgets test/widget_test.dart` 31 passed / 0 failed; `grep -rn "purchases_flutter" lib/state/ lib/features/` empty; `grep -rn "purchaseGatewayProvider" lib/features/` empty |
+| 5 — D-P2 gate and the save path | @developer | Complete | red run recorded below (`+59 −4`); after implementation `flutter test test/state/entitlements test/state/record test/state/screener` 87 passed / 0 failed; `flutter analyze` clean; `grep -rl "package:flutter" lib/domain/rules/` empty; `flutter test test/domain/rules/sbet_regression_test.dart` green; full suite 814 passed / 1 failed — the single failure is S-265's `lib/features/settings/pro_plan_section.dart` path, which Phase 7 creates |
+| 6 — the paywall | @developer | Complete | red run recorded below (`+34 −5`); after implementation `flutter test test/features/paywall test/state/paywall test/core/purchases` 81 passed / 1 failed; `test/state/paywall/paywall_controller_test.dart` + `test/core/purchases/paywall_copy_test.dart` 39 passed / 0 failed; `test/features/paywall/paywall_screen_test.dart` 29 passed / 0 failed; `test/core/format_test.dart` 8 passed / 0 failed; `flutter analyze` clean; full suite 890 passed / 1 failed — the single failure is S-265's `lib/features/settings/pro_plan_section.dart` path, which Phase 7 creates; tone grep empty; `grep -rn "context.push('/paywall'" lib/` returns one path; the colour-literal grep empty; `grep -rl "package:flutter" lib/domain/rules/` empty |
+| 7 — entry points and the Settings row | @developer | Complete | red run recorded below (`+3 −2`); after implementation `test/features/settings/pro_plan_section_test.dart` + `test/features/paywall` + `test/features/record` + `test/features/screener` 67 passed / 0 failed; `test/core/purchases` + `test/state/entitlements` + `test/state/paywall` 93 passed / 0 failed; full suite 918 passed / 0 failed (Phase 6: 890 / 1, the failure being S-265, now green); `flutter analyze` clean; S-276's two new screen cases mutation-tested (`showPaywall` calls stubbed out → `+0 −2`, restored → `+2 −0`); `grep -rn "context.push('/paywall'\|showPaywall(" lib/` returns `paywall_route.dart` plus exactly the three allowed call sites; `grep -rn "purchaseGatewayProvider\|purchases_flutter" lib/features/` empty; tone grep empty; `grep -rl "package:flutter" lib/domain/rules/` empty; `flutter build ios --simulator --no-codesign` exit 0 |
+| 8 — closeout docs and residue sweep | @developer | Complete | `flutter analyze` → No issues found; `flutter test` → 918 passed / 0 failed; `flutter build ios --simulator --no-codesign` → exit 0 (`✓ Built build/ios/iphonesimulator/Runner.app`). Sweeps: (1) `grep -rn "kFreeTierOpenCycles" lib/` → `pro_plans.dart:29` (the definition), `new_cycle_gate.dart:77,83` (the single evaluation), `pro_plan_section.dart:47` (the row's count display) and one backticked mention in a `paywall_copy.dart` doc comment — the three *code* sites are exactly S-265's list; (2) `grep -rniE "dart:io|package:http|HttpClient|Socket|WebSocket|NetworkImage|package:dio|url_launcher" lib/` → empty; (3) `grep -rl "purchases_flutter" lib/` → one path, `lib/core/purchases/revenuecat_purchase_gateway.dart`; (4) `grep -rn "purchaseGatewayProvider\|purchases_flutter" lib/features/` → empty; (5) `grep -rn "context.push('/paywall'" lib/` → one path, `paywall_route.dart:74`; (6) tone grep → empty; (7) `grep -rl "package:flutter" lib/domain/rules/` → empty; (8) colour-literal grep outside `lib/core/theme/` → empty; (9) `grep -rn "entitlement" lib/data/export/` → empty; (10) `grep -c "UnimplementedError" lib/data/*.dart lib/data/db/*.dart` → 0 in all eight files |
+| Review fix round 1 — 13 findings from the Wave 2 code review | @developer | Complete | red run recorded below (`+77 −5` over the six touched test files, all five failures missing behaviour); after implementation `flutter test test/features/record test/features/screener test/features/settings/pro_plan_section_test.dart test/state/entitlements test/core/purchases` 82 passed / 0 failed; **full suite 925 passed / 0 failed** (Phase 8: 918 / 0, +7 new tests); `flutter analyze` → No issues found; tone grep empty; `grep -rl "package:flutter" lib/domain/rules/` empty; S-265's `network_boundary_test.dart` guard green — the free-tier number is still referenced from exactly the gate and the Settings count |
 | Owner — RevenueCat project, products, subscription group, annual trial | owner | not yet run | agent cannot create store or dashboard configuration |
 | Owner — Paid Apps agreement, tax and banking | owner | not yet run | agent cannot sign agreements |
 | Owner — sandbox purchase / renewal / trial conversion / cancellation / restore / refund | owner | not yet run | agent cannot run a sandbox store account on a physical device |
@@ -1199,6 +1249,409 @@ remediation.)*
    persisted sections with `formatVersion == 2`, and separately that a
    hand-added `entitlement` key is dropped rather than trusted.
 
+
+### Phase 3 (@developer) — 2026
+
+7. **`manageSubscription` is a repo-owned `MethodChannel`, not an SDK call.**
+   D-37 said "goes through the SDK". RevenueCat 10.13.2's Dart API exposes no
+   `showManageSubscriptions` (nor any store-page symbol) — checked against the
+   resolved package source before the design was fixed. Options: call a
+   non-existent API (impossible), open a URL (needs `url_launcher`, which the
+   brief forbids this wave), or own a `MethodChannel('wheel_triage/store_page')`
+   handled in `ios/Runner/AppDelegate.swift`. Chose the channel: it keeps the
+   behaviour inside the approved dependency set and the handler is ~15 lines.
+   The Android side is unimplemented by design — the Android stage is separate.
+8. **`purchases_flutter` is pinned exactly (`10.13.2`), not caret-ranged.**
+   A purchase path is the one place where a silent minor bump can change
+   behaviour under the user; the pinned version is also the one the iOS
+   simulator build was verified against.
+9. **`purchaseGatewayProvider` defaults to `UnconfiguredPurchaseGateway`.**
+   Options: no default (throws, like `wheelRepositoryProvider`), or an
+   unavailable gateway. Chose unavailable: a widget test that forgets the
+   override must still boot, and D-28's "unavailable" state is already the
+   designed answer for "the store cannot answer". `main.dart` overrides it on
+   both branches of the API-key check, so production never gets the default.
+
+### Phase 4 (@developer) — 2026
+
+10. **`EntitlementStatus` lives in `lib/domain/models/entitlement_status.dart`;
+    `EntitlementSnapshot` carries a `ProPlanKind`.** The status is a persisted
+    concept (the cache row) so it belongs with the models, and reusing
+    `ProPlanKind` rather than a parallel enum keeps one canonical type per
+    concept.
+11. **An `unknown` answer from the gateway keeps the last known good value and
+    writes nothing.** D-26's third value means "the store did not answer", which
+    is not evidence that the entitlement lapsed; writing it would let a network
+    blip downgrade a paying user. Only a definite `inactive` writes.
+12. **`loadOfferings()` treats an empty plan list as an answer.** A store that
+    returns no plans has answered "no plans"; distinguishing that from a failed
+    call would need a second sentinel the SDK does not provide.
+13. **`purchase()` and `restore()` re-read the entitlement only on a
+    `purchased` outcome.** A `pending`/`cancelled`/`failed` outcome is not
+    evidence of a change, and re-reading would cost a store round-trip on every
+    cancelled sheet.
+14. **`restore()` maps a store "active" answer to `purchased` and anything else
+    to `cancelled`.** The D-32 outcome lines are user-facing; "nothing to
+    restore" and "restore failed" are not distinguishable from the SDK here, and
+    the copy chosen covers both honestly.
+15. **S-288's `RecordingPurchaseGateway` is `test/support/fake_purchase_gateway.dart`'s
+    `FakePurchaseGateway`.** One scriptable double serves S-288 and the Phase
+    3/4/5 tests; two doubles would drift.
+16. **The cache read is normalised before it becomes state.** A cache row whose
+    `isActive` is false but whose `planKind`/`expiresAt` are populated (possible
+    after a downgrade) is presented as `inactive` with no plan, so the Settings
+    row cannot show a plan for a lapsed entitlement.
+
+### Phase 5 (@developer) — 2026
+
+17. **The gate reads the book before it checks the entitlement.** One code path
+    instead of two, and it makes "the gate was consulted" observable for S-259
+    and "never called" observable for S-261/S-262/S-263 — the read count is the
+    only externally visible trace of the evaluation.
+18. **`paywall_copy.dart` takes the open-cycle limit as a parameter.** S-265
+    requires `kFreeTierOpenCycles` to be referenced from exactly the gate and
+    the Settings label, so the D-24 line builders cannot read it themselves;
+    the gate substitutes it. This is also why the copy file can be tested
+    against any limit without touching the constant.
+19. **The at-the-limit line keeps the brief's literal "a fourth".** The line is
+    pinned to a limit of 3 by S-260's fixture; generalising it ("another
+    cycle") would read worse and the limit is a documented constant, not a
+    variable. The past-the-limit form does substitute the count, because S-268
+    needs 4 and 5.
+20. **`newCycleGateProvider` is `Provider(newCycleGate)`, with `newCycleGate` a
+    top-level factory in `new_cycle_gate.dart`.** S-265 requires the provider
+    to live in `entitlement_providers.dart` but forbids `NewCycleGate` from
+    appearing there, so the provider cannot name the type; the factory keeps the
+    construction in the gate's own file and the two files import each other
+    (Dart allows the cycle).
+21. **The two form states gain `paywallTrigger` (plus `clearPaywallTrigger`),
+    set together with `error`.** S-266 pins `state.error`; Phase 7's screens
+    need to know that *this* error is the paywall's, and reading the error text
+    to decide would be string-sniffing. `clearError` clears both, so a stale
+    trigger cannot re-open the paywall on a rebuild.
+22. **`currencyText` and `renewalDateText` land in `lib/core/format.dart` in
+    Phase 5 rather than Phase 6.** `paywall_copy.dart` needs both, and the plan
+    already assigns Phase 6 a `format.dart` test case for them.
+23. **S-263's "the gate is never called" is asserted on the repository read
+    count, and the test asserts that count before its own read.** The counter
+    cannot distinguish the gate's read from the test's, so the ordering is
+    load-bearing; the first version of the test failed on its own read.
+24. **S-267's book is topped back up to the limit before the one action that may
+    differ.** The flow legitimately closes a cycle (CCC is called away), so the
+    assertion — which is about the limit, not about a particular count — is made
+    against a book restored to `kFreeTierOpenCycles` by a raw repository write,
+    identical in all three states.
+25. **S-267's comparison normalises generated ids and the seeded profiles'
+    `effectiveAt`.** Ids are random per run by construction, and
+    `InMemoryWheelRepository` seeds the three rule-profile versions with
+    `DateTime.now()`; both are seeding artifacts, not observable differences,
+    and the placeholder order is deterministic because creation order is.
+26. **S-268's sixth-cycle refusal is asserted while all five are still open, and
+    the "all five are still actionable" actions run after it.** The refusal is
+    about the count, so asserting it after the actions would be asserting a
+    different scenario (the actions legitimately close four of the five).
+
+### Phase 6 (@developer) — 2026
+
+27. **`annualPerMonthText` rounds to the nearest cent; it does not truncate.**
+    D-31 specifies `(price / Decimal.fromInt(12)).toDecimal(scaleOnInfinitePrecision: 2)`,
+    but `Rational.toDecimal(scaleOnInfinitePrecision:)` **truncates** in the
+    pinned `decimal` version — `29.99 / 12` yields `2.49` — while S-279 expects
+    `$2.50`. Truncation also understates what the user pays, which is the wrong
+    direction to be wrong in for a money figure. Chose
+    `.toDecimal(scaleOnInfinitePrecision: 4).round(scale: 2)`: exact to
+    ten-thousandths (the precision option prices are stored at) and then rounded
+    half-away-from-zero. The EUR fixture was moved from `€29.99` to `€29.90`
+    (→ `€2.49`) so both of the plan's expected values hold under rounding; the
+    plan's arithmetic, not its numbers, is what changed.
+28. **`PaywallState` holds `selectedProductId`, not "the selected plan kind".**
+    Phase 6's item 1 says "the selected plan kind". A kind is derived from a
+    product id (`kindForProductId`), so storing the kind would mean storing a
+    value that cannot round-trip: two products of one kind would be
+    indistinguishable, and the purchase could not name the id the store needs.
+    The kind remains available as the `selectedKind` getter, which is what the
+    plan's wording wants to read.
+29. **The screen test and `test/core/format_test.dart` were written after their
+    implementation, so no red run exists for them.** The copy and controller
+    tests were written first and recorded red (`+34 −5`); the screen test could
+    not be written meaningfully before the renderer's widget keys existed, and
+    the format test covers helpers Phase 5 had already landed. This is a
+    deviation from the tests-first rule and is recorded rather than papered
+    over — both files were then run against deliberately broken implementations
+    and observed red before being restored: replacing the rendered trigger line
+    with a fixed string and reverting `annualPerMonthText` to truncation gave
+    **`+26 −3`** on `test/features/paywall/paywall_screen_test.dart` (the two
+    trigger-line cases and the derived-per-month case), and restoring both gave
+    **43 passed / 0 failed** across the screen and copy tests.
+30. **A plan row renders through a `PaywallPlanRow` display DTO, so no
+    `lib/features/` file names a store type.** S-287 greps file *text* for
+    `purchase_gateway.dart` under `lib/features/`, and Feature Invariant 10 says
+    the same thing in prose: the screen must not import the gateway. Options:
+    (a) a DTO derived in `paywall_copy.dart` and exposed by `PaywallState`, or
+    (b) `export 'purchase_gateway.dart' show ProPlanOffer;` from the copy file.
+    Chose (a): (b) satisfies the grep by moving the import, which is exactly the
+    kind of change the guard exists to catch. `planRowFor` now derives the
+    title, subtitle, button label and fine print beside the copy that produces
+    them, `PaywallState.visibleRows` maps the visible offers through it, and the
+    screen names only `PaywallPlanRow`.
+31. **The paywall offers an upgrade to an active subscriber.** D-30 says an
+    active entitlement renders "the owned state, no purchase button", while
+    S-283(b) requires a subscriber to be able to buy lifetime. Read as: the
+    owned line renders *beside* the surviving offers, and the lifetime row
+    keeps its button. The alternative reading — hide every row whenever the
+    entitlement is active — makes S-283(b) untestable and strands the
+    lifetime-upgrade path, which D-33's own "lifetime only" filter exists to
+    serve. A lifetime owner sees no rows at all, so D-30's intent holds where
+    there is nothing left to buy.
+32. **The D-33 entitlement filter is a method (`visibleOffers(entitlement)`),
+    not stored state.** D-28 says the paywall holds no copy of the entitlement;
+    a method takes the live `EntitlementState` on each build, so an entitlement
+    change is reflected without the paywall subscribing to a second source of
+    truth. `visibleProOffers(offers, entitlement)` is a top-level pure function
+    so the rule is testable without a controller.
+33. **A store product the app cannot describe is dropped, not rendered.**
+    S-278's fixture includes an unknown product id. Dropping it means the user
+    cannot buy something the app cannot label; keeping it would need a fallback
+    title that could contradict the store. The same filter runs on selection, so
+    a stale `selectedProductId` cannot reach `purchase`.
+34. **A `cancelled` purchase clears the message instead of showing one.** D-32
+    lists no line for `cancelled`, and "nothing happened" is the honest report
+    for a user who dismissed the sheet. `pending`, `failed` and `unavailable`
+    each get their line.
+35. **Restoring with nothing to restore reports "No purchases to restore".** The
+    real adapter returns `cancelled` when RevenueCat has no purchases to offer
+    up, so `restoreOutcomeLine` maps `pending`/`cancelled` to that line and
+    reserves `kRestoredLine` for `purchased`. Mapping `cancelled` to "nothing
+    happened" would leave the user with no answer to the button they pressed.
+36. **`paywallControllerProvider` is deliberately not `autoDispose`.** The
+    Settings section (Phase 7) and the paywall route both read it, and a
+    notifier disposed mid-flight would throw on `state =` when a purchase
+    completes after the user has navigated away.
+37. **A successful purchase triggers exactly one `currentEntitlement()` read.**
+    Asserted as `gateway.calls == ['loadOfferings', 'purchase',
+    'currentEntitlement']`, which pins both the read count and the absence of a
+    cache write from the paywall — the cache is the controller's job (Phase 4).
+38. **Widget tests for the paywall set a 900×2000 surface.** The default 800×600
+    test surface leaves the button, message and policy text below the fold; a
+    `ListView` builds its children lazily even when it looks eager, so
+    `find.text` finds nothing and `tester.tap` misses. `setSurfaceSize` with an
+    `addTearDown` reset is the standard remedy and changes nothing about the
+    widget under test.
+39. **The paywall screen's policy entries are `SelectableText` (D-37), and the
+    Privacy Policy entry is hidden while `kPrivacyPolicyUrl` is empty.** With
+    `url_launcher` forbidden this wave (Q1), selectable text is the deliberate
+    degraded affordance; hiding an entry that would open nothing is the same
+    decision applied to the empty constant.
+
+### Phase 7 (@developer) — 2026
+
+40. **`openCycleCountProvider` was added to
+    `lib/state/entitlements/entitlement_providers.dart`, outside the phase's
+    Predicted Files.** D-34's free row prints the open-cycle count, and Feature
+    Invariant 6 forbids `lib/features/` from reaching into persistence, so
+    *something* above the widget has to read `getOpenCycles()`. Options: (a) a
+    `FutureProvider<int>` beside the gate, (b) a field on `EntitlementState`
+    (wrong: the count is a book fact, not a store fact, and folding it in would
+    make the entitlement controller a cycle reader), (c) a constructor
+    parameter, which would push the read up into `settings_screen.dart` and
+    break the same invariant one file over. Chose (a). It is a **count, not a
+    gate evaluation**: it deliberately does not call `NewCycleGate.evaluate()`,
+    so D-28's single-evaluation rule still holds, and S-265's exact-file list
+    for `kFreeTierOpenCycles` is unaffected because this file does not name the
+    constant — the section reads it and passes it in.
+41. **The Settings section pushed two existing Settings tests past their test
+    viewport, so their viewport was raised.** `test/features/settings/settings_screen_test.dart`
+    overrode the surface to 800×2400 for seven tests; the new ~250 pt section at
+    the top of the `ListView` moved the milestone editor below that, and
+    `ListView` builds children lazily, so `find.text('14 days before expiration')`
+    and the denied-permission note stopped resolving. Fixed by raising the seven
+    overrides to 800×3200 — the same remedy the repo already uses for this class
+    of problem, and a harness change with no production behaviour in it. The
+    plan's item 4 asked for these tests to "still pass unchanged"; unchanged in
+    assertion and in what they prove, adjusted only in surface size, which is
+    recorded here rather than left implicit.
+42. **`RecordController.paywallTrigger` and `ScreenerController.paywallTrigger`
+    are new public getters.** The two screens need the refusal line to build the
+    paywall trigger, and `StateNotifier.state` is `@protected` — reading
+    `controller.state.paywallTrigger` from a widget trips
+    `invalid_use_of_protected_member`, which `flutter analyze` treats as a
+    failure. The getters expose the one field the screens legitimately need and
+    nothing else, and they keep the "state layer produces the line, the screen
+    only carries it" split the phase's item 1 asks for.
+43. **`kPaywallTitle` is reused as the section header rather than duplicated.**
+    D-34's reference markup heads the section "Wheel Triage Pro", which is the
+    same string the paywall screen already shows. A second literal would be two
+    places to keep in step, so the section reads the existing constant.
+44. **An active entitlement whose product this build does not recognise renders
+    as "Pro" with no detail line, and no Manage row.** D-34's table has no row
+    for it, but the state is reachable: the store can report an active
+    entitlement for a product id this build does not map to a `ProPlanKind`.
+    Claiming the free tier would be wrong (Pro is on) and claiming "Pro status
+    unavailable" would be false (it is available), so the header is the bare
+    "Pro" and the detail line is `null`; the Restore row stays. Logged as the
+    one state D-34 does not specify.
+
+### Phase 8 (@developer) — 2026
+
+45. **`docs/privacy.md` names RevenueCat's own data categories and leaves the
+    store label and the hosted page to the owner, as D-36 says.** It states the
+    three things the plan asks for — what the store sees (purchase history, an
+    app-scoped anonymous id, device/app metadata), what never leaves the device
+    (a list that names each wave surface explicitly, including the not-yet-built
+    screenshot scan), and the in-app sentence verbatim — plus the two owner
+    items the plan's Phase 8 block calls out. It does not attempt to write the
+    App Store Connect label itself: the agent cannot reach the store listing,
+    and a label guessed here would be a claim about a dashboard nobody read.
+46. **The architecture doc's Pro section is one section, not four.** The seam,
+    the state and its three refresh points, the gate and its single evaluation
+    point, the paywall and the Settings row are one story told in five
+    paragraphs, because splitting them would put the gate's single-evaluation
+    rule in a different place from the seam that makes it necessary. The two
+    drift-risk rows the plan asks for are appended to the existing table rather
+    than given a Pro-only table of their own.
+47. **The Settings screen's seven viewport overrides are recorded as a
+    behaviour-neutral harness change, not a behaviour change.** Item 4 of Phase
+    7 asked for `settings_screen_test.dart` to pass "unchanged". It passes with
+    the same assertions and the same intent; only the test surface grew. Left
+    implicit it would look like a test edited to fit a regression, so it is
+    written down (also Assumption Log 41).
+
+### Review fix round 1 (@developer) — 2026
+
+48. **The stale-trigger fix clears the trigger in the screens *and* on every
+    non-gate early return (finding 1).** Options: clear it only in the two
+    screens after reading it, or only on the controllers' early-return paths, or
+    both. Chose both, as the brief asks: the screens clear it immediately after
+    handing it to `showPaywall`, so a dismissed paywall cannot leave a live
+    trigger behind, and the four non-gate paths (`!hasEnoughToSave`/
+    `!hasEnoughToTrack`, `bound.blocks`, `isRefused`, the `catch`) pass
+    `clearPaywallTrigger: true`, so a later failure cannot resurrect one. The
+    gate's own `paywallRequired` path is deliberately the only one that leaves
+    the trigger set. `ScreenerController` had no `clearPaywallTrigger()` at all
+    — it gains one, mirroring `RecordController`'s.
+49. **`copyWith` gained `clearExpiresAt`/`clearPurchasedAt` rather than a
+    sentinel or a nullable-wrapper (finding 8).** Options: `Object?` sentinel
+    parameters, `Optional<T>` wrappers, or boolean clear flags. Chose the flags,
+    because they match the two flags `RecordFormState.copyWith` and
+    `ScreenerFormState.copyWith` already use for the same problem
+    (`clearError`, `clearPaywallTrigger`) — a third convention for nulling a
+    field would be the drift this wave is trying to avoid.
+50. **`_loadCache` still reads the cache row verbatim, so an inactive row can
+    set `purchasedAt` for the moment before `refresh()` clears it.** Finding 8
+    asked only that a *lapse* reset both fields; the cache is a display hint,
+    never a gate input (`NewCycleGate` reads `isActive` only), and the next
+    `refresh()` — launch, resume, or the store's own update — settles it. Left
+    as is rather than widening the fix into the read path.
+51. **The paywall's free-limit phrase lives beside the number, not in the copy
+    file (finding 6).** The brief asks for `'More than 3 open cycles'` to be
+    *derived* from `kFreeTierOpenCycles`. Interpolating it in
+    `paywall_copy.dart` breaks S-265, whose plan-pinned outcome is that the
+    number "is defined once and referenced only from the gate and the Settings
+    count label" — `test/core/purchases/network_boundary_test.dart` asserts
+    that file list literally, and it failed on the first attempt. Chose to add
+    `const String kFreeTierLimitPhrase` to `pro_plans.dart`, directly under
+    `kFreeTierOpenCycles`, and have `kPaywallFeatures` use it: the copy is still
+    derived from the one constant (so raising the limit cannot leave the paywall
+    advertising the old one) and S-265's guard is unchanged. The alternative —
+    adding `paywall_copy.dart` to S-265's expected list — was rejected because
+    it weakens a structural guard the plan states, to fix a copy nit.
+52. **The S-261/S-262 tests written for finding 10 were green on the red run.**
+    They guard behaviour Phase 5 had already shipped (a roll and an assignment
+    at three open cycles are never gated), and the brief asked for the missing
+    tests, not for a behaviour change. They assert the scenarios' stated
+    outcomes directly — `repo.openCycleReads == 2` (only the test's own two
+    book reads), so a gate that consulted the count on a roll or an assignment
+    fails them. Same for the `paywall_copy_test.dart` binding test (finding 6):
+    `3 == 3` before and after, so it is a guard, not a red test.
+53. **One extra, tightly-coupled fix outside the 13 findings.**
+    `test/data/wheel_repository_contract_test.dart`'s S-256 comment repeated the
+    same false claim finding 9 asked to remove from
+    `DriftWheelRepository.getEntitlementCache`'s doc ("a second row would
+    throw"). Leaving the comment would have re-planted the error the finding
+    removes, so it was corrected in the same change. No behaviour changed.
+
+### Review fix round 1 — the recorded red run (@developer) — 2026
+
+`flutter test test/features/record/record_trade_screen_test.dart
+test/features/screener/screener_screen_test.dart
+test/features/settings/pro_plan_section_test.dart
+test/state/entitlements/entitlement_controller_test.dart
+test/state/entitlements/new_cycle_gate_test.dart
+test/core/purchases/paywall_copy_test.dart` before any fix: **`+77 −5`,
+"Some tests failed."**
+
+- `record_trade_screen_test.dart` S-276 — failed behaviourally: the trigger
+  survived the paywall (the assertion inverted by finding 1), and the new
+  second-failure case reopened the paywall after a dismissed one.
+- `screener_screen_test.dart` — the same second-failure case failed for the
+  same reason; the screener had no `clearPaywallTrigger()` to call.
+- `pro_plan_section_test.dart` — failed behaviourally: an unresolved book
+  rendered "0 of 3" instead of no count (finding 7).
+- `entitlement_controller_test.dart` — failed behaviourally: a lapse left the
+  previous `expiresAt` in the state (finding 8).
+
+The S-261/S-262 tests (finding 10) and the `paywall_copy_test.dart` binding
+test (finding 6) were **green** on this run — see Assumption 52. Every failure
+is a missing behaviour, not a configuration error.
+
+### Phase 7 — the recorded red run (@developer) — 2026
+
+`flutter test test/features/settings/pro_plan_section_test.dart
+test/features/paywall/paywall_entry_points_test.dart
+test/core/purchases/recording_gateway_isolation_test.dart` → **+3 −2**:
+
+- `pro_plan_section_test.dart` and `paywall_entry_points_test.dart` failed to
+  **load**: `Undefined name 'kSeeProPlansLabel'`, `'kBillingIssueLine'`,
+  `'kFreePlanDetailLine'`, `'kProStatusUnavailableLine'`,
+  `'kProStatusUnavailableDetailLine'` — the D-34 copy did not exist — and
+  `pro_plan_section.dart` did not exist to render it.
+- `recording_gateway_isolation_test.dart`'s three S-288 cases were **green** on
+  this run. That is expected and not a broken test: S-288 is a structural guard
+  over Phase 3–6 artifacts (the seam's six signatures, its three imports, and
+  the fact that a recording decorator sees nothing but a product id), so it can
+  only be red if a later change leaks something into the seam. It was written
+  in this phase because this phase is where the seam gets its call sites.
+
+The two S-276 screen cases added to
+`test/features/record/record_trade_screen_test.dart` and
+`test/features/screener/screener_screen_test.dart` could not be run red against
+"nothing implemented" — without the phase's `showPaywall` call the test cannot
+reach the paywall at all and fails on a missing widget rather than on a missing
+behaviour. They were instead verified by mutation after the fact: stubbing both
+`showPaywall` call sites out gives **+0 −2**, and restoring them gives
+**+2 −0**.
+
+### Phase 6 — the recorded red run (@developer) — 2026
+
+`flutter test test/core/purchases/paywall_copy_test.dart
+test/state/paywall/paywall_controller_test.dart` before any Phase 6
+implementation: **`+34 −5`, "Some tests failed."** The five failures are the
+missing `PaywallState`/`PaywallController` and the missing outcome, button and
+retry copy — every one a missing behaviour, none a configuration error. After
+the implementation the same command is **39 passed / 0 failed**.
+
+### Phase 5 — the recorded red run (@developer) — 2026
+
+`flutter test test/state/entitlements test/state/record test/state/screener`
+before any Phase 5 implementation: **`+59 −4`, "Some tests failed."**
+
+- `test/state/entitlements/new_cycle_gate_test.dart` — failed to load: no
+  `lib/state/entitlements/new_cycle_gate.dart`; `NewCycleGate`,
+  `NewCycleAllowed`, `NewCycleBlocked` and `newCycleGateProvider` all undefined.
+- `test/state/entitlements/nothing_locks_test.dart` — failed to load: the getter
+  `isPaywallRequired` isn't defined for `RecordSaveResult`.
+- `test/state/record/record_save_service_test.dart` — failed to load:
+  `RecordSaveOutcome.paywallRequired` and `RecordSaveResult.paywallRequired`
+  do not exist.
+- `test/state/screener/screener_controller_test.dart` — loaded, and failed
+  behaviourally: S-266's put case returned `true` where `false` is expected
+  (`screener_controller_test.dart:645`), because an ungated save created a
+  fourth cycle instead of refusing it.
+
+Every failure is a missing behaviour, not a configuration error. After the
+implementation the same command is **87 passed / 0 failed**, and the full suite
+is 814 passed / 1 failed — the one failure being S-265's
+`lib/features/settings/pro_plan_section.dart` path, which Phase 7 creates.
 
 ## Feedback
 

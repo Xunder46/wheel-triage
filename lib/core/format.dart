@@ -7,6 +7,7 @@
 library;
 
 import 'package:decimal/decimal.dart';
+import 'package:intl/intl.dart';
 
 import '../domain/models/leg.dart';
 
@@ -53,6 +54,28 @@ String legContractText(Leg leg) =>
 /// The month alone — `Sep` — for the ledger strip's "Net premium · Sep" tile
 /// label (D-8).
 String monthAbbreviation(DateTime date) => _months[date.month - 1];
+
+/// A store price, in the currency the store reported (D-31): `$2.50`, `€2,50`.
+/// The one place a money value is converted to `num` for display — this is a
+/// formatter, so the conversion cannot reach a gate, and the store's own
+/// `priceString` is preferred everywhere it exists; this is for the annual
+/// row's *derived* per-month figure, which the store does not return.
+///
+/// An unknown/empty [currencyCode] falls back to the device locale's currency
+/// rather than throwing, because a gateway that reported a price without a
+/// code must not be able to crash a paywall.
+String currencyText(Decimal value, String currencyCode) {
+  final format = currencyCode.isEmpty
+      ? NumberFormat.simpleCurrency()
+      : NumberFormat.simpleCurrency(name: currencyCode);
+  return format.format(value.toDouble());
+}
+
+/// A renewal, cancellation or purchase date — `Oct 5, 2027`. The year is
+/// spelled out because a subscription renews further out than the rest of the
+/// app ever looks, and a bare `Oct 5` would be ambiguous by then.
+String renewalDateText(DateTime date) =>
+    '${_months[date.month - 1]} ${date.day}, ${date.year}';
 
 const List<String> _months = [
   'Jan',

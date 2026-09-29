@@ -1761,8 +1761,9 @@ void _runContractTests(WheelRepository Function() createRepository) {
 
       // A second write replaces the one row: the fields the new value does
       // not set are genuinely cleared, not merged from the old row, and
-      // `getEntitlementCache` still resolves (a second row would make the
-      // fixed-id single read throw instead).
+      // `getEntitlementCache` still resolves — both the read and the write
+      // address the row by its one fixed id, so there is never a second row
+      // to choose between.
       await repo.saveEntitlementCache(
         EntitlementCacheData(
           isActive: true,

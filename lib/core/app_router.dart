@@ -3,6 +3,8 @@ import 'package:go_router/go_router.dart';
 import '../features/assignment/assignment_flow_screen.dart';
 import '../features/journal/journal_screen.dart';
 import '../features/onboarding/first_run_explainer.dart';
+import '../features/paywall/paywall_route.dart';
+import '../features/paywall/paywall_screen.dart';
 import '../features/positions/position_detail_sheet.dart';
 import '../features/record/record_trade_screen.dart';
 import '../features/roll/roll_planner_screen.dart';
@@ -28,6 +30,15 @@ GoRouter buildAppRouter({String initialLocation = '/positions'}) => GoRouter(
     GoRoute(path: '/journal', builder: (context, state) => const JournalScreen()),
     GoRoute(path: '/settings', builder: (context, state) => const SettingsScreen()),
     GoRoute(path: '/first-run', builder: (context, state) => const FirstRunExplainerScreen()),
+    // One route for all three entry points (D-30). The trigger travels in
+    // `extra`, so the paywall knows why it was opened without a query
+    // parameter that could be edited into a different sentence. A route
+    // reached with no trigger at all — a deep link — gets the generic
+    // explanation rather than an error.
+    GoRoute(
+      path: '/paywall',
+      builder: (context, state) => PaywallScreen(trigger: paywallTriggerFrom(state.extra)),
+    ),
     GoRoute(
       path: '/positions',
       builder: (context, state) => const TodayScreen(),

@@ -97,7 +97,7 @@ void main() {
         'changing the Settings default to Option pre-fills the next snapshot form, '
         'but the already-stored Snapshot.deltaConvention stays Position',
         (tester) async {
-          tester.view.physicalSize = const Size(800, 2400);
+          tester.view.physicalSize = const Size(800, 3200);
           tester.view.devicePixelRatio = 1.0;
           addTearDown(tester.view.resetPhysicalSize);
           addTearDown(tester.view.resetDevicePixelRatio);
@@ -178,7 +178,7 @@ void main() {
     testWidgets('tapping Export shares the JSON + CSV files and records lastExportAt', (
       tester,
     ) async {
-      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.physicalSize = const Size(800, 3200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -256,7 +256,7 @@ void main() {
     }
 
     testWidgets('trigger A: cancel leaves the database completely untouched', (tester) async {
-      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.physicalSize = const Size(800, 3200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -357,7 +357,7 @@ void main() {
     testWidgets('a malformed import file shows an error and leaves the positions list untouched', (
       tester,
     ) async {
-      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.physicalSize = const Size(800, 3200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -426,7 +426,7 @@ void main() {
     testWidgets('toggling a milestone checkbox updates user_preferences.notificationMilestones', (
       tester,
     ) async {
-      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.physicalSize = const Size(800, 3200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -458,7 +458,7 @@ void main() {
     testWidgets('shows a denied note next to the milestone editor when permission was refused', (
       tester,
     ) async {
-      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.physicalSize = const Size(800, 3200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
@@ -480,7 +480,7 @@ void main() {
     });
 
     testWidgets('shows no note when permission has never been asked yet', (tester) async {
-      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.physicalSize = const Size(800, 3200);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);

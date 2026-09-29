@@ -5,11 +5,17 @@ import 'package:timezone/data/latest.dart' as tz_data;
 
 import 'core/app_router.dart';
 import 'core/notifications/notification_scheduler.dart';
+import 'core/purchases/purchase_configuration.dart';
+import 'core/purchases/purchase_gateway.dart';
+import 'core/purchases/revenuecat_purchase_gateway.dart';
+import 'core/purchases/unconfigured_purchase_gateway.dart';
 import 'core/theme/app_theme.dart';
 import 'data/db/app_database.dart';
 import 'data/db/drift_wheel_repository.dart';
+import 'state/entitlements/entitlement_providers.dart';
 import 'state/notifications/notification_providers.dart';
 import 'state/repository_providers.dart';
+import 'widgets/entitlement_lifecycle_scope.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,12 +34,19 @@ Future<void> main() async {
   final router = buildAppRouter(
     initialLocation: preferences.firstRunExplainerShown ? '/positions' : '/first-run',
   );
+  // D-27: the gateway is chosen from the build-time key and overridden on
+  // **both** branches, so no build can reach a screen with the wrong gateway
+  // or with no gateway at all.
+  final PurchaseGateway purchaseGateway = kRevenueCatIosApiKey.isEmpty
+      ? const UnconfiguredPurchaseGateway()
+      : RevenueCatPurchaseGateway();
 
   runApp(
     ProviderScope(
       overrides: [
         wheelRepositoryProvider.overrideWithValue(repository),
         notificationGatewayProvider.overrideWithValue(notificationGateway),
+        purchaseGatewayProvider.overrideWithValue(purchaseGateway),
       ],
       child: WheelTriageApp(router: router),
     ),
@@ -44,6 +57,10 @@ Future<void> main() async {
 /// `DriftWheelRepository`) + `MaterialApp.router` wired to [router] (the
 /// full route graph in `lib/core/app_router.dart`, with its initial
 /// location already resolved by `main()`).
+///
+/// It also hosts `EntitlementLifecycleScope` (D-29), which is what makes the
+/// launch read and the resume read happen — the entitlement is refreshed by
+/// the app's lifecycle, never by a screen.
 class WheelTriageApp extends StatelessWidget {
   const WheelTriageApp({super.key, required this.router});
 
@@ -51,14 +68,16 @@ class WheelTriageApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Wheel Triage',
-      theme: lightTheme,
-      darkTheme: darkTheme,
-      // D-3: the dark set is the design's primary palette, so a device in dark
-      // mode sees the reference and a device in light mode gets the light one.
-      themeMode: ThemeMode.system,
-      routerConfig: router,
+    return EntitlementLifecycleScope(
+      child: MaterialApp.router(
+        title: 'Wheel Triage',
+        theme: lightTheme,
+        darkTheme: darkTheme,
+        // D-3: the dark set is the design's primary palette, so a device in dark
+        // mode sees the reference and a device in light mode gets the light one.
+        themeMode: ThemeMode.system,
+        routerConfig: router,
+      ),
     );
   }
 }

@@ -56,6 +56,14 @@ dependencies:
   share_plus: ^13.3.0
   file_selector: ^1.1.0
   timezone: ^0.11.1
+  # D-P3's approved purchase SDK -- the only network-capable dependency in
+  # the app, reached through exactly one seam
+  # (`lib/core/purchases/purchase_gateway.dart`), imported by exactly one
+  # file (`revenuecat_purchase_gateway.dart`). Pinned, not caret-ranged:
+  # the SDK's own symbols are the one thing this wave binds to at
+  # implementation time, so a silent minor bump must not be able to change
+  # what those symbols mean under us.
+  purchases_flutter: 10.13.2
 
 dev_dependencies:
   flutter_test:
