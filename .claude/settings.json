@@ -1,0 +1,27 @@
+{
+  "env": {
+    "BASH_DEFAULT_TIMEOUT_MS": "3600000",
+    "BASH_MAX_TIMEOUT_MS": "3600000"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(bash .claude/scripts/run-agent.sh:*)",
+      "Bash(flutter analyze:*)",
+      "Bash(flutter test:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git switch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push -u origin feature/:*)",
+      "Bash(gh pr create:*)",
+      "Edit(.work/**)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(gh pr merge:*)"
+    ]
+  }
+}
