@@ -72,3 +72,38 @@ String bucketLabel(Bucket bucket) => switch (bucket) {
   BucketLeave() => 'Leave',
   BucketUnknown() => 'No data',
 };
+
+/// The one bucket order (D-46): Assign, Roll, Close, Leave, No data.
+///
+/// Today's filter chips and Portfolio's read-only tiles are two renderings of
+/// the same five counts, so the order lives here rather than in each screen —
+/// otherwise a leg can sit under `Roll` on one screen and `Close` on the
+/// other. Each entry is a **prototype**: it exists so a caller can read
+/// [bucketLabel] off it and so the count list always has five rows, never to
+/// be shown as a verdict. The empty reason is what makes them `const`;
+/// nothing renders it, because a count row renders the label, not the reason.
+const List<Bucket> kBucketOrder = [
+  BucketAssign(reason: ''),
+  BucketRoll(reason: ''),
+  BucketClose(reason: ''),
+  BucketLeave(reason: ''),
+  BucketUnknown(reason: ''),
+];
+
+/// The five bucket counts, in [kBucketOrder], **including the zeros** — an
+/// empty book is five zeros rather than an empty list, so a row of filter
+/// chips never collapses as the book empties.
+///
+/// Counting is by [Bucket]'s runtime type, not by its reason: two legs that
+/// both landed in `Close` for different reasons are one count. Each row
+/// carries [kBucketOrder]'s own prototype, so the label comes from the same
+/// place the order does.
+List<({Bucket bucket, int count})> bucketCountsFor(Iterable<Bucket> buckets) {
+  final byType = <Type, int>{};
+  for (final bucket in buckets) {
+    byType.update(bucket.runtimeType, (count) => count + 1, ifAbsent: () => 1);
+  }
+  return [
+    for (final bucket in kBucketOrder) (bucket: bucket, count: byType[bucket.runtimeType] ?? 0),
+  ];
+}

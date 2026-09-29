@@ -4,6 +4,7 @@ import '../models/leg.dart';
 import '../models/share_lot.dart';
 import '../models/wheel_cycle.dart';
 import 'basis.dart';
+import 'listing.dart' show listPhrase;
 
 /// `docs/brief-pro.md` D-P14 / Pro Wave 1 D-9 and D-10: how much capital the
 /// book has committed right now, and how concentrated that is per
@@ -155,12 +156,65 @@ List<ConcentrationFlag> concentrationFlags({
       ),
     );
   }
-  flags.sort((a, b) {
-    final byPercent = b.percent.compareTo(a.percent);
-    return byPercent != 0 ? byPercent : a.ticker.compareTo(b.ticker);
-  });
+  flags.sort(_byPercentThenTicker);
   return flags;
 }
+
+/// The one ordering the concentration readouts share (D-42): percent
+/// descending, ties broken by ticker A–Z. The flags and the bars are two
+/// renderings of the same ranking, so they read it from one comparator
+/// rather than two that can drift apart.
+int _byPercentThenTicker(ConcentrationFlag a, ConcentrationFlag b) =>
+    _comparePercentThenTicker(a.percent, a.ticker, b.percent, b.ticker);
+
+int _comparePercentThenTicker(int percentA, String tickerA, int percentB, String tickerB) {
+  final byPercent = percentB.compareTo(percentA);
+  return byPercent != 0 ? byPercent : tickerA.compareTo(tickerB);
+}
+
+/// One bar on Portfolio's concentration readout (D-42).
+typedef ConcentrationBar = ({String ticker, Decimal committed, int percent});
+
+/// The bars to render, in [concentrationFlags]' order and carrying the exact
+/// `Decimal` capital (D-42).
+///
+/// Unlike the flags this is **not** a breach list: every underlying with a
+/// non-zero commitment gets a bar, including one exactly at the limit and one
+/// below it. The limit is a mark on the track, not a filter — and a
+/// zero-commitment underlying is omitted, since a zero-width bar is not a bar
+/// at all. Empty when [wheelCapital] is null or zero, matching
+/// [concentrationFlags] and [kConcentrationInviteLine].
+List<ConcentrationBar> concentrationBars({
+  required Map<String, Decimal> capitalByUnderlying,
+  required Decimal? wheelCapital,
+  required double concentrationLimitPct,
+}) {
+  if (wheelCapital == null || wheelCapital == Decimal.zero) return const [];
+  final bars = <ConcentrationBar>[];
+  for (final entry in capitalByUnderlying.entries) {
+    if (entry.value == Decimal.zero) continue;
+    bars.add((
+      ticker: entry.key,
+      committed: entry.value,
+      percent: concentrationPercent(capital: entry.value, wheelCapital: wheelCapital),
+    ));
+  }
+  bars.sort((a, b) => _comparePercentThenTicker(a.percent, a.ticker, b.percent, b.ticker));
+  return bars;
+}
+
+/// The percentage the bar track runs to (D-42): the limit plus a fifth, so a
+/// bar past the limit has visible track left to cross into and the limit mark
+/// never sits at the very end of the track.
+double concentrationTrackMaxPct(double concentrationLimitPct) => concentrationLimitPct * 1.2;
+
+/// D-42's key line under the bars, naming both ends of the track:
+/// `Limit 25% · bars run to 30%`. The track max is spelled out because a bar
+/// past the limit crosses a mark on a track whose scale is otherwise
+/// unlabelled — without it the mark's position is a guess.
+String concentrationKeyLine(double concentrationLimitPct) =>
+    'Limit ${_trimmedPct(concentrationLimitPct)}% · '
+    'bars run to ${_trimmedPct(concentrationTrackMaxPct(concentrationLimitPct))}%';
 
 /// D-10's flag line, worded as a fact in the neutral surface colour:
 /// `INTC 27% of wheel capital · limit 25%`.
@@ -189,6 +243,27 @@ String committedNowDefinition({required Decimal committedNow, required Decimal? 
   if (pct == null) return '$kCommittedNowDefinitionLine.';
   return '$kCommittedNowDefinitionLine; ${_roundHalfUp(pct)}% of your '
       '${_wholeDollars(wheelCapital!)} wheel capital.';
+}
+
+/// D-42's Portfolio definition: [committedNowDefinition] plus, when any
+/// past-expiration leg contributes to the figure, one sentence naming those
+/// tickers — `Includes AAL and WBD, past expiration and not yet recorded.`
+///
+/// Portfolio is the one screen where the committed total is read as a
+/// position size rather than as a ledger line, so the legs that are still an
+/// obligation past their expiration (and are therefore still counted, D-9)
+/// have to be named on the same screen as the number. Tickers are
+/// deduplicated and A–Z through [listPhrase] (D-43's helper), so the sentence
+/// is the same shape wherever a list of tickers is named.
+String portfolioCommittedDefinition({
+  required Decimal committedNow,
+  required Decimal? wheelCapital,
+  required List<String> pastExpirationTickers,
+}) {
+  final base = committedNowDefinition(committedNow: committedNow, wheelCapital: wheelCapital);
+  final tickers = pastExpirationTickers.toSet().toList()..sort();
+  if (tickers.isEmpty) return base;
+  return '$base Includes ${listPhrase(tickers)}, past expiration and not yet recorded.';
 }
 
 /// D-6's range for wheel capital: absent (`null` — "not set", a real state) or

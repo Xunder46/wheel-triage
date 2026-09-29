@@ -22,7 +22,7 @@ import 'formulas.dart' show daysBetween;
 /// Credits received in `[start, end]`, by **trade date** — a leg's own
 /// `date(openedAt)`, inclusive on both ends.
 Decimal premiumCredits({required List<Leg> legs, required DateTime start, required DateTime end}) => legs
-    .where((leg) => _inPeriod(leg.openedAt, start, end))
+    .where((leg) => inPeriod(leg.openedAt, start, end))
     .fold(Decimal.zero, (sum, leg) => sum + leg.openCreditPerShare * Decimal.fromInt(100) * Decimal.fromInt(leg.contracts));
 
 /// Buybacks paid in `[start, end]`, by **trade date** — a leg's own
@@ -30,7 +30,7 @@ Decimal premiumCredits({required List<Leg> legs, required DateTime start, requir
 /// debit (still open, or assigned — an assignment is not a buyback)
 /// contributes nothing.
 Decimal premiumBuybacks({required List<Leg> legs, required DateTime start, required DateTime end}) => legs
-    .where((leg) => leg.closedAt != null && _inPeriod(leg.closedAt!, start, end))
+    .where((leg) => leg.closedAt != null && inPeriod(leg.closedAt!, start, end))
     .fold(
       Decimal.zero,
       (sum, leg) => sum + (leg.closeDebitPerShare ?? Decimal.zero) * Decimal.fromInt(100) * Decimal.fromInt(leg.contracts),
@@ -64,5 +64,9 @@ const String kPremiumDefinitionLine =
 /// Calendar-date containment, inclusive on both ends, UTC-normalized through
 /// the shared [daysBetween] so a DST-crossing period boundary cannot drop a
 /// leg (the same reasoning `formulas.dart`'s `dte` documents).
-bool _inPeriod(DateTime date, DateTime start, DateTime end) =>
+///
+/// Public since Pro Wave 3 (D-47): Portfolio's month figures and the share
+/// card both ask "is this date inside this period", and each would otherwise
+/// carry its own answer. This is that answer, and both callers use it.
+bool inPeriod(DateTime date, DateTime start, DateTime end) =>
     daysBetween(start, date) >= 0 && daysBetween(date, end) >= 0;

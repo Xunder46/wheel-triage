@@ -221,4 +221,37 @@ void main() {
       expect(kPremiumDefinitionLine, 'Premium: credits received minus buybacks paid, by trade date, before fees.');
     });
   });
+
+  group('D-47: inPeriod is the one containment rule', () {
+    final start = DateTime.utc(2026, 9, 1);
+    final end = DateTime.utc(2026, 9, 30);
+
+    test('inclusive on both ends', () {
+      expect(inPeriod(DateTime.utc(2026, 9, 1), start, end), isTrue);
+      expect(inPeriod(DateTime.utc(2026, 9, 30), start, end), isTrue);
+    });
+
+    test('a day either side of the period is out', () {
+      expect(inPeriod(DateTime.utc(2026, 8, 31), start, end), isFalse);
+      expect(inPeriod(DateTime.utc(2026, 10, 1), start, end), isFalse);
+    });
+
+    test('a time component on either side does not move the day', () {
+      expect(inPeriod(DateTime.utc(2026, 9, 30, 23, 59), start, end), isTrue);
+      expect(inPeriod(DateTime.utc(2026, 9, 1, 0, 1), start, end), isTrue);
+      expect(inPeriod(DateTime.utc(2026, 8, 31, 23, 59), start, end), isFalse);
+    });
+
+    test('a single-day period contains that day', () {
+      expect(inPeriod(DateTime.utc(2026, 9, 4), DateTime.utc(2026, 9, 4), DateTime.utc(2026, 9, 4)), isTrue);
+      expect(inPeriod(DateTime.utc(2026, 9, 5), DateTime.utc(2026, 9, 4), DateTime.utc(2026, 9, 4)), isFalse);
+    });
+
+    test('the month tile\'s own period agrees with it', () {
+      final period = monthPeriodContaining(now);
+      expect(inPeriod(now, period.start, period.end), isTrue);
+      expect(period.start, DateTime.utc(2026, 9, 1));
+      expect(period.end, DateTime.utc(2026, 9, 30));
+    });
+  });
 }

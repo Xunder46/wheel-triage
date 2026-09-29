@@ -55,6 +55,56 @@ String legContractText(Leg leg) =>
 /// label (D-8).
 String monthAbbreviation(DateTime date) => _months[date.month - 1];
 
+/// The month spelled out with its year — `September 2026` — for the surfaces
+/// that name a month on its own: the assignment calendar's header and the
+/// share card's definition line (D-45, D-51). A bare `Sep` is a column
+/// heading, not a sentence, so it cannot carry either.
+///
+/// Hand-rolled from [_monthsFull] rather than `intl`-formatted, so the name
+/// is fixed and locale-independent like every other date in this file.
+String monthYearText(DateTime date) => '${_monthsFull[date.month - 1]} ${date.year}';
+
+/// A net position delta in shares — `+360 shares`, `−30 shares`, `0 shares`
+/// (D-43). [value] is `null` when nothing in the book could be read, which
+/// renders `--` rather than a zero that would read as a flat book.
+///
+/// The sign is explicit on a non-zero total, because a signed total's whole
+/// point is which way the book leans, and it uses the app's own minus sign
+/// (U+2212) rather than a hyphen, matching every other signed figure. Shares
+/// are whole, rounded away from zero on a half, and grouped by thousands; the
+/// delta is a dimensionless `double`, so rounding here cannot reach a gate
+/// (`docs/conventions.md` §2).
+String signedSharesText(double? value) {
+  if (value == null) return '--';
+  final shares = value.round();
+  if (shares == 0) return '0 shares';
+  final sign = shares > 0 ? '+' : '\u2212';
+  return '$sign${_grouped(shares.abs())} shares';
+}
+
+/// A ratio rendered as a percentage — `1.6%` by default, `82%` at
+/// `decimals: 0` (D-48). `null` renders `--`: a ratio the app could not
+/// compute (no capital to divide by) is not the same fact as a ratio of zero,
+/// and rendering `0.0%` would assert a return that was never measured.
+///
+/// Distinct from [pctText], which takes a `Decimal` from a money-side
+/// calculation; this one takes the dimensionless `double` the return and
+/// capture figures are computed as.
+String percentText(double? value, {int decimals = 1}) =>
+    value == null ? '--' : '${value.toStringAsFixed(decimals)}%';
+
+/// `1,234` — thousands separators, hand-rolled for the same
+/// locale-independence reason the dates are.
+String _grouped(int value) {
+  final digits = value.toString();
+  final buffer = StringBuffer();
+  for (var i = 0; i < digits.length; i++) {
+    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(',');
+    buffer.write(digits[i]);
+  }
+  return buffer.toString();
+}
+
 /// A store price, in the currency the store reported (D-31): `$2.50`, `€2,50`.
 /// The one place a money value is converted to `num` for display — this is a
 /// formatter, so the conversion cannot reach a gate, and the store's own
@@ -94,3 +144,21 @@ const List<String> _months = [
 
 /// `DateTime.weekday` is 1-based from Monday.
 const List<String> _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/// [monthYearText]'s full month names, which no other formatter uses — the
+/// abbreviation list above is deliberately kept separate so neither can
+/// silently acquire the other's length.
+const List<String> _monthsFull = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];

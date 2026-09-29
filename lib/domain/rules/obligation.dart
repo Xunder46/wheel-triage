@@ -1,6 +1,7 @@
 import 'package:decimal/decimal.dart';
 
 import '../models/leg.dart';
+import 'expiry.dart' show isPastExpiration;
 import 'formulas.dart' show daysBetween;
 
 /// `docs/brief-pro.md` D-P13 / Pro Wave 1 D-13's "Expiring this week" card
@@ -87,6 +88,55 @@ List<ExpiringGroup> expiringThisWeek({required List<Leg> legs, required DateTime
   }
   final dates = byDate.keys.toList()..sort();
   return dates.map((date) => ExpiringGroup(date: date, legs: byDate[date]!)).toList();
+}
+
+/// Every date in [month] on which an open leg expires, ascending, each with
+/// that date's legs in the order supplied (D-45).
+///
+/// A leg is here when it is open, its expiration is **not** past, and its
+/// expiration falls in [month]'s calendar month. A leg expiring today is
+/// upcoming, so it is included and groups under today. Past-expiration legs
+/// belong to the past-expiration card, not the grid. Empty when nothing is
+/// due — the grid renders no row at all rather than a row of blanks.
+///
+/// [now] is used for the past-expiration test only; the month shown is the
+/// caller's, because the user can page the grid away from today's month.
+List<ExpiringGroup> expirationsInMonth({
+  required List<Leg> legs,
+  required DateTime month,
+  required DateTime now,
+}) {
+  final byDate = <DateTime, List<Leg>>{};
+  for (final leg in legs) {
+    if (leg.closedAt != null) continue;
+    if (isPastExpiration(leg, now)) continue;
+    if (leg.expiration.year != month.year || leg.expiration.month != month.month) continue;
+    final key = DateTime.utc(leg.expiration.year, leg.expiration.month, leg.expiration.day);
+    byDate.putIfAbsent(key, () => <Leg>[]).add(leg);
+  }
+  final dates = byDate.keys.toList()..sort();
+  return dates.map((date) => ExpiringGroup(date: date, legs: byDate[date]!)).toList();
+}
+
+/// The month the assignment calendar opens on (D-45): the calendar month of
+/// the **earliest upcoming** expiration in [openLegs], or of [now] when
+/// nothing is upcoming.
+///
+/// Opening on the month the user actually has something due in saves a page
+/// turn in the common case, and falling back to today's month means a book
+/// with nothing due still lands somewhere sensible rather than nowhere. A leg
+/// expiring today is upcoming. Closed legs are not expirations at all. The
+/// result is the **first** of the month, so the caller holds a month
+/// identifier and not a date that drifts with the clock.
+DateTime calendarMonth({required DateTime now, required List<Leg> openLegs}) {
+  final upcoming = openLegs
+      .where((leg) => leg.closedAt == null)
+      .where((leg) => daysBetween(now, leg.expiration) >= 0)
+      .map((leg) => leg.expiration)
+      .toList()
+    ..sort();
+  final anchor = upcoming.isEmpty ? now : upcoming.first;
+  return DateTime.utc(anchor.year, anchor.month, 1);
 }
 
 /// `$4,200` — whole dollars with thousands separators, matching the

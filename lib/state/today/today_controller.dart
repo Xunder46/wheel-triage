@@ -91,23 +91,13 @@ class ExpiringDateGroup {
   const ExpiringDateGroup({required this.date, required this.legs});
 }
 
-/// The five bucket prototypes, in Today's own sort order (D-14). Each count
-/// is built from one of these so the row order is stated once, and
-/// `bucketLabel` supplies the wording.
-const List<Bucket> _bucketOrder = [
-  BucketAssign(reason: ''),
-  BucketRoll(reason: ''),
-  BucketClose(reason: ''),
-  BucketLeave(reason: ''),
-  BucketUnknown(reason: ''),
-];
-
 /// `docs/brief-pro.md` D-P13: a leg past its expiration is no longer part of
 /// the book's live counts — it appears only in the past-expiration card
 /// (Phase 10), so it is split out of [items] rather than filtered at render
-/// time.
+/// time. The order itself is [kBucketOrder] (D-46), shared with Portfolio so
+/// the two screens cannot rank the same legs differently.
 int _rank(Bucket bucket) =>
-    _bucketOrder.indexWhere((prototype) => prototype.runtimeType == bucket.runtimeType);
+    kBucketOrder.indexWhere((prototype) => prototype.runtimeType == bucket.runtimeType);
 
 class TodayState {
   final bool isLoading;
@@ -197,12 +187,12 @@ class TodayState {
       '${premium.kPremiumDefinitionLine} '
       '${capital.committedNowDefinition(committedNow: committedNow, wheelCapital: wheelCapital)}';
 
-  /// The five counts, in Today's own sort order (D-14). Computed from
-  /// [items], so a past-expiration leg is in none of them.
-  List<({Bucket bucket, int count})> get bucketCounts => [
-    for (final prototype in _bucketOrder)
-      (bucket: prototype, count: countFor(prototype.runtimeType)),
-  ];
+  /// The five counts, in [kBucketOrder] (D-46). Computed from [items], so a
+  /// past-expiration leg is in none of them. The order, the zeros and the
+  /// counting itself are `bucketCountsFor`'s — Portfolio's tiles read the same
+  /// function, so the two screens cannot disagree about a count.
+  List<({Bucket bucket, int count})> get bucketCounts =>
+      bucketCountsFor(items.map((item) => item.bucket));
 
   /// How many legs currently sit in [bucket]'s bucket.
   int countFor(Type bucket) =>

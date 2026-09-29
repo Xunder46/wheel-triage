@@ -359,4 +359,199 @@ void main() {
       expect(concentrationFlagLine(flags.single), 'INTC 27% of wheel capital · limit 25%');
     });
   });
+
+  group('S-294: the bars\' order, fills and the limit mark (D-42)', () {
+    Decimal dollars(String value) => Decimal.parse(value);
+
+    // S-293's bookFull, per underlying: INTC $8,000, SOFI $4,200, AAL $3,000,
+    // T $2,700, PFE $2,500, F $2,400, SBET $1,200, WBD $900 -- $24,900 over
+    // $30,000 of wheel capital.
+    final bookFull = <String, Decimal>{
+      'INTC': dollars('8000'),
+      'SOFI': dollars('4200'),
+      'AAL': dollars('3000'),
+      'T': dollars('2700'),
+      'PFE': dollars('2500'),
+      'F': dollars('2400'),
+      'SBET': dollars('1200'),
+      'WBD': dollars('900'),
+    };
+    final wheel = dollars('30000');
+
+    List<({String ticker, Decimal committed, int percent})> barsOf(
+      Map<String, Decimal> book, {
+      Decimal? wheelCapital,
+    }) => concentrationBars(
+      capitalByUnderlying: book,
+      wheelCapital: wheelCapital ?? wheel,
+      concentrationLimitPct: 25.0,
+    );
+
+    test('the order is percent descending, ties broken by ticker A-Z', () {
+      final bars = barsOf(bookFull);
+      expect(bars.map((bar) => bar.ticker).toList(), ['INTC', 'SOFI', 'AAL', 'T', 'F', 'PFE', 'SBET', 'WBD']);
+      expect(bars.map((bar) => bar.percent).toList(), [27, 14, 10, 9, 8, 8, 4, 3]);
+    });
+
+    test('the 8% tie puts F before PFE', () {
+      final bars = barsOf(bookFull);
+      final f = bars.indexWhere((bar) => bar.ticker == 'F');
+      final pfe = bars.indexWhere((bar) => bar.ticker == 'PFE');
+      expect(f, lessThan(pfe));
+      expect(bars[f].percent, bars[pfe].percent);
+    });
+
+    test('the order is concentrationFlags\' own order where the two overlap', () {
+      // Two underlyings tied above the limit: the bar order and the flag
+      // order are one comparator, so they cannot disagree.
+      final tied = <String, Decimal>{'PFE': dollars('3000'), 'F': dollars('3000')};
+      final flags = concentrationFlags(
+        capitalByUnderlying: tied,
+        wheelCapital: dollars('10000'),
+        concentrationLimitPct: 25.0,
+      );
+      expect(flags.map((flag) => flag.ticker).toList(), ['F', 'PFE']);
+      expect(barsOf(tied, wheelCapital: dollars('10000')).map((bar) => bar.ticker).toList(), ['F', 'PFE']);
+    });
+
+    test('each bar carries the exact Decimal capital, not the rounded percent', () {
+      final bars = barsOf(bookFull);
+      expect(bars.first.committed, dollars('8000'));
+      expect(bars.last.committed, dollars('900'));
+    });
+
+    test('a bar\'s percent is the shipped concentrationPercent', () {
+      for (final bar in barsOf(bookFull)) {
+        expect(bar.percent, concentrationPercent(capital: bar.committed, wheelCapital: wheel));
+      }
+    });
+
+    test('an underlying at exactly zero is omitted from the bars', () {
+      final bars = barsOf({'INTC': dollars('8000'), 'ZZZ': Decimal.zero});
+      expect(bars.map((bar) => bar.ticker).toList(), ['INTC']);
+    });
+
+    test('no wheel capital is no bars at all', () {
+      // Called directly rather than through barsOf: that helper's `?? wheel`
+      // default cannot express an explicit null.
+      expect(
+        concentrationBars(capitalByUnderlying: bookFull, wheelCapital: null, concentrationLimitPct: 25.0),
+        isEmpty,
+      );
+      expect(barsOf(bookFull, wheelCapital: Decimal.zero), isEmpty);
+      expect(concentrationBars(capitalByUnderlying: const {}, wheelCapital: wheel, concentrationLimitPct: 25.0), isEmpty);
+    });
+
+    test('the track max is the limit plus a fifth', () {
+      expect(concentrationTrackMaxPct(25), closeTo(30, 1e-9));
+      expect(concentrationTrackMaxPct(50), closeTo(60, 1e-9));
+      expect(concentrationTrackMaxPct(10), closeTo(12, 1e-9));
+      expect(concentrationTrackMaxPct(100), closeTo(120, 1e-9));
+    });
+
+    test('a bar past the limit crosses the mark and one at it does not', () {
+      final trackMax = concentrationTrackMaxPct(25);
+      final mark = 25 / trackMax;
+      double fill(String capital) =>
+          concentrationRatio(capital: dollars(capital), wheelCapital: wheel)!.toDouble() / trackMax;
+
+      // INTC sits at 26.67% of wheel capital and crosses the mark.
+      expect(fill('8000'), greaterThan(mark));
+      // Exactly at the limit: equal is not a breach, so the fill stops at the mark.
+      expect(fill('7500'), closeTo(mark, 1e-12));
+      expect(fill('7500') > mark, isFalse);
+      // A book a cent over the limit is over it, even though it rounds to 25%.
+      expect(concentrationPercent(capital: dollars('7500.01'), wheelCapital: wheel), 25);
+      expect(fill('7500.01'), greaterThan(mark));
+    });
+
+    test('a bar at exactly the limit is absent from the flags but present in the bars', () {
+      final book = <String, Decimal>{'INTC': dollars('7500'), 'F': dollars('2400')};
+      expect(
+        concentrationFlags(capitalByUnderlying: book, wheelCapital: wheel, concentrationLimitPct: 25.0),
+        isEmpty,
+      );
+      expect(
+        barsOf(book).map((bar) => bar.ticker).toList(),
+        ['INTC', 'F'],
+      );
+    });
+  });
+
+  group('S-294: the limit key line (D-42)', () {
+    test('it reads the limit and the track max in one sentence', () {
+      expect(concentrationKeyLine(25), 'Limit 25% · bars run to 30%');
+    });
+
+    test('a whole limit renders without a trailing decimal', () {
+      expect(concentrationKeyLine(30), 'Limit 30% · bars run to 36%');
+      expect(concentrationKeyLine(50), 'Limit 50% · bars run to 60%');
+      expect(concentrationKeyLine(100), 'Limit 100% · bars run to 120%');
+    });
+
+    test('a fractional limit keeps its fraction on both numbers', () {
+      expect(concentrationKeyLine(12.5), 'Limit 12.5% · bars run to 15%');
+      expect(concentrationKeyLine(7.5), 'Limit 7.5% · bars run to 9%');
+    });
+  });
+
+  group('S-293: Portfolio\'s committed definition (D-42)', () {
+    Decimal dollars(String value) => Decimal.parse(value);
+
+    test('with no past-expiration leg it is the shipped sentence, unchanged', () {
+      expect(
+        portfolioCommittedDefinition(
+          committedNow: dollars('24900'),
+          wheelCapital: dollars('30000'),
+          pastExpirationTickers: const [],
+        ),
+        committedNowDefinition(committedNow: dollars('24900'), wheelCapital: dollars('30000')),
+      );
+      expect(
+        portfolioCommittedDefinition(
+          committedNow: dollars('24900'),
+          wheelCapital: dollars('30000'),
+          pastExpirationTickers: const [],
+        ),
+        'Committed now: open puts at strike, shares at wheel-adjusted basis; '
+        '83% of your \$30,000 wheel capital.',
+      );
+    });
+
+    test('past-expiration legs are named, A-Z and deduplicated', () {
+      expect(
+        portfolioCommittedDefinition(
+          committedNow: dollars('24900'),
+          wheelCapital: dollars('30000'),
+          pastExpirationTickers: const ['WBD', 'AAL', 'WBD'],
+        ),
+        'Committed now: open puts at strike, shares at wheel-adjusted basis; '
+        '83% of your \$30,000 wheel capital. '
+        'Includes AAL and WBD, past expiration and not yet recorded.',
+      );
+    });
+
+    test('one past-expiration leg reads as one name', () {
+      expect(
+        portfolioCommittedDefinition(
+          committedNow: dollars('24900'),
+          wheelCapital: dollars('30000'),
+          pastExpirationTickers: const ['AAL'],
+        ),
+        endsWith(' Includes AAL, past expiration and not yet recorded.'),
+      );
+    });
+
+    test('with no wheel capital the percentage half is absent and the naming still holds', () {
+      expect(
+        portfolioCommittedDefinition(
+          committedNow: dollars('24900'),
+          wheelCapital: null,
+          pastExpirationTickers: const ['AAL', 'WBD'],
+        ),
+        'Committed now: open puts at strike, shares at wheel-adjusted basis. '
+        'Includes AAL and WBD, past expiration and not yet recorded.',
+      );
+    });
+  });
 }
