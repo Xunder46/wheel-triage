@@ -28,10 +28,14 @@ import 'package:wheel_triage/data/db/app_database.dart';
 import 'package:wheel_triage/data/db/drift_wheel_repository.dart';
 import 'package:wheel_triage/data/in_memory_wheel_repository.dart';
 import 'package:wheel_triage/data/wheel_repository.dart';
+import 'package:wheel_triage/domain/models/entitlement_cache.dart';
+import 'package:wheel_triage/domain/models/entitlement_cache_defaults.dart';
 import 'package:wheel_triage/domain/models/leg.dart';
 import 'package:wheel_triage/domain/models/rule_profile_defaults.dart';
 import 'package:wheel_triage/domain/models/rule_profile_ids.dart';
+import 'package:wheel_triage/domain/models/pro_plan_kind.dart';
 import 'package:wheel_triage/domain/models/snapshot.dart';
+import 'package:wheel_triage/domain/models/underlying.dart';
 import 'package:wheel_triage/domain/models/user_preferences.dart';
 import 'package:wheel_triage/domain/models/wheel_cycle.dart';
 
@@ -1547,6 +1551,254 @@ void _runContractTests(WheelRepository Function() createRepository) {
       final cleared = await repo.getPreferences();
       expect(cleared.wheelCapital, isNull);
       expect(cleared.concentrationLimitPct, 20.0);
+    });
+  });
+
+  group('getOpenCycles (Pro Wave 2, D-22)', () {
+    test('S-258: returns every non-closed cycle across all underlyings, '
+        'oldest startedAt first, including one with no open leg', () async {
+      final first = await repo.getOrCreateUnderlying('AAA');
+      final second = await repo.getOrCreateUnderlying('BBB');
+
+      Future<WheelCycle> openPutOn(Underlying underlying, DateTime openedAt) =>
+          repo.createCycle(
+            underlyingId: underlying.id,
+            firstLeg: NewLegInput(
+              optionType: OptionType.put,
+              strike: Decimal.parse('45.00'),
+              expiration: openedAt.add(const Duration(days: 40)),
+              contracts: 1,
+              openedAt: openedAt,
+              openCreditPerShare: Decimal.parse('0.60'),
+              ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+            ),
+          ).then((created) => created.cycle);
+
+      // The closed cycle is started *between* the two open ones, so a
+      // "returned everything, in insertion order" implementation cannot
+      // pass by accident.
+      final olderOpen = await openPutOn(first, DateTime.utc(2026, 1, 5));
+      final closedCycle = await openPutOn(second, DateTime.utc(2026, 2, 5));
+      await repo.closeLeg(
+        legId: (await repo.getLegsForCycle(closedCycle.id)).single.id,
+        reason: CloseReason.expiredWorthless,
+        closedAt: DateTime.utc(2026, 3, 5),
+      );
+      final newerOpen = await openPutOn(first, DateTime.utc(2026, 4, 5));
+
+      // Two `holdingShares` cycles: the first gets a covered call opened and
+      // then closed early, so it has NO open leg at all — the D-P12 case
+      // that makes grouping `getAllLegs()` an unacceptable substitute. The
+      // second keeps its open call.
+      final assignedNoLeg = await repo.createCycle(
+        underlyingId: second.id,
+        firstLeg: NewLegInput(
+          optionType: OptionType.put,
+          strike: Decimal.parse('50.00'),
+          expiration: DateTime.utc(2026, 5, 15),
+          contracts: 1,
+          openedAt: DateTime.utc(2026, 3, 10),
+          openCreditPerShare: Decimal.parse('1.20'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+      await repo.recordAssignment(
+        legId: assignedNoLeg.leg.id,
+        shareLot: NewShareLotInput(
+          assignedAt: DateTime.utc(2026, 5, 15),
+          assignmentStrike: Decimal.parse('50.00'),
+          contracts: 1,
+        ),
+      );
+      final callLeg = await repo.openNextLeg(
+        cycleId: assignedNoLeg.cycle.id,
+        leg: NewLegInput(
+          optionType: OptionType.call,
+          strike: Decimal.parse('55.00'),
+          expiration: DateTime.utc(2026, 7, 15),
+          contracts: 1,
+          openedAt: DateTime.utc(2026, 5, 20),
+          openCreditPerShare: Decimal.parse('0.80'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+      await repo.closeLeg(
+        legId: callLeg.id,
+        reason: CloseReason.closedEarly,
+        closeDebitPerShare: Decimal.parse('0.20'),
+        closedAt: DateTime.utc(2026, 6, 1),
+      );
+
+      final assignedWithCall = await repo.createCycle(
+        underlyingId: first.id,
+        firstLeg: NewLegInput(
+          optionType: OptionType.put,
+          strike: Decimal.parse('60.00'),
+          expiration: DateTime.utc(2026, 6, 15),
+          contracts: 1,
+          openedAt: DateTime.utc(2026, 5, 1),
+          openCreditPerShare: Decimal.parse('1.00'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+      await repo.recordAssignment(
+        legId: assignedWithCall.leg.id,
+        shareLot: NewShareLotInput(
+          assignedAt: DateTime.utc(2026, 6, 15),
+          assignmentStrike: Decimal.parse('60.00'),
+          contracts: 1,
+        ),
+      );
+      await repo.openNextLeg(
+        cycleId: assignedWithCall.cycle.id,
+        leg: NewLegInput(
+          optionType: OptionType.call,
+          strike: Decimal.parse('65.00'),
+          expiration: DateTime.utc(2026, 8, 15),
+          contracts: 1,
+          openedAt: DateTime.utc(2026, 6, 20),
+          openCreditPerShare: Decimal.parse('0.90'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+
+      final open = await repo.getOpenCycles();
+
+      // Ascending by startedAt, the closed one absent, both `holdingShares`
+      // cycles present, and the two `sellingPuts` cycles in order — even
+      // though the closed cycle sits between them by startedAt.
+      expect(open.map((c) => c.id), [
+        olderOpen.id,
+        assignedNoLeg.cycle.id,
+        newerOpen.id,
+        assignedWithCall.cycle.id,
+      ]);
+      expect(open.any((c) => c.id == closedCycle.id), isFalse);
+      expect(
+        open.map((c) => c.status),
+        [
+          WheelCycleStatus.sellingPuts,
+          WheelCycleStatus.holdingShares,
+          WheelCycleStatus.sellingPuts,
+          WheelCycleStatus.holdingShares,
+        ],
+      );
+      // Cross-underlying, not just the first underlying's cycles.
+      expect(open.map((c) => c.underlyingId).toSet(), {first.id, second.id});
+      // The D-P12 case, stated directly: the `holdingShares` cycle whose only
+      // call was closed early has no open leg at all, yet it is listed —
+      // which is exactly what a `getAllLegs()`-grouping implementation would
+      // miss. Its sibling, whose call is still open, has one.
+      expect(await repo.getOpenLegs(), hasLength(3));
+      expect(
+        (await repo.getOpenLegs()).any((l) => l.cycleId == assignedNoLeg.cycle.id),
+        isFalse,
+      );
+      expect(
+        (await repo.getOpenLegs()).any((l) => l.cycleId == assignedWithCall.cycle.id),
+        isTrue,
+      );
+    });
+
+    test('S-258: an all-closed book returns nothing', () async {
+      expect(await repo.getOpenCycles(), isEmpty);
+
+      final underlying = await repo.getOrCreateUnderlying('AAA');
+      final created = await repo.createCycle(
+        underlyingId: underlying.id,
+        firstLeg: NewLegInput(
+          optionType: OptionType.put,
+          strike: Decimal.parse('45.00'),
+          expiration: DateTime.utc(2026, 5, 15),
+          contracts: 1,
+          openedAt: DateTime.utc(2026, 4, 1),
+          openCreditPerShare: Decimal.parse('0.60'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+      expect((await repo.getOpenCycles()).map((c) => c.id), [created.cycle.id]);
+
+      await repo.closeLeg(
+        legId: created.leg.id,
+        reason: CloseReason.expiredWorthless,
+        closedAt: DateTime.utc(2026, 5, 15),
+      );
+
+      expect(await repo.getOpenCycles(), isEmpty);
+    });
+  });
+
+  group('Entitlement cache (Pro Wave 2, schema v6, D-25)', () {
+    test('S-256: a fresh repository reports the free tier, never checked', () async {
+      expect(await repo.getEntitlementCache(), const EntitlementCacheData());
+      expect(EntitlementCacheDefaults.checkedAt, isNull);
+      expect(EntitlementCacheDefaults.planKindName, ProPlanKind.none.name);
+    });
+
+    test('S-256: an active subscription round trips, then is replaced in place — '
+        'never appended', () async {
+      final saved = await repo.saveEntitlementCache(
+        EntitlementCacheData(
+          isActive: true,
+          planKind: ProPlanKind.annual,
+          expiresAt: DateTime.utc(2027, 1, 1),
+          willRenew: true,
+          billingIssue: false,
+          purchasedAt: DateTime.utc(2026, 1, 1),
+          checkedAt: DateTime.utc(2026, 6, 1),
+        ),
+      );
+      expect(saved.planKind, ProPlanKind.annual);
+
+      final reread = await repo.getEntitlementCache();
+      expect(reread.isActive, isTrue);
+      expect(reread.planKind, ProPlanKind.annual);
+      expect(reread.expiresAt, DateTime.utc(2027, 1, 1));
+      expect(reread.willRenew, isTrue);
+      expect(reread.billingIssue, isFalse);
+      expect(reread.purchasedAt, DateTime.utc(2026, 1, 1));
+      expect(reread.checkedAt, DateTime.utc(2026, 6, 1));
+
+      // A second write replaces the one row: the fields the new value does
+      // not set are genuinely cleared, not merged from the old row, and
+      // `getEntitlementCache` still resolves (a second row would make the
+      // fixed-id single read throw instead).
+      await repo.saveEntitlementCache(
+        EntitlementCacheData(
+          isActive: true,
+          planKind: ProPlanKind.monthly,
+          checkedAt: DateTime.utc(2026, 7, 1),
+        ),
+      );
+      final replaced = await repo.getEntitlementCache();
+      expect(replaced.planKind, ProPlanKind.monthly);
+      expect(replaced.expiresAt, isNull);
+      expect(replaced.willRenew, isFalse);
+      expect(replaced.purchasedAt, isNull);
+      expect(replaced.checkedAt, DateTime.utc(2026, 7, 1));
+    });
+
+    test('S-256: lifetime carries no expiry, and a failed check keeps the last '
+        'successful read', () async {
+      await repo.saveEntitlementCache(
+        EntitlementCacheData(
+          isActive: true,
+          planKind: ProPlanKind.lifetime,
+          purchasedAt: DateTime.utc(2026, 2, 1),
+          checkedAt: DateTime.utc(2026, 6, 1),
+        ),
+      );
+
+      final lifetime = await repo.getEntitlementCache();
+      expect(lifetime.planKind, ProPlanKind.lifetime);
+      expect(lifetime.expiresAt, isNull);
+      expect(lifetime.isActive, isTrue);
+
+      // D-26: a failed store read writes nothing, so the previous successful
+      // read — including its `checkedAt` — is what a caller still sees. This
+      // is the state-layer contract; here it pins that the repository holds
+      // exactly what was last saved, with no derivation of its own.
+      expect((await repo.getEntitlementCache()).checkedAt, DateTime.utc(2026, 6, 1));
     });
   });
 }

@@ -5146,6 +5146,557 @@ class UserPreferencesTableCompanion
   }
 }
 
+class $EntitlementCacheTableTable extends EntitlementCacheTable
+    with TableInfo<$EntitlementCacheTableTable, EntitlementCacheRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $EntitlementCacheTableTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isActiveMeta = const VerificationMeta(
+    'isActive',
+  );
+  @override
+  late final GeneratedColumn<bool> isActive = GeneratedColumn<bool>(
+    'is_active',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_active" IN (0, 1))',
+    ),
+    defaultValue: const Constant(EntitlementCacheDefaults.isActive),
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<ProPlanKind, String> planKind =
+      GeneratedColumn<String>(
+        'plan_kind',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(EntitlementCacheDefaults.planKindName),
+      ).withConverter<ProPlanKind>(
+        $EntitlementCacheTableTable.$converterplanKind,
+      );
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime?, int> expiresAtMs =
+      GeneratedColumn<int>(
+        'expires_at_ms',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>(
+        $EntitlementCacheTableTable.$converterexpiresAtMs,
+      );
+  static const VerificationMeta _willRenewMeta = const VerificationMeta(
+    'willRenew',
+  );
+  @override
+  late final GeneratedColumn<bool> willRenew = GeneratedColumn<bool>(
+    'will_renew',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("will_renew" IN (0, 1))',
+    ),
+    defaultValue: const Constant(EntitlementCacheDefaults.willRenew),
+  );
+  static const VerificationMeta _billingIssueMeta = const VerificationMeta(
+    'billingIssue',
+  );
+  @override
+  late final GeneratedColumn<bool> billingIssue = GeneratedColumn<bool>(
+    'billing_issue',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("billing_issue" IN (0, 1))',
+    ),
+    defaultValue: const Constant(EntitlementCacheDefaults.billingIssue),
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime?, int> purchasedAtMs =
+      GeneratedColumn<int>(
+        'purchased_at_ms',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>(
+        $EntitlementCacheTableTable.$converterpurchasedAtMs,
+      );
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime?, int> checkedAtMs =
+      GeneratedColumn<int>(
+        'checked_at_ms',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>(
+        $EntitlementCacheTableTable.$convertercheckedAtMs,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    isActive,
+    planKind,
+    expiresAtMs,
+    willRenew,
+    billingIssue,
+    purchasedAtMs,
+    checkedAtMs,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'entitlement_cache';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<EntitlementCacheRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('is_active')) {
+      context.handle(
+        _isActiveMeta,
+        isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta),
+      );
+    }
+    if (data.containsKey('will_renew')) {
+      context.handle(
+        _willRenewMeta,
+        willRenew.isAcceptableOrUnknown(data['will_renew']!, _willRenewMeta),
+      );
+    }
+    if (data.containsKey('billing_issue')) {
+      context.handle(
+        _billingIssueMeta,
+        billingIssue.isAcceptableOrUnknown(
+          data['billing_issue']!,
+          _billingIssueMeta,
+        ),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  EntitlementCacheRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return EntitlementCacheRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      isActive: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_active'],
+      )!,
+      planKind: $EntitlementCacheTableTable.$converterplanKind.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}plan_kind'],
+        )!,
+      ),
+      expiresAtMs: $EntitlementCacheTableTable.$converterexpiresAtMs.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}expires_at_ms'],
+        ),
+      ),
+      willRenew: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}will_renew'],
+      )!,
+      billingIssue: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}billing_issue'],
+      )!,
+      purchasedAtMs: $EntitlementCacheTableTable.$converterpurchasedAtMs
+          .fromSql(
+            attachedDatabase.typeMapping.read(
+              DriftSqlType.int,
+              data['${effectivePrefix}purchased_at_ms'],
+            ),
+          ),
+      checkedAtMs: $EntitlementCacheTableTable.$convertercheckedAtMs.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}checked_at_ms'],
+        ),
+      ),
+    );
+  }
+
+  @override
+  $EntitlementCacheTableTable createAlias(String alias) {
+    return $EntitlementCacheTableTable(attachedDatabase, alias);
+  }
+
+  static TypeConverter<ProPlanKind, String> $converterplanKind =
+      const ProPlanKindConverter();
+  static TypeConverter<DateTime?, int?> $converterexpiresAtMs =
+      NullAwareTypeConverter.wrap(const DateTimeMsConverter());
+  static TypeConverter<DateTime?, int?> $converterpurchasedAtMs =
+      NullAwareTypeConverter.wrap(const DateTimeMsConverter());
+  static TypeConverter<DateTime?, int?> $convertercheckedAtMs =
+      NullAwareTypeConverter.wrap(const DateTimeMsConverter());
+}
+
+class EntitlementCacheRow extends DataClass
+    implements Insertable<EntitlementCacheRow> {
+  final String id;
+  final bool isActive;
+  final ProPlanKind planKind;
+  final DateTime? expiresAtMs;
+  final bool willRenew;
+  final bool billingIssue;
+  final DateTime? purchasedAtMs;
+  final DateTime? checkedAtMs;
+  const EntitlementCacheRow({
+    required this.id,
+    required this.isActive,
+    required this.planKind,
+    this.expiresAtMs,
+    required this.willRenew,
+    required this.billingIssue,
+    this.purchasedAtMs,
+    this.checkedAtMs,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    map['is_active'] = Variable<bool>(isActive);
+    {
+      map['plan_kind'] = Variable<String>(
+        $EntitlementCacheTableTable.$converterplanKind.toSql(planKind),
+      );
+    }
+    if (!nullToAbsent || expiresAtMs != null) {
+      map['expires_at_ms'] = Variable<int>(
+        $EntitlementCacheTableTable.$converterexpiresAtMs.toSql(expiresAtMs),
+      );
+    }
+    map['will_renew'] = Variable<bool>(willRenew);
+    map['billing_issue'] = Variable<bool>(billingIssue);
+    if (!nullToAbsent || purchasedAtMs != null) {
+      map['purchased_at_ms'] = Variable<int>(
+        $EntitlementCacheTableTable.$converterpurchasedAtMs.toSql(
+          purchasedAtMs,
+        ),
+      );
+    }
+    if (!nullToAbsent || checkedAtMs != null) {
+      map['checked_at_ms'] = Variable<int>(
+        $EntitlementCacheTableTable.$convertercheckedAtMs.toSql(checkedAtMs),
+      );
+    }
+    return map;
+  }
+
+  EntitlementCacheTableCompanion toCompanion(bool nullToAbsent) {
+    return EntitlementCacheTableCompanion(
+      id: Value(id),
+      isActive: Value(isActive),
+      planKind: Value(planKind),
+      expiresAtMs: expiresAtMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(expiresAtMs),
+      willRenew: Value(willRenew),
+      billingIssue: Value(billingIssue),
+      purchasedAtMs: purchasedAtMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(purchasedAtMs),
+      checkedAtMs: checkedAtMs == null && nullToAbsent
+          ? const Value.absent()
+          : Value(checkedAtMs),
+    );
+  }
+
+  factory EntitlementCacheRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return EntitlementCacheRow(
+      id: serializer.fromJson<String>(json['id']),
+      isActive: serializer.fromJson<bool>(json['isActive']),
+      planKind: serializer.fromJson<ProPlanKind>(json['planKind']),
+      expiresAtMs: serializer.fromJson<DateTime?>(json['expiresAtMs']),
+      willRenew: serializer.fromJson<bool>(json['willRenew']),
+      billingIssue: serializer.fromJson<bool>(json['billingIssue']),
+      purchasedAtMs: serializer.fromJson<DateTime?>(json['purchasedAtMs']),
+      checkedAtMs: serializer.fromJson<DateTime?>(json['checkedAtMs']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'isActive': serializer.toJson<bool>(isActive),
+      'planKind': serializer.toJson<ProPlanKind>(planKind),
+      'expiresAtMs': serializer.toJson<DateTime?>(expiresAtMs),
+      'willRenew': serializer.toJson<bool>(willRenew),
+      'billingIssue': serializer.toJson<bool>(billingIssue),
+      'purchasedAtMs': serializer.toJson<DateTime?>(purchasedAtMs),
+      'checkedAtMs': serializer.toJson<DateTime?>(checkedAtMs),
+    };
+  }
+
+  EntitlementCacheRow copyWith({
+    String? id,
+    bool? isActive,
+    ProPlanKind? planKind,
+    Value<DateTime?> expiresAtMs = const Value.absent(),
+    bool? willRenew,
+    bool? billingIssue,
+    Value<DateTime?> purchasedAtMs = const Value.absent(),
+    Value<DateTime?> checkedAtMs = const Value.absent(),
+  }) => EntitlementCacheRow(
+    id: id ?? this.id,
+    isActive: isActive ?? this.isActive,
+    planKind: planKind ?? this.planKind,
+    expiresAtMs: expiresAtMs.present ? expiresAtMs.value : this.expiresAtMs,
+    willRenew: willRenew ?? this.willRenew,
+    billingIssue: billingIssue ?? this.billingIssue,
+    purchasedAtMs: purchasedAtMs.present
+        ? purchasedAtMs.value
+        : this.purchasedAtMs,
+    checkedAtMs: checkedAtMs.present ? checkedAtMs.value : this.checkedAtMs,
+  );
+  EntitlementCacheRow copyWithCompanion(EntitlementCacheTableCompanion data) {
+    return EntitlementCacheRow(
+      id: data.id.present ? data.id.value : this.id,
+      isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      planKind: data.planKind.present ? data.planKind.value : this.planKind,
+      expiresAtMs: data.expiresAtMs.present
+          ? data.expiresAtMs.value
+          : this.expiresAtMs,
+      willRenew: data.willRenew.present ? data.willRenew.value : this.willRenew,
+      billingIssue: data.billingIssue.present
+          ? data.billingIssue.value
+          : this.billingIssue,
+      purchasedAtMs: data.purchasedAtMs.present
+          ? data.purchasedAtMs.value
+          : this.purchasedAtMs,
+      checkedAtMs: data.checkedAtMs.present
+          ? data.checkedAtMs.value
+          : this.checkedAtMs,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EntitlementCacheRow(')
+          ..write('id: $id, ')
+          ..write('isActive: $isActive, ')
+          ..write('planKind: $planKind, ')
+          ..write('expiresAtMs: $expiresAtMs, ')
+          ..write('willRenew: $willRenew, ')
+          ..write('billingIssue: $billingIssue, ')
+          ..write('purchasedAtMs: $purchasedAtMs, ')
+          ..write('checkedAtMs: $checkedAtMs')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    isActive,
+    planKind,
+    expiresAtMs,
+    willRenew,
+    billingIssue,
+    purchasedAtMs,
+    checkedAtMs,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is EntitlementCacheRow &&
+          other.id == this.id &&
+          other.isActive == this.isActive &&
+          other.planKind == this.planKind &&
+          other.expiresAtMs == this.expiresAtMs &&
+          other.willRenew == this.willRenew &&
+          other.billingIssue == this.billingIssue &&
+          other.purchasedAtMs == this.purchasedAtMs &&
+          other.checkedAtMs == this.checkedAtMs);
+}
+
+class EntitlementCacheTableCompanion
+    extends UpdateCompanion<EntitlementCacheRow> {
+  final Value<String> id;
+  final Value<bool> isActive;
+  final Value<ProPlanKind> planKind;
+  final Value<DateTime?> expiresAtMs;
+  final Value<bool> willRenew;
+  final Value<bool> billingIssue;
+  final Value<DateTime?> purchasedAtMs;
+  final Value<DateTime?> checkedAtMs;
+  final Value<int> rowid;
+  const EntitlementCacheTableCompanion({
+    this.id = const Value.absent(),
+    this.isActive = const Value.absent(),
+    this.planKind = const Value.absent(),
+    this.expiresAtMs = const Value.absent(),
+    this.willRenew = const Value.absent(),
+    this.billingIssue = const Value.absent(),
+    this.purchasedAtMs = const Value.absent(),
+    this.checkedAtMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  EntitlementCacheTableCompanion.insert({
+    required String id,
+    this.isActive = const Value.absent(),
+    this.planKind = const Value.absent(),
+    this.expiresAtMs = const Value.absent(),
+    this.willRenew = const Value.absent(),
+    this.billingIssue = const Value.absent(),
+    this.purchasedAtMs = const Value.absent(),
+    this.checkedAtMs = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : id = Value(id);
+  static Insertable<EntitlementCacheRow> custom({
+    Expression<String>? id,
+    Expression<bool>? isActive,
+    Expression<String>? planKind,
+    Expression<int>? expiresAtMs,
+    Expression<bool>? willRenew,
+    Expression<bool>? billingIssue,
+    Expression<int>? purchasedAtMs,
+    Expression<int>? checkedAtMs,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (isActive != null) 'is_active': isActive,
+      if (planKind != null) 'plan_kind': planKind,
+      if (expiresAtMs != null) 'expires_at_ms': expiresAtMs,
+      if (willRenew != null) 'will_renew': willRenew,
+      if (billingIssue != null) 'billing_issue': billingIssue,
+      if (purchasedAtMs != null) 'purchased_at_ms': purchasedAtMs,
+      if (checkedAtMs != null) 'checked_at_ms': checkedAtMs,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  EntitlementCacheTableCompanion copyWith({
+    Value<String>? id,
+    Value<bool>? isActive,
+    Value<ProPlanKind>? planKind,
+    Value<DateTime?>? expiresAtMs,
+    Value<bool>? willRenew,
+    Value<bool>? billingIssue,
+    Value<DateTime?>? purchasedAtMs,
+    Value<DateTime?>? checkedAtMs,
+    Value<int>? rowid,
+  }) {
+    return EntitlementCacheTableCompanion(
+      id: id ?? this.id,
+      isActive: isActive ?? this.isActive,
+      planKind: planKind ?? this.planKind,
+      expiresAtMs: expiresAtMs ?? this.expiresAtMs,
+      willRenew: willRenew ?? this.willRenew,
+      billingIssue: billingIssue ?? this.billingIssue,
+      purchasedAtMs: purchasedAtMs ?? this.purchasedAtMs,
+      checkedAtMs: checkedAtMs ?? this.checkedAtMs,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (isActive.present) {
+      map['is_active'] = Variable<bool>(isActive.value);
+    }
+    if (planKind.present) {
+      map['plan_kind'] = Variable<String>(
+        $EntitlementCacheTableTable.$converterplanKind.toSql(planKind.value),
+      );
+    }
+    if (expiresAtMs.present) {
+      map['expires_at_ms'] = Variable<int>(
+        $EntitlementCacheTableTable.$converterexpiresAtMs.toSql(
+          expiresAtMs.value,
+        ),
+      );
+    }
+    if (willRenew.present) {
+      map['will_renew'] = Variable<bool>(willRenew.value);
+    }
+    if (billingIssue.present) {
+      map['billing_issue'] = Variable<bool>(billingIssue.value);
+    }
+    if (purchasedAtMs.present) {
+      map['purchased_at_ms'] = Variable<int>(
+        $EntitlementCacheTableTable.$converterpurchasedAtMs.toSql(
+          purchasedAtMs.value,
+        ),
+      );
+    }
+    if (checkedAtMs.present) {
+      map['checked_at_ms'] = Variable<int>(
+        $EntitlementCacheTableTable.$convertercheckedAtMs.toSql(
+          checkedAtMs.value,
+        ),
+      );
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('EntitlementCacheTableCompanion(')
+          ..write('id: $id, ')
+          ..write('isActive: $isActive, ')
+          ..write('planKind: $planKind, ')
+          ..write('expiresAtMs: $expiresAtMs, ')
+          ..write('willRenew: $willRenew, ')
+          ..write('billingIssue: $billingIssue, ')
+          ..write('purchasedAtMs: $purchasedAtMs, ')
+          ..write('checkedAtMs: $checkedAtMs, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -5165,6 +5716,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       $RuleProfileVersionTableTable(this);
   late final $UserPreferencesTableTable userPreferencesTable =
       $UserPreferencesTableTable(this);
+  late final $EntitlementCacheTableTable entitlementCacheTable =
+      $EntitlementCacheTableTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -5178,6 +5731,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     ruleProfileTable,
     ruleProfileVersionTable,
     userPreferencesTable,
+    entitlementCacheTable,
   ];
 }
 
@@ -7697,6 +8251,297 @@ typedef $$UserPreferencesTableTableProcessedTableManager =
       UserPreferencesRow,
       PrefetchHooks Function()
     >;
+typedef $$EntitlementCacheTableTableCreateCompanionBuilder =
+    EntitlementCacheTableCompanion Function({
+      required String id,
+      Value<bool> isActive,
+      Value<ProPlanKind> planKind,
+      Value<DateTime?> expiresAtMs,
+      Value<bool> willRenew,
+      Value<bool> billingIssue,
+      Value<DateTime?> purchasedAtMs,
+      Value<DateTime?> checkedAtMs,
+      Value<int> rowid,
+    });
+typedef $$EntitlementCacheTableTableUpdateCompanionBuilder =
+    EntitlementCacheTableCompanion Function({
+      Value<String> id,
+      Value<bool> isActive,
+      Value<ProPlanKind> planKind,
+      Value<DateTime?> expiresAtMs,
+      Value<bool> willRenew,
+      Value<bool> billingIssue,
+      Value<DateTime?> purchasedAtMs,
+      Value<DateTime?> checkedAtMs,
+      Value<int> rowid,
+    });
+
+class $$EntitlementCacheTableTableFilterComposer
+    extends Composer<_$AppDatabase, $EntitlementCacheTableTable> {
+  $$EntitlementCacheTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<ProPlanKind, ProPlanKind, String>
+  get planKind => $composableBuilder(
+    column: $table.planKind,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, int> get expiresAtMs =>
+      $composableBuilder(
+        column: $table.expiresAtMs,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<bool> get willRenew => $composableBuilder(
+    column: $table.willRenew,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get billingIssue => $composableBuilder(
+    column: $table.billingIssue,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, int> get purchasedAtMs =>
+      $composableBuilder(
+        column: $table.purchasedAtMs,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, int> get checkedAtMs =>
+      $composableBuilder(
+        column: $table.checkedAtMs,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+}
+
+class $$EntitlementCacheTableTableOrderingComposer
+    extends Composer<_$AppDatabase, $EntitlementCacheTableTable> {
+  $$EntitlementCacheTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get isActive => $composableBuilder(
+    column: $table.isActive,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get planKind => $composableBuilder(
+    column: $table.planKind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get expiresAtMs => $composableBuilder(
+    column: $table.expiresAtMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get willRenew => $composableBuilder(
+    column: $table.willRenew,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get billingIssue => $composableBuilder(
+    column: $table.billingIssue,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get purchasedAtMs => $composableBuilder(
+    column: $table.purchasedAtMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get checkedAtMs => $composableBuilder(
+    column: $table.checkedAtMs,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$EntitlementCacheTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $EntitlementCacheTableTable> {
+  $$EntitlementCacheTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<bool> get isActive =>
+      $composableBuilder(column: $table.isActive, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<ProPlanKind, String> get planKind =>
+      $composableBuilder(column: $table.planKind, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DateTime?, int> get expiresAtMs =>
+      $composableBuilder(
+        column: $table.expiresAtMs,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<bool> get willRenew =>
+      $composableBuilder(column: $table.willRenew, builder: (column) => column);
+
+  GeneratedColumn<bool> get billingIssue => $composableBuilder(
+    column: $table.billingIssue,
+    builder: (column) => column,
+  );
+
+  GeneratedColumnWithTypeConverter<DateTime?, int> get purchasedAtMs =>
+      $composableBuilder(
+        column: $table.purchasedAtMs,
+        builder: (column) => column,
+      );
+
+  GeneratedColumnWithTypeConverter<DateTime?, int> get checkedAtMs =>
+      $composableBuilder(
+        column: $table.checkedAtMs,
+        builder: (column) => column,
+      );
+}
+
+class $$EntitlementCacheTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $EntitlementCacheTableTable,
+          EntitlementCacheRow,
+          $$EntitlementCacheTableTableFilterComposer,
+          $$EntitlementCacheTableTableOrderingComposer,
+          $$EntitlementCacheTableTableAnnotationComposer,
+          $$EntitlementCacheTableTableCreateCompanionBuilder,
+          $$EntitlementCacheTableTableUpdateCompanionBuilder,
+          (
+            EntitlementCacheRow,
+            BaseReferences<
+              _$AppDatabase,
+              $EntitlementCacheTableTable,
+              EntitlementCacheRow
+            >,
+          ),
+          EntitlementCacheRow,
+          PrefetchHooks Function()
+        > {
+  $$EntitlementCacheTableTableTableManager(
+    _$AppDatabase db,
+    $EntitlementCacheTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$EntitlementCacheTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$EntitlementCacheTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$EntitlementCacheTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<bool> isActive = const Value.absent(),
+                Value<ProPlanKind> planKind = const Value.absent(),
+                Value<DateTime?> expiresAtMs = const Value.absent(),
+                Value<bool> willRenew = const Value.absent(),
+                Value<bool> billingIssue = const Value.absent(),
+                Value<DateTime?> purchasedAtMs = const Value.absent(),
+                Value<DateTime?> checkedAtMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => EntitlementCacheTableCompanion(
+                id: id,
+                isActive: isActive,
+                planKind: planKind,
+                expiresAtMs: expiresAtMs,
+                willRenew: willRenew,
+                billingIssue: billingIssue,
+                purchasedAtMs: purchasedAtMs,
+                checkedAtMs: checkedAtMs,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                Value<bool> isActive = const Value.absent(),
+                Value<ProPlanKind> planKind = const Value.absent(),
+                Value<DateTime?> expiresAtMs = const Value.absent(),
+                Value<bool> willRenew = const Value.absent(),
+                Value<bool> billingIssue = const Value.absent(),
+                Value<DateTime?> purchasedAtMs = const Value.absent(),
+                Value<DateTime?> checkedAtMs = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => EntitlementCacheTableCompanion.insert(
+                id: id,
+                isActive: isActive,
+                planKind: planKind,
+                expiresAtMs: expiresAtMs,
+                willRenew: willRenew,
+                billingIssue: billingIssue,
+                purchasedAtMs: purchasedAtMs,
+                checkedAtMs: checkedAtMs,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$EntitlementCacheTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $EntitlementCacheTableTable,
+      EntitlementCacheRow,
+      $$EntitlementCacheTableTableFilterComposer,
+      $$EntitlementCacheTableTableOrderingComposer,
+      $$EntitlementCacheTableTableAnnotationComposer,
+      $$EntitlementCacheTableTableCreateCompanionBuilder,
+      $$EntitlementCacheTableTableUpdateCompanionBuilder,
+      (
+        EntitlementCacheRow,
+        BaseReferences<
+          _$AppDatabase,
+          $EntitlementCacheTableTable,
+          EntitlementCacheRow
+        >,
+      ),
+      EntitlementCacheRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -7720,4 +8565,6 @@ class $AppDatabaseManager {
       );
   $$UserPreferencesTableTableTableManager get userPreferencesTable =>
       $$UserPreferencesTableTableTableManager(_db, _db.userPreferencesTable);
+  $$EntitlementCacheTableTableTableManager get entitlementCacheTable =>
+      $$EntitlementCacheTableTableTableManager(_db, _db.entitlementCacheTable);
 }

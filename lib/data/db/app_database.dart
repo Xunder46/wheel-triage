@@ -3,11 +3,14 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
 import '../../domain/models/leg.dart';
+import '../../domain/models/pro_plan_kind.dart';
+import '../../domain/models/entitlement_cache_defaults.dart';
 import '../../domain/models/rule_profile_defaults.dart';
 import '../../domain/models/rule_profile_ids.dart';
 import '../../domain/models/snapshot.dart';
 import '../../domain/models/user_preferences_defaults.dart';
 import '../../domain/models/wheel_cycle.dart';
+import 'tables/entitlement_cache_table.dart';
 import 'tables/leg_table.dart';
 import 'tables/rule_profile_table.dart';
 import 'tables/rule_profile_version_table.dart';
@@ -29,12 +32,13 @@ part 'app_database.g.dart';
   RuleProfileTable,
   RuleProfileVersionTable,
   UserPreferencesTable,
+  EntitlementCacheTable,
 ])
 final class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? driftDatabase(name: 'wheel_triage'));
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -42,6 +46,7 @@ final class AppDatabase extends _$AppDatabase {
           await m.createAll();
           await seedRuleProfiles();
           await seedDefaultPreferences();
+          await seedEntitlementCache();
         },
         onUpgrade: (Migrator m, int from, int to) async {
           // Schema v2 (Iteration 3, Phase 8): adds `user_preferences` only —
@@ -152,6 +157,17 @@ final class AppDatabase extends _$AppDatabase {
               );
             }
           }
+          // Schema v6 (Pro Wave 2, Phase 1): one new table,
+          // `entitlement_cache` — the store-derived entitlement cache
+          // (D-25). No existing table changes, so no `from >= N` column
+          // guard is needed: the table is new, and a direct v1 -> v6 jump
+          // creates it from its current Dart definition in this same step.
+          // Gated on `to` as well as `from`, like every step above, so a
+          // migration test targeting an intermediate version never runs it.
+          if (from < 6 && to >= 6) {
+            await m.createTable(entitlementCacheTable);
+            await seedEntitlementCache();
+          }
         },
       );
 
@@ -258,6 +274,29 @@ final class AppDatabase extends _$AppDatabase {
         // above; `wheelCapitalCents` is nullable with no default, so it is
         // simply omitted — "not set" is the absence of a value.
         concentrationLimitPct: const Value(UserPreferencesDefaults.concentrationLimitPct),
+      ),
+    );
+  }
+
+  /// Inserts the single fixed-id `entitlement_cache` row (schema v6) with
+  /// the free tier's "never checked" values
+  /// (`lib/domain/models/entitlement_cache_defaults.dart`). Public — same
+  /// visibility rationale as `seedRuleProfiles`/`seedDefaultPreferences` —
+  /// so both `onCreate` and the `5 -> 6` `onUpgrade` step share this one
+  /// insert path, and tests can reuse it without duplicating the defaults.
+  ///
+  /// The four defaulted columns are passed explicitly rather than left to
+  /// their SQL-level `withDefault`s, so the row is written from the same
+  /// Dart constants `InMemoryWheelRepository` initialises from and a change
+  /// to one can never silently diverge from the other (S-256 parity).
+  Future<void> seedEntitlementCache() async {
+    await into(entitlementCacheTable).insert(
+      EntitlementCacheTableCompanion.insert(
+        id: EntitlementCacheDefaults.rowId,
+        isActive: const Value(EntitlementCacheDefaults.isActive),
+        planKind: const Value(EntitlementCacheDefaults.planKind),
+        willRenew: const Value(EntitlementCacheDefaults.willRenew),
+        billingIssue: const Value(EntitlementCacheDefaults.billingIssue),
       ),
     );
   }

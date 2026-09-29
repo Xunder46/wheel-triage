@@ -5,8 +5,8 @@
 // the database's version is N, so `onUpgrade` receives `to == N` — and then
 // validates the result against the schema snapshot for N. N is therefore the
 // version the `DatabaseAtV3` helper below reads through, not the app's
-// current `schemaVersion` (5 since Pro Wave 1's Phase 2): targeting 5 would
-// make the v4/v5 steps run and the v3-shaped read below impossible.
+// current `schemaVersion` (6 since Pro Wave 2's Phase 1): targeting 6 would
+// make the v4/v5/v6 steps run and the v3-shaped read below impossible.
 //
 // Follows the same `SchemaVerifier.schemaAt` pattern as
 // test/data/db/app_database_migration_test.dart and

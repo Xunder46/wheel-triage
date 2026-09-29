@@ -2,6 +2,7 @@ import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart';
 
 import '../../domain/models/leg.dart';
+import '../../domain/models/pro_plan_kind.dart';
 import '../../domain/models/snapshot.dart';
 import '../../domain/models/wheel_cycle.dart';
 
@@ -117,6 +118,16 @@ class DeltaConventionConverter extends TypeConverter<DeltaConvention, String> {
 
   @override
   String toSql(DeltaConvention value) => value.name;
+}
+
+class ProPlanKindConverter extends TypeConverter<ProPlanKind, String> {
+  const ProPlanKindConverter();
+
+  @override
+  ProPlanKind fromSql(String fromDb) => ProPlanKind.values.byName(fromDb);
+
+  @override
+  String toSql(ProPlanKind value) => value.name;
 }
 
 // --- Lists ---------------------------------------------------------------

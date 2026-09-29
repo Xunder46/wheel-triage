@@ -9,7 +9,7 @@
 // re-read through a versioned schema snapshot to confirm both the new
 // table and every old row survived byte-identical.
 //
-// Migrated all the way to v5 (Pro Wave 1, Phase 2), not stopped at v2 or v3:
+// Migrated all the way to v6 (Pro Wave 2, Phase 1), not stopped at v2 or v3:
 // Dart-defined tables carry only their current column set, so `onUpgrade`'s
 // `from < 2` step (`m.createTable(userPreferencesTable)`) always creates that
 // table with every column the table has *today* — including v3's three
@@ -24,8 +24,9 @@
 //
 // Because the target is the current version, the assertions below read the
 // post-v4 shape too: `leg.rule_profile_id` has been renamed and rewritten to
-// `rule_profile_version_id`, and the 14 threshold columns live in
-// `rule_profile_version` rather than `rule_profile`.
+// `rule_profile_version_id`, the 14 threshold columns live in
+// `rule_profile_version` rather than `rule_profile`, and the v6 step's
+// `entitlement_cache` row exists (S-255).
 
 import 'package:drift_dev/api/migrations_native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -33,11 +34,11 @@ import 'package:wheel_triage/data/db/app_database.dart';
 import 'package:wheel_triage/domain/models/user_preferences_defaults.dart';
 
 import 'db/generated/schema.dart';
-import 'db/generated/schema_v5.dart' as v5;
+import 'db/generated/schema_v6.dart' as v6;
 import 'db/generated/schema_v1.dart' as v1;
 
 void main() {
-  test('v1 -> v5 migration adds user_preferences and preserves all v1 data', () async {
+  test('v1 -> v6 migration adds user_preferences and preserves all v1 data', () async {
     final verifier = SchemaVerifier(GeneratedHelper());
     final schema = await verifier.schemaAt(1);
 
@@ -110,14 +111,14 @@ void main() {
         );
     await oldDb.close();
 
-    // Run the app's real migration path (onUpgrade's 1 -> 2 -> 3 -> 4 -> 5
-    // steps) and validate the resulting live schema matches
-    // drift_schema_v5.json.
+    // Run the app's real migration path (onUpgrade's 1 -> 2 -> 3 -> 4 -> 5 ->
+    // 6 steps) and validate the resulting live schema matches
+    // drift_schema_v6.json.
     final dbForMigration = AppDatabase(schema.newConnection());
-    await verifier.migrateAndValidate(dbForMigration, 5);
+    await verifier.migrateAndValidate(dbForMigration, 6);
     await dbForMigration.close();
 
-    final checkDb = v5.DatabaseAtV5(schema.newConnection());
+    final checkDb = v6.DatabaseAtV6(schema.newConnection());
     addTearDown(checkDb.close);
 
     // New table: exactly one seeded row, at the fixed id, with the app's
@@ -200,5 +201,21 @@ void main() {
     expect(versionRow.assignThreshold, 0.70);
     expect(versionRow.tailExtrinsicThreshold, 500);
     expect(versionRow.targetDelta, 0.30);
+
+    // Pro Wave 2's v6 step (S-255): the new `entitlement_cache` table holds
+    // exactly one seeded row at the fixed id, carrying the free tier's
+    // "never checked" state. Read through the raw v6 snapshot, so the
+    // enum-backed `plan_kind` column is compared as its stored text.
+    final cacheRows = await checkDb.select(checkDb.entitlementCache).get();
+    expect(cacheRows, hasLength(1));
+    final cacheRow = cacheRows.single;
+    expect(cacheRow.id, 'default');
+    expect(cacheRow.isActive, isFalse);
+    expect(cacheRow.planKind, 'none');
+    expect(cacheRow.expiresAtMs, isNull);
+    expect(cacheRow.willRenew, isFalse);
+    expect(cacheRow.billingIssue, isFalse);
+    expect(cacheRow.purchasedAtMs, isNull);
+    expect(cacheRow.checkedAtMs, isNull);
   });
 }

@@ -11,6 +11,12 @@
 // re-read through the target version's helpers. Values inserted through the
 // generated helpers are RAW SQL values (the helpers do not apply the app's
 // type converters), so `wheel_capital_cents` is compared as an integer.
+//
+// The v4 -> v5 step itself is still isolated at v5 (the first two tests
+// target 5 deliberately), so those stay pinned. The fresh-install test
+// targets the app's *current* `schemaVersion` (6 since Pro Wave 2's
+// Phase 1) instead, because a real `AppDatabase` cannot be opened against a
+// v5 snapshot without running the v5 -> v6 step.
 
 import 'package:drift/drift.dart' show Value;
 import 'package:drift_dev/api/migrations_native.dart';
@@ -24,6 +30,7 @@ import 'generated/schema.dart';
 import 'generated/schema_v3.dart' as v3;
 import 'generated/schema_v4.dart' as v4;
 import 'generated/schema_v5.dart' as v5;
+import 'generated/schema_v6.dart' as v6;
 
 /// `StandardProfileDefaults.tailExtrinsicThreshold` ($0.05) as the raw
 /// integer ten-thousandths the schema helpers see.
@@ -169,15 +176,21 @@ void main() {
     expect((await checkDb.select(checkDb.shareLot).get()), hasLength(1));
   });
 
-  test('S-214: a fresh v5 install reports the same two values as the migration', () async {
+  test('S-214: a fresh current-version install reports the same two values as the '
+      'migration', () async {
     final verifier = SchemaVerifier(GeneratedHelper());
-    final schema = await verifier.schemaAt(5);
+    // Retargeted from v5 to v6 (Pro Wave 2, Phase 1): opening a real
+    // `AppDatabase` (whose `schemaVersion` is now 6) against a v5 snapshot
+    // would run the v5 -> v6 step and leave the connection at 6, which the
+    // v5-shaped read below cannot open. The point of this test — the fresh
+    // seed path and the migration path agree — is version-independent.
+    final schema = await verifier.schemaAt(6);
 
     final db = AppDatabase(schema.newConnection());
     addTearDown(db.close);
     await db.seedDefaultPreferences();
 
-    final checkDb = v5.DatabaseAtV5(schema.newConnection());
+    final checkDb = v6.DatabaseAtV6(schema.newConnection());
     addTearDown(checkDb.close);
 
     final prefs = (await checkDb.select(checkDb.userPreferences).get()).single;
@@ -209,7 +222,7 @@ void main() {
     // database's version is N, so `onUpgrade` receives `to == N` — and then
     // validates the result against N's schema snapshot. N is therefore the
     // version `DatabaseAtV4` below reads through, not the app's current
-    // `schemaVersion` (5).
+    // `schemaVersion` (6 since Pro Wave 2's Phase 1).
     final dbForMigration = AppDatabase(schema.newConnection());
     await verifier.migrateAndValidate(dbForMigration, 4);
     await dbForMigration.close();

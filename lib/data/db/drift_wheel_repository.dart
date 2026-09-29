@@ -1,6 +1,8 @@
 import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart';
 
+import '../../domain/models/entitlement_cache.dart';
+import '../../domain/models/entitlement_cache_defaults.dart';
 import '../../domain/models/leg.dart';
 import '../../domain/models/rule_profile_data.dart';
 import '../../domain/models/rule_profile_ids.dart';
@@ -234,6 +236,15 @@ class DriftWheelRepository implements WheelRepository {
     final rows = await (_db.select(_db.wheelCycleTable)
           ..where((t) => t.status.equalsValue(WheelCycleStatus.closed))
           ..orderBy([(t) => OrderingTerm.desc(t.endedAtMs)]))
+        .get();
+    return rows.map(_cycleFromRow).toList();
+  }
+
+  @override
+  Future<List<WheelCycle>> getOpenCycles() async {
+    final rows = await (_db.select(_db.wheelCycleTable)
+          ..where((t) => t.status.equalsValue(WheelCycleStatus.closed).not())
+          ..orderBy([(t) => OrderingTerm.asc(t.startedAtMs)]))
         .get();
     return rows.map(_cycleFromRow).toList();
   }
@@ -569,6 +580,32 @@ class DriftWheelRepository implements WheelRepository {
           ..where((t) => t.id.equals(UserPreferencesDefaults.rowId)))
         .write(_userPreferencesToCompanion(prefs));
     return prefs;
+  }
+
+  // --- Entitlement cache (Pro Wave 2, schema v6, D-25) --------------------
+
+  @override
+  Future<EntitlementCacheData> getEntitlementCache() async {
+    final row = await (_db.select(_db.entitlementCacheTable)
+          ..where((t) => t.id.equals(EntitlementCacheDefaults.rowId)))
+        .getSingleOrNull();
+    if (row != null) return _entitlementCacheFromRow(row);
+
+    // Defensive "resilient read" — same spirit as getPreferences above and
+    // unreachable in practice, since onCreate/the 5->6 migration always
+    // inserts this row. `getSingleOrNull` on the fixed id is also what
+    // enforces the single-row contract (D-25/S-256): if a second row ever
+    // appeared, this read would throw rather than silently pick one.
+    await _db.seedEntitlementCache();
+    return const EntitlementCacheData();
+  }
+
+  @override
+  Future<EntitlementCacheData> saveEntitlementCache(EntitlementCacheData cache) async {
+    await (_db.update(_db.entitlementCacheTable)
+          ..where((t) => t.id.equals(EntitlementCacheDefaults.rowId)))
+        .write(_entitlementCacheToCompanion(cache));
+    return cache;
   }
 
   // --- Export / import (Phase 19) ----------------------------------------
@@ -963,4 +1000,26 @@ UserPreferencesTableCompanion _userPreferencesToCompanion(UserPreferencesData p)
       notificationMilestones: Value(p.notificationMilestones),
       wheelCapitalCents: Value(p.wheelCapital),
       concentrationLimitPct: Value(p.concentrationLimitPct),
+    );
+
+EntitlementCacheData _entitlementCacheFromRow(EntitlementCacheRow row) => EntitlementCacheData(
+      isActive: row.isActive,
+      planKind: row.planKind,
+      expiresAt: row.expiresAtMs,
+      willRenew: row.willRenew,
+      billingIssue: row.billingIssue,
+      purchasedAt: row.purchasedAtMs,
+      checkedAt: row.checkedAtMs,
+    );
+
+EntitlementCacheTableCompanion _entitlementCacheToCompanion(EntitlementCacheData c) =>
+    EntitlementCacheTableCompanion(
+      id: const Value(EntitlementCacheDefaults.rowId),
+      isActive: Value(c.isActive),
+      planKind: Value(c.planKind),
+      expiresAtMs: Value(c.expiresAt),
+      willRenew: Value(c.willRenew),
+      billingIssue: Value(c.billingIssue),
+      purchasedAtMs: Value(c.purchasedAt),
+      checkedAtMs: Value(c.checkedAt),
     );

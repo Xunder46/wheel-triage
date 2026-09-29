@@ -4,6 +4,8 @@
 // DriftWheelRepository and InMemoryWheelRepository (docs/conventions.md §6
 // parity requirement).
 
+import 'dart:convert';
+
 import 'package:decimal/decimal.dart';
 import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:drift/native.dart';
@@ -14,7 +16,9 @@ import 'package:wheel_triage/data/export/ledger_csv.dart';
 import 'package:wheel_triage/data/export/ledger_export.dart';
 import 'package:wheel_triage/data/in_memory_wheel_repository.dart';
 import 'package:wheel_triage/data/wheel_repository.dart';
+import 'package:wheel_triage/domain/models/entitlement_cache.dart';
 import 'package:wheel_triage/domain/models/leg.dart';
+import 'package:wheel_triage/domain/models/pro_plan_kind.dart';
 import 'package:wheel_triage/domain/models/rule_profile_data.dart';
 import 'package:wheel_triage/domain/models/rule_profile_defaults.dart';
 import 'package:wheel_triage/domain/models/rule_profile_ids.dart';
@@ -505,5 +509,62 @@ void _runTests(WheelRepository Function() createRepository) {
       ),
     );
     expect(v3.version, 3);
+  });
+
+  test('S-257: the export envelope never carries the entitlement cache, and the '
+      'key set is exactly the nine persisted sections', () async {
+    final repo = createRepository();
+    final underlying = await repo.getOrCreateUnderlying('S257');
+    await repo.createCycle(
+      underlyingId: underlying.id,
+      firstLeg: NewLegInput(
+        optionType: OptionType.put,
+        strike: Decimal.parse('45.00'),
+        expiration: DateTime.utc(2026, 4, 15),
+        contracts: 1,
+        openedAt: DateTime.utc(2026, 3, 1),
+        openCreditPerShare: Decimal.parse('0.60'),
+        ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+      ),
+    );
+    // An active Pro row exists and is still not exported — the envelope's
+    // shape does not depend on the entitlement's value.
+    await repo.saveEntitlementCache(
+      EntitlementCacheData(
+        isActive: true,
+        planKind: ProPlanKind.lifetime,
+        purchasedAt: DateTime.utc(2026, 1, 1),
+        checkedAt: DateTime.utc(2026, 6, 1),
+      ),
+    );
+
+    final decoded = jsonDecode(await repo.exportToJson()) as Map<String, dynamic>;
+
+    expect(decoded.keys.toSet(), {
+      'formatVersion',
+      'underlyings',
+      'cycles',
+      'legs',
+      'snapshots',
+      'shareLots',
+      'ruleProfiles',
+      'ruleProfileVersions',
+      'preferences',
+    });
+    expect(decoded['formatVersion'], 2);
+    // No entitlement section, and no entitlement value smuggled into the
+    // preferences row either.
+    expect(
+      decoded.keys.where((k) => k.toLowerCase().contains('entitlement')),
+      isEmpty,
+    );
+    expect(
+      (decoded['preferences'] as Map<String, dynamic>).keys
+          .where((k) => k.toLowerCase().contains('pro')),
+      isEmpty,
+    );
+    // `LedgerExport` itself has no field for it — the round-trip through the
+    // typed envelope is lossless in both directions.
+    expect(LedgerExport.fromJsonString(jsonEncode(decoded)).toJsonString(), isNotEmpty);
   });
 }

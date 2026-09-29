@@ -14,7 +14,9 @@ import 'package:wheel_triage/data/db/drift_wheel_repository.dart';
 import 'package:wheel_triage/data/export/ledger_export.dart';
 import 'package:wheel_triage/data/in_memory_wheel_repository.dart';
 import 'package:wheel_triage/data/wheel_repository.dart';
+import 'package:wheel_triage/domain/models/entitlement_cache.dart';
 import 'package:wheel_triage/domain/models/leg.dart';
+import 'package:wheel_triage/domain/models/pro_plan_kind.dart';
 import 'package:wheel_triage/domain/models/rule_profile_ids.dart';
 
 void main() {
@@ -357,6 +359,98 @@ void _runTests(WheelRepository Function() createRepository) {
     // The file's own values still win over this app's defaults.
     expect(restored.totalPerContractToggle, isTrue);
     expect(restored.notificationMilestones, [7, 0]);
+  });
+
+  test('S-257: restoring a different book leaves this device\'s entitlement '
+      'cache exactly as the store last reported it', () async {
+    final repo = createRepository();
+    await _closedPutCycle(
+      repo,
+      ticker: 'S257A',
+      openedAt: DateTime.utc(2026, 1, 1),
+      closedAt: DateTime.utc(2026, 1, 20),
+    );
+
+    // The store said lifetime Pro, so that is what is cached.
+    final proRow = await repo.saveEntitlementCache(
+      EntitlementCacheData(
+        isActive: true,
+        planKind: ProPlanKind.lifetime,
+        purchasedAt: DateTime.utc(2025, 12, 1),
+        checkedAt: DateTime.utc(2026, 6, 1),
+      ),
+    );
+
+    // A second device's book — free tier, two cycles — is restored into
+    // this one.
+    final other = createRepository();
+    await _closedPutCycle(
+      other,
+      ticker: 'S257B',
+      openedAt: DateTime.utc(2026, 2, 1),
+      closedAt: DateTime.utc(2026, 2, 20),
+    );
+    await _closedPutCycle(
+      other,
+      ticker: 'S257D',
+      openedAt: DateTime.utc(2026, 3, 1),
+      closedAt: DateTime.utc(2026, 3, 20),
+    );
+    final otherJson = await other.exportToJson();
+    expect(
+      (await other.getEntitlementCache()).isActive,
+      isFalse,
+      reason: 'the other book is a free-tier install',
+    );
+    expect(await repo.getClosedCycles(), hasLength(1));
+
+    await repo.restoreFromJson(otherJson);
+
+    // The book came across in full...
+    expect(await repo.getClosedCycles(), hasLength(2));
+    // ...and the entitlement did not.
+    final after = await repo.getEntitlementCache();
+    expect(after, proRow);
+    expect(after.isActive, isTrue);
+    expect(after.planKind, ProPlanKind.lifetime);
+    expect(after.purchasedAt, DateTime.utc(2025, 12, 1));
+    expect(after.checkedAt, DateTime.utc(2026, 6, 1));
+
+    // And a free-tier device restoring a Pro book does not gain Pro either.
+    final fresh = createRepository();
+    final proBookJson = await repo.exportToJson();
+    await fresh.restoreFromJson(proBookJson);
+    expect((await fresh.getEntitlementCache()).isActive, isFalse);
+  });
+
+  test('S-257: a hand-edited file carrying an `entitlement` key neither grants '
+      'Pro nor fails the import', () async {
+    final repo = createRepository();
+    await _closedPutCycle(
+      repo,
+      ticker: 'S257C',
+      openedAt: DateTime.utc(2026, 1, 1),
+      closedAt: DateTime.utc(2026, 1, 20),
+    );
+
+    final decoded = jsonDecode(await repo.exportToJson()) as Map<String, dynamic>;
+    // Forge the section an earlier draft would have exported. Restoring
+    // must ignore it rather than trusting it.
+    decoded['entitlement'] = {
+      'isActive': true,
+      'planKind': 'lifetime',
+      'checkedAt': DateTime.utc(2026, 6, 1).toIso8601String(),
+    };
+
+    await repo.restoreFromJson(jsonEncode(decoded));
+
+    final after = await repo.getEntitlementCache();
+    expect(after.isActive, isFalse);
+    expect(after.planKind, ProPlanKind.none);
+    expect(after.checkedAt, isNull);
+    // The forged key is dropped, not round-tripped back out.
+    final reExported = jsonDecode(await repo.exportToJson()) as Map<String, dynamic>;
+    expect(reExported.containsKey('entitlement'), isFalse);
   });
 }
 

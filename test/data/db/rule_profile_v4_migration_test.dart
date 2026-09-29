@@ -14,13 +14,13 @@
 // the database's version is N, so `onUpgrade` receives `to == N` — and then
 // validates the result against the schema snapshot for N. N therefore has to
 // be the version the `DatabaseAtV*` helper below reads through, not the
-// app's current `schemaVersion` (5 since Pro Wave 1's Phase 2). That is
+// app's current `schemaVersion` (6 since Pro Wave 2's Phase 1). That is
 // exactly what lets the third test target v3 and prove the v4 step never ran.
 //
 // The one exception is the v1-start case below: the v2 step creates
 // `user_preferences` from the *live* table definition, so a database that
 // starts at v1 ends up with the current column set whatever N is. That test
-// therefore targets the current version and reads through `DatabaseAtV5`.
+// therefore targets the current version and reads through `DatabaseAtV6`.
 //
 // Values inserted through the generated helpers are RAW SQL values (the
 // helpers do not apply the app's type converters — see
@@ -41,7 +41,7 @@ import 'generated/schema_v1.dart' as v1;
 import 'generated/schema_v2.dart' as v2;
 import 'generated/schema_v3.dart' as v3;
 import 'generated/schema_v4.dart' as v4;
-import 'generated/schema_v5.dart' as v5;
+import 'generated/schema_v6.dart' as v6;
 
 /// `StandardProfileDefaults.tailExtrinsicThreshold` ($0.05) as the raw
 /// integer ten-thousandths the schema helpers see.
@@ -296,7 +296,7 @@ void main() {
     expect(l2.rolledFromLegId, 'l1');
   });
 
-  test('S-190 (v1 -> v5 jump): the v4 step runs after the earlier steps and still '
+  test('S-190 (v1 -> v6 jump): the v4 step runs after the earlier steps and still '
       're-points the leg', () async {
     final verifier = SchemaVerifier(GeneratedHelper());
     final schema = await verifier.schemaAt(1);
@@ -350,10 +350,10 @@ void main() {
     await oldDb.close();
 
     final dbForMigration = AppDatabase(schema.newConnection());
-    await verifier.migrateAndValidate(dbForMigration, 5);
+    await verifier.migrateAndValidate(dbForMigration, 6);
     await dbForMigration.close();
 
-    final checkDb = v5.DatabaseAtV5(schema.newConnection());
+    final checkDb = v6.DatabaseAtV6(schema.newConnection());
     addTearDown(checkDb.close);
 
     final version = (await checkDb.select(checkDb.ruleProfileVersion).get()).single;

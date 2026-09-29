@@ -1,5 +1,7 @@
 import 'package:decimal/decimal.dart';
 
+import '../domain/models/entitlement_cache.dart';
+import '../domain/models/entitlement_cache_defaults.dart';
 import '../domain/models/leg.dart';
 import '../domain/models/rule_profile_data.dart';
 import '../domain/models/rule_profile_defaults.dart';
@@ -65,6 +67,19 @@ class InMemoryWheelRepository implements WheelRepository {
     notificationMilestones: UserPreferencesDefaults.notificationMilestones,
     wheelCapital: UserPreferencesDefaults.wheelCapital,
     concentrationLimitPct: UserPreferencesDefaults.concentrationLimitPct,
+  );
+
+  // Matches AppDatabase.seedEntitlementCache()'s row exactly — both read
+  // the same lib/domain/models/entitlement_cache_defaults.dart constants
+  // (S-256 parity).
+  EntitlementCacheData _entitlementCache = const EntitlementCacheData(
+    isActive: EntitlementCacheDefaults.isActive,
+    planKind: EntitlementCacheDefaults.planKind,
+    expiresAt: EntitlementCacheDefaults.expiresAt,
+    willRenew: EntitlementCacheDefaults.willRenew,
+    billingIssue: EntitlementCacheDefaults.billingIssue,
+    purchasedAt: EntitlementCacheDefaults.purchasedAt,
+    checkedAt: EntitlementCacheDefaults.checkedAt,
   );
 
   /// The seeded v1 threshold version for a built-in profile — the same
@@ -263,6 +278,13 @@ class InMemoryWheelRepository implements WheelRepository {
     final closed = _cycles.values.where((c) => c.status == WheelCycleStatus.closed).toList()
       ..sort((a, b) => b.endedAt!.compareTo(a.endedAt!));
     return closed;
+  }
+
+  @override
+  Future<List<WheelCycle>> getOpenCycles() async {
+    final open = _cycles.values.where((c) => c.status != WheelCycleStatus.closed).toList()
+      ..sort((a, b) => a.startedAt.compareTo(b.startedAt));
+    return open;
   }
 
   // --- Snapshot ---------------------------------------------------------
@@ -544,6 +566,17 @@ class InMemoryWheelRepository implements WheelRepository {
   Future<UserPreferencesData> updatePreferences(UserPreferencesData prefs) async {
     _preferences = prefs;
     return _preferences;
+  }
+
+  // --- Entitlement cache (Pro Wave 2, schema v6, D-25) --------------------
+
+  @override
+  Future<EntitlementCacheData> getEntitlementCache() async => _entitlementCache;
+
+  @override
+  Future<EntitlementCacheData> saveEntitlementCache(EntitlementCacheData cache) async {
+    _entitlementCache = cache;
+    return _entitlementCache;
   }
 
   // --- Export / import (Phase 19) ----------------------------------------

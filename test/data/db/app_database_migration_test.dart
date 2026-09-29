@@ -14,8 +14,9 @@
 // tables carry only their latest column set, not one per historical
 // schema version. So this check can only ever validate "fresh install
 // matches the *current* exported schema," and must track schemaVersion as
-// it rises across iterations (v1 at Phase 2, v4 as of Iteration 5) rather
-// than staying pinned to the version this test was first written against.
+// it rises across iterations (v1 at Phase 2, v4 as of Iteration 5, v6 as of
+// Pro Wave 2's Phase 1) rather than staying pinned to the version this test
+// was first written against.
 
 import 'package:drift/native.dart';
 import 'package:drift_dev/api/migrations_native.dart';
@@ -33,7 +34,7 @@ void main() {
 
     // Runs the real migration path (onCreate: createAll + seedRuleProfiles)
     // against a brand-new database, then verifies the resulting sqlite
-    // schema matches lib/data/db/schema/drift_schema_v4.json exactly.
+    // schema matches lib/data/db/schema/drift_schema_v6.json exactly.
     await verifier.migrateAndValidate(db, db.schemaVersion);
 
     final tableNames = await db

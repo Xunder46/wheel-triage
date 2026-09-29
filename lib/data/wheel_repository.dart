@@ -1,6 +1,7 @@
 import 'package:decimal/decimal.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../domain/models/entitlement_cache.dart';
 import '../domain/models/leg.dart';
 import '../domain/models/rule_profile_data.dart';
 import '../domain/models/rule_profile_version_data.dart';
@@ -133,6 +134,24 @@ abstract class WheelRepository {
   /// [getLegsForCycle] per cycle rather than losing each leg's own
   /// `contracts` to a repository-side sum.
   Future<List<WheelCycle>> getClosedCycles();
+
+  /// Every cycle that is NOT closed — `sellingPuts` and `holdingShares`
+  /// alike — across ALL underlyings, ordered by `startedAt` ascending
+  /// (Pro Wave 2, D-22). The open-positions read path.
+  ///
+  /// Grouping [getAllLegs] by `cycleId` is deliberately NOT an acceptable
+  /// substitute, and is the reason this method exists: a `holdingShares`
+  /// cycle whose only call leg has been closed early has no open leg at
+  /// all (Feature Invariant 16), yet its shares are still held and it still
+  /// needs a row on the Today screen. Deriving the open set from open legs
+  /// silently drops exactly that case — the D-P12 assignment case, which is
+  /// the one the screen is most needed for.
+  ///
+  /// Ordering is by `startedAt` alone; ties (two cycles opened in the same
+  /// millisecond) are unspecified beyond the set of cycles returned, so a
+  /// caller that needs a stable render order must impose its own tie-break
+  /// rather than rely on insertion order differing between implementations.
+  Future<List<WheelCycle>> getOpenCycles();
 
   // --- Snapshot ---------------------------------------------------------
 
@@ -300,6 +319,28 @@ abstract class WheelRepository {
   /// Persists [prefs] as the new single global preferences row and returns
   /// it back.
   Future<UserPreferencesData> updatePreferences(UserPreferencesData prefs);
+
+  // --- Entitlement cache (Pro Wave 2, schema v6, D-25) --------------------
+
+  /// The single global [EntitlementCacheData] row — what the last
+  /// successful store read reported. Always resolves: seeded at
+  /// migration/construction time, never null, so the state layer never has
+  /// to distinguish "no row" from "no entitlement" (D-26). A fresh install
+  /// resolves to the free tier's `EntitlementCacheDefaults` — inactive with
+  /// a null `checkedAt`, i.e. `unknown`, NOT a cached "no".
+  ///
+  /// Store-derived state, deliberately outside the export envelope: this
+  /// row is written only by a successful store read and is never carried in
+  /// [exportToJson] nor touched by [restoreFromJson] (S-257). A hand-edited
+  /// backup must not be able to grant Pro, and restoring an old ledger must
+  /// not revoke it.
+  Future<EntitlementCacheData> getEntitlementCache();
+
+  /// Replaces the single [EntitlementCacheData] row in place and returns it
+  /// back — never appends a second row (S-256), and never called with a
+  /// partial result: a failed store read must leave the previous successful
+  /// read intact rather than overwrite it with `unknown` (D-26).
+  Future<EntitlementCacheData> saveEntitlementCache(EntitlementCacheData cache);
 
   // --- Export / import (Phase 19, `docs/brief-ledger.md` §5) -------------
 
