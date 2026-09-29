@@ -8,17 +8,29 @@ Wheel Triage — a Flutter app for a self-directed options trader running the wh
 strategy. It does three things: **screen** a candidate trade, **triage** open
 positions into four buckets by arithmetic, and **record** what happened.
 
+It is a free download with an optional **Wheel Triage Pro** upgrade (monthly,
+annual or lifetime, through RevenueCat). There are still no accounts, no
+backend and no sync; see [docs/brief-pro.md](docs/brief-pro.md) §2.
+
 Two constraints shape every design decision, and neither is negotiable:
 
-- **All market data is typed in by hand.** No quote APIs, no broker integration,
-  no scraping, and no abstraction "ready for" a future data feed. If a design
-  starts sketching an interface that assumes an external source, simplify rather
-  than build for later.
+- **All market data is typed in by hand**, or read on-device from a screenshot
+  the user picks (Pro, `docs/brief-pro.md` D-P4). No quote APIs, no broker
+  integration, no scraping, and no abstraction "ready for" a future data feed.
+  If a design starts sketching an interface that assumes an external source,
+  simplify rather than build for later.
 - **It is a calculator, not an advisor.** It has no view on any security and
   makes no predictions. See *Tone* below — this is enforced by grep, not taste.
 
-The full specification is [docs/brief.md](docs/brief.md). Section numbers cited
-throughout the code (`§4.3`, `§3.6`) refer to it.
+The specification is a chain of briefs:
+[docs/brief.md](docs/brief.md) → [docs/brief-followup.md](docs/brief-followup.md)
+(corrections to the first) → [docs/brief-ledger.md](docs/brief-ledger.md) (wins
+over both where they disagree) → [docs/brief-pro.md](docs/brief-pro.md), whose
+§2 decisions win over everything earlier; nothing else in it overrides an
+earlier rule. Section numbers cited throughout the code (`§4.3`, `§3.6`) refer to
+`brief.md` unless the comment names another brief (`brief-followup A2`). The Pro
+release's UI reference is
+[docs/design/pro-ui-reference.html](docs/design/pro-ui-reference.html).
 
 ## Commands
 
@@ -38,7 +50,11 @@ xcrun simctl list devices available | grep Booted
 flutter run -d <device-id>
 ```
 
-**The repo path contains a space** (`/Users/irinakutsenko/Developer/wheel triage`).
+These run on the Mac, and so do goldens (they render differently on other
+operating systems). A checkout without the Flutter SDK can plan and edit docs,
+but it cannot run any Done Criterion.
+
+**The Mac's repo path contains a space** (`/Users/irinakutsenko/Developer/wheel triage`).
 Quote it in every shell command.
 
 **The repo is under git.** Older plans carry a "no source control"
@@ -119,8 +135,9 @@ flipping the Settings default never silently reinterprets history.
 
 - Gates read `deltaMagnitude = abs(delta)` **only**, never the signed value.
   Thresholds are always magnitudes.
-- Signed position delta is reserved for portfolio exposure aggregation (deferred
-  to M6). Getting this backwards makes a hedged book look directional.
+- Signed position delta is reserved for portfolio exposure aggregation (the Pro
+  release's Stage 7). Getting this backwards makes a hedged book look
+  directional.
 - Never normalize to position delta upstream of a magnitude calculation.
 
 ### A leg is not a cycle
@@ -182,9 +199,10 @@ legitimate mechanics descriptions. The fix narrows the list; it does **not**
 exempt any file, including the help-copy file, which is the highest-risk
 place to lose the guard, not the right place to remove it.
 
-Banned from all user-facing copy, including notification text and any comment
-that becomes a string: **recommend, we suggest, our analysis, buy signal, sell
-signal, opportunity, guaranteed, you should**. Check with:
+Banned from all user-facing copy, including notification text, the paywall,
+the share card, the store listing and any comment that becomes a string:
+**recommend, we suggest, our analysis, buy signal, sell signal, opportunity,
+guaranteed, you should**. Check with:
 
 ```bash
 grep -rniE "recommend|we suggest|our analysis|buy signal|sell signal|opportunity|guaranteed|you should" lib/
@@ -216,9 +234,12 @@ actual §10 review risk; this sharpens it rather than lowering the bar.
 carries the registers `S-001`…`S-180` — Iterations 1–4, each entry with an
 enumerated fixture, authored there while planning each iteration (the briefs
 themselves specify the work but carry no S-ids). Iteration 5's register,
-`S-190`–`S-204`, is in `docs/plans/rule-versioning-plan.md`. Tests reference
-S-ids in their names. When adding behavior, add or extend a scenario in the
-current plan first — S-ids are stable and never reused.
+`S-190`–`S-204`, is in `docs/plans/rule-versioning-plan.md`; `S-205`–`S-206`
+are in `docs/plans/roll-planner-add-candidate-bug-plan.md` and `S-207`–`S-210`
+in `docs/plans/iteration-4-closeout-plan.md`. The Pro release's wave plans
+continue from `S-211`. Tests reference S-ids in their names. When adding
+behavior, add or extend a scenario in the current plan first — S-ids are stable
+and never reused.
 
 `S-015` is a regression fixture from a real position (SBET $11 call) and exercises
 the whole pipeline end to end; treat a failure there as a genuine break.
@@ -229,7 +250,12 @@ the whole pipeline end to end; treat a failure there as a genuine break.
 (brief-followup corrections + help system), Iteration 4 (`docs/brief-ledger.md`:
 schema v3, cycle P&L, the Journal, fees, `acceptsAssignment`, snapshot
 staleness, display fixes, export/import, notifications) and Iteration 5
-(rule versioning + the single-profile threshold editor) have all shipped.
+(rule versioning + the single-profile threshold editor) have all shipped, and
+the Iteration 4 closeout (Phase 23) is closed.
+
+**Next: the Pro release** ([docs/brief-pro.md](docs/brief-pro.md)), planned
+one wave per plan file. Wave 1 is Stages 0 → 4A → 1 → 2 → 3: dependency
+cleanup, the theme, Record a trade, the snapshot preview, and the Today screen.
 
 The Drift schema is at **v4**: v2 added `user_preferences`, v3 added the fee
 columns and `acceptsAssignment`, v4 split the profile into `rule_profile`
@@ -239,20 +265,23 @@ append-only) and renamed `leg.rule_profile_id` to
 and the iOS simulator build succeeds (`flutter build ios --simulator
 --no-codesign`, exit 0).
 
-**Still not built**, all deferred and not blocking anything: the portfolio
-view and assignment calendar (M6, `docs/brief-ledger.md` §10 calls it low
-priority), accessibility polish beyond the help system, and the two
-post-release ideas in that same section (OCR snapshot capture, broker CSV
-import).
+**Still not built**, now scheduled by `docs/brief-pro.md`: the portfolio view
+and assignment calendar (Stage 7), accessibility polish beyond the help system
+(Stage 4B), screenshot scan (Stage 6), broker CSV import (Stage 10, after
+launch), and the `brief.md` §10 disclaimer, which is missing from Settings and
+the first-run explainer (Stage 3).
 
 Known deviations from the brief's §2 stack, all reviewed and logged in the
 plans' `## Assumption Log`:
 
 - Controllers are hand-written `StateNotifier`, **not `@riverpod` code-gen**.
   Still Riverpod 2.x. Follow the existing pattern rather than mixing styles.
+  The unused code-gen stack (`riverpod_annotation`, `riverpod_generator`,
+  `riverpod_lint`, `custom_lint`) crashes a full `build_runner` run and is
+  removed in the Pro release's Stage 0.
 - `fl_chart` is declared in `pubspec.yaml` but **unused** — the delta sparkline
   is a hand-painted `CustomPainter`, and the journal renders its aggregates as
-  numbers and rows rather than charts. Remove it if nothing ever needs it.
+  numbers and rows rather than charts. Stage 0 removes it.
 - `Bucket`, `TriageInput`, and `RuleProfile` are plain Dart rather than
   `@freezed`, since none are persisted or serialized. The persisted DTOs
   (`RuleProfileData`, `RuleProfileVersionData`) use `@freezed` normally.
@@ -272,7 +301,10 @@ history.
 
 ## Working agreement
 
-- **Ask before adding a dependency** not already in `pubspec.yaml`.
+- **Ask before adding a dependency** not already in `pubspec.yaml`. The Pro
+  release pre-approves exactly two: `purchases_flutter` (RevenueCat, D-P3) and
+  `image_picker` (D-P4). ML Kit text recognition is approved for the Android
+  stage only.
 - **Ask before changing any threshold default** — they are documented in the brief
   deliberately.
 - **If a rule looks wrong, say so before implementing a "fix".** Several numbers
@@ -280,9 +312,11 @@ history.
   found during design. Flag it in the plan's Assumption Log and implement what is
   written.
 - Out of scope, permanently: network calls for market data, broker integration,
-  price prediction or backtesting, social features, wash-sale detection, and
-  multi-leg spreads. The domain model is deliberately shaped around one short leg
-  at a time — spreads would be a redesign, not an extension.
+  price prediction or backtesting, social features (the share card is an
+  exported image, not a social feature — D-P7), accounts, backend and sync,
+  analytics, crash-reporting and ad SDKs, wash-sale detection, and multi-leg
+  spreads. The domain model is deliberately shaped around one short leg at a
+  time — spreads would be a redesign, not an extension.
 
 ## Agent pipeline
 
@@ -297,3 +331,22 @@ in the invoking prompt — `{{PLANS_ROOT}}/<feature>-plan.md` is
 `{{TEST_CMD}}` is `flutter test`, `{{DATA_INTERFACE}}` is `WheelRepository`. An
 agent given an unresolved placeholder will invent a path and silently fork the
 pipeline.
+
+`/plan` invokes the original `conductor`. The Pro release is planned with
+`conductor-v2`, invoked directly, one wave per plan file
+(`docs/plans/pro-wave-<n>-plan.md`). Its full placeholder set:
+
+| Placeholder | Value |
+|---|---|
+| `{{PROJECT_NAME}}` | Wheel Triage |
+| `{{STACK}}` | Flutter / Dart — Riverpod 2.x (hand-written `StateNotifier`), Drift, go_router, freezed |
+| `{{SOURCE_ROOT}}` / `{{TEST_ROOT}}` | `lib/` / `test/` |
+| `{{DOCS_ROOT}}` | `docs/architecture/` — the index is `wheel-triage.md`; there is no `README.md` |
+| `{{CONVENTIONS_DOC}}` | `docs/conventions.md` |
+| `{{PLANS_ROOT}}` | `docs/plans/` |
+| `{{LINT_CMD}}` / `{{TEST_CMD}}` | `flutter analyze` / `flutter test` |
+| `{{DATA_INTERFACE}}` | `WheelRepository` |
+| `{{PRIMARY_IMPL}}` / `{{TEST_IMPL}}` | `DriftWheelRepository` / `InMemoryWheelRepository` |
+| `{{MODEL_DIR}}` | `lib/domain/models/` |
+| `{{STATE_DIR}}` / `{{UI_DIR}}` | `lib/state/` / `lib/features/` |
+| `{{SCHEMA_ARTIFACT}}` | `lib/data/db/schema/drift_schema_v<N>.json` |

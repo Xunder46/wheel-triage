@@ -6,8 +6,9 @@ and feature-specific decisions live in the plan file
 (`docs/plans/wheel-triage-plan.md`), not here. If a plan's Feature Invariant
 and this file ever disagree, the plan wins for that feature and the conflict
 gets flagged for reconciliation — but that should not happen for the rules
-below; they come directly from `docs/brief.md` and are not expected to change
-per-feature.
+below; they come from `docs/brief.md` and the briefs that followed it
+(`brief-followup.md`, `brief-ledger.md`, `brief-pro.md`) and are not expected
+to change per-feature.
 
 ## 1. Precision — no `double` for money or gate inputs
 
@@ -65,8 +66,8 @@ per-feature.
   magnitude calculation (that step is only needed for **signed** portfolio
   aggregation, not for magnitude).
 - The rules engine (gates 1–4, `rollBandFor`) reads **`deltaMagnitude` only**.
-  Never the signed value. Portfolio-level exposure aggregation (deferred
-  feature) reads the **signed position delta** — getting this backwards makes
+  Never the signed value. Portfolio-level exposure aggregation (the Pro
+  release's Stage 7) reads the **signed position delta** — getting this backwards makes
   a hedged book look directional, or a directional book look hedged.
 - Every quadrant (short call / short put × entered positive / entered
   negative) must be covered by a unit test wherever delta-derived logic is
@@ -108,8 +109,9 @@ help-copy file is exactly the wrong place to remove the guard, since its
 entire job is explaining what an action means. Narrowing the list keeps the
 guard live everywhere, including there.
 
-- Never use, anywhere in UI copy, code comments that become user-facing
-  strings, or notification text: **"recommend", "we suggest", "our
+- Never use, anywhere in UI copy (including the paywall and the share card),
+  store-listing copy, code comments that become user-facing strings, or
+  notification text: **"recommend", "we suggest", "our
   analysis", "buy signal", "sell signal", "opportunity", "guaranteed", "you
   should"**. Grep for these (case-insensitive) across `lib/` — with **no file
   exemptions** — as part of every phase's Done Criteria:
@@ -152,13 +154,21 @@ guard live everywhere, including there.
   disclaimer from §10 wherever that specific one is called for) — do not
   paraphrase either.
 
-## 5. No network, no data feed
+## 5. No data feed, and no network except the purchase SDK
 
-- No HTTP client dependency, no quote/greeks-fetching code, no "adapter ready
-  for a future data feed." All market data is typed in by the user. If a
-  phase's design starts sketching an interface that assumes an external data
-  source, that is a signal to stop and simplify, not to build the abstraction
-  "for later."
+- No quote/greeks-fetching code, no "adapter ready for a future data feed."
+  All market data is typed in by the user or read on-device from a screenshot
+  the user picks (`docs/brief-pro.md` D-P4). If a phase's design starts
+  sketching an interface that assumes an external data source, that is a
+  signal to stop and simplify, not to build the abstraction "for later."
+- App code makes no network calls: no HTTP client dependency, no socket code.
+  **Revised by `docs/brief-pro.md` D-P3:** the only network traffic in the
+  app is inside RevenueCat's purchase SDK (`purchases_flutter`) and, on
+  Android only, ML Kit's diagnostics. No other SDK that uses the network — no
+  analytics, crash-reporting or ad SDKs.
+- Trade, snapshot, ledger and image data never leave the device. Nothing
+  from them is ever passed to the purchase SDK: no custom attributes, and no
+  user identifier derived from them.
 
 ## 6. Layering and naming
 
@@ -212,8 +222,11 @@ lib/core/            Cross-cutting app wiring (router, theme, app-level
 
 - The rules engine gets table-driven, pure-function unit tests — no widget
   harness needed for `lib/domain/rules/`.
-- Golden tests are required for the bucket badge widget (all four bucket
-  states), committed alongside the widget in the same phase.
+- Golden tests are required for the bucket badge widget in all five states
+  (Close, Roll, Assign, Leave, No data), and in both themes once
+  `docs/brief-pro.md` Stage 4A lands, committed alongside the widget in the
+  same phase. Goldens are generated and compared on the Mac; rendering
+  differs on other operating systems.
 - Every Drift schema version ships with a migration test. A version with no
   migration test is an incomplete phase.
 - **A scenario's fixture outranks its own narrative arithmetic.** When a
@@ -235,3 +248,17 @@ lib/core/            Cross-cutting app wiring (router, theme, app-level
 - Test: `flutter test`
 - Build (this build's acceptance target): `flutter build ios --simulator --no-codesign`
 - Run (manual, performed by the user, not by an agent): `flutter run -d <simulator>`
+- All of these run on the Mac. A checkout without the Flutter SDK can plan and
+  edit docs, but it cannot run a Done Criterion.
+
+## 9. Accessibility
+
+Standing from the Pro release's Wave 1 on, so new screens are built this way
+rather than retrofitted. `docs/brief-pro.md` Stage 4B audits every screen
+against these before the beta.
+
+- Every number shown to the user has a screen-reader label that names the
+  quantity: "Delta 0.25", not "0.25". A bare number is as useless to a
+  VoiceOver user as a bare verdict is to anyone.
+- Numbers and bucket reasons wrap at large text sizes; they are never
+  truncated or cut off with an ellipsis.

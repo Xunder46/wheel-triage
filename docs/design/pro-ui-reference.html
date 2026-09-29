@@ -1,0 +1,1253 @@
+<meta charset="utf-8">
+<title>Wheel Triage UI Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a spec board. Each screen is a phone artboard with numbered redline
+   markers keyed to notes beside it. The page chrome follows the viewer's theme;
+   the phones follow the App theme switch (dark by default, D-P8). */
+:root {
+  /* page chrome (viewer light) */
+  --p-bg: #EAEFEF;
+  --p-panel: #F7FAFA;
+  --p-fg: #152021;
+  --p-muted: #53646A;
+  --p-rule: #CAD5D6;
+  --p-mark: #C2185B;
+  --p-mark-fg: #FFFFFF;
+  --p-frame: #0B1011;
+  --p-shadow: rgba(8, 20, 22, 0.28);
+  --p-code: #DEE7E7;
+
+  /* app tokens, dark (the default app theme) */
+  --a-bg: #101717;
+  --a-surface: #171F1F;
+  --a-surface2: #1F2A2A;
+  --a-outline: #404E4E;
+  --a-divider: #243030;
+  --a-text: #E1EAE9;
+  --a-muted: #9CAFAF;
+  --a-accent: #60D3C6;
+  --a-on-accent: #082D29;
+  --a-accent-soft: #1C3F3B;
+  --a-warn: #FAA96A;
+  --a-error: #F98C8B;
+  --a-scrim: rgba(0, 0, 0, 0.55);
+  --a-pill-edge: transparent;
+
+  /* bucket colours: one set for both app themes, stepped in lightness */
+  --b-close: #A5EDB7;
+  --b-roll: #E8AF51;
+  --b-assign: #7D8FDD;
+  --b-leave: #5A6E72;
+  --b-ink: #192626;
+  --b-ink-leave: #F4F7F7;
+
+  /* type */
+  --f-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --f-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --f-app: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --p-bg: #090D0E; --p-panel: #111718; --p-fg: #E3EAEA; --p-muted: #95A6A8;
+    --p-rule: #253030; --p-mark: #FF6FA8; --p-mark-fg: #1A0610; --p-frame: #000000;
+    --p-shadow: rgba(0, 0, 0, 0.6); --p-code: #1A2223;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --p-bg: #090D0E; --p-panel: #111718; --p-fg: #E3EAEA; --p-muted: #95A6A8;
+  --p-rule: #253030; --p-mark: #FF6FA8; --p-mark-fg: #1A0610; --p-frame: #000000;
+  --p-shadow: rgba(0, 0, 0, 0.6); --p-code: #1A2223;
+  color-scheme: dark;
+}
+/* App theme switch. .app-dark restates the defaults so a panel can pin itself. */
+.app-dark {
+  --a-bg: #101717; --a-surface: #171F1F; --a-surface2: #1F2A2A; --a-outline: #404E4E;
+  --a-divider: #243030; --a-text: #E1EAE9; --a-muted: #9CAFAF; --a-accent: #60D3C6;
+  --a-on-accent: #082D29; --a-accent-soft: #1C3F3B; --a-warn: #FAA96A; --a-error: #F98C8B;
+  --a-scrim: rgba(0, 0, 0, 0.55); --a-pill-edge: transparent;
+}
+.app-light {
+  --a-bg: #F2F6F6; --a-surface: #FFFFFF; --a-surface2: #E4EDED; --a-outline: #A3B4B4;
+  --a-divider: #DCE5E5; --a-text: #192424; --a-muted: #526464; --a-accent: #007C76;
+  --a-on-accent: #FFFFFF; --a-accent-soft: #C3EAE4; --a-warn: #B0561D; --a-error: #BF3B3F;
+  --a-scrim: rgba(12, 24, 24, 0.32); --a-pill-edge: rgba(25, 36, 36, 0.16);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--p-bg);
+  color: var(--p-fg);
+  font-family: var(--f-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 72px; }
+@media (max-width: 480px) { .wrap { padding-inline: 16px; } }
+a { color: inherit; }
+code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+code { background: var(--p-code); padding: 1px 5px; border-radius: 4px; }
+
+/* ---------- page header ---------- */
+.top { display: grid; gap: 14px; }
+.eyebrow { margin: 0; font: 500 12px/1.4 var(--f-mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--p-muted); }
+h1 { margin: 0; font-family: var(--f-display); font-stretch: 114%; font-weight: 760; font-size: clamp(30px, 4.6vw, 46px); line-height: 1.02; letter-spacing: -0.012em; text-wrap: balance; }
+.lede { margin: 0; max-width: 68ch; color: var(--p-fg); }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 4px; }
+.fact { border-top: 1px solid var(--p-rule); padding-top: 8px; font-size: 14px; min-width: 0; }
+.fact b { display: block; font: 500 11.5px/1.4 var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--p-muted); margin-bottom: 2px; }
+.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px;
+  margin-top: 18px; padding-block: 10px; background: var(--p-bg);
+  border-bottom: 1px solid var(--p-rule);
+}
+.ctl { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--p-muted); }
+.seg { display: inline-flex; padding: 3px; border-radius: 999px; background: var(--p-panel); box-shadow: inset 0 0 0 1px var(--p-rule); }
+.seg button { font: 500 13px/1 var(--f-body); color: var(--p-fg); background: transparent; border: 0; padding: 7px 13px; border-radius: 999px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--p-fg); color: var(--p-bg); }
+.seg button:focus-visible, .toc a:focus-visible { outline: 2px solid var(--p-mark); outline-offset: 2px; }
+.toc { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; }
+.toc a { color: var(--p-muted); text-decoration: none; }
+.toc a:hover { color: var(--p-fg); text-decoration: underline; }
+
+/* ---------- sections and boards ---------- */
+.wave { margin-top: 52px; display: grid; gap: 26px; }
+.wave-head { display: grid; gap: 6px; border-top: 2px solid var(--p-fg); padding-top: 12px; }
+h2 { margin: 0; font-family: var(--f-display); font-stretch: 112%; font-weight: 720; font-size: 28px; line-height: 1.1; text-wrap: balance; }
+.board {
+  display: grid; grid-template-columns: minmax(0, 390px) minmax(0, 1fr); gap: 30px;
+  align-items: start; padding: 24px; border-radius: 16px;
+  background: var(--p-panel); box-shadow: inset 0 0 0 1px var(--p-rule);
+  scroll-margin-top: 70px;
+}
+@media (max-width: 880px) { .board { grid-template-columns: minmax(0, 1fr); padding: 16px; gap: 22px; } }
+.board-text { display: grid; gap: 14px; min-width: 0; }
+h3 { margin: 0; font-family: var(--f-display); font-stretch: 108%; font-weight: 700; font-size: 21px; line-height: 1.15; }
+.board-text > p { margin: 0; max-width: 64ch; }
+.notes { list-style: none; margin: 0; padding: 0; display: grid; gap: 11px; font-size: 14.5px; line-height: 1.5; }
+.notes li { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 10px; align-items: start; }
+.notes .n { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-top: 1px; border-radius: 50%; background: var(--p-mark); color: var(--p-mark-fg); font: 600 10.5px/1 var(--f-mono); }
+.ref { display: inline-block; font: 12px/1.4 var(--f-mono); color: var(--p-muted); }
+.subhead { margin: 6px 0 0; font: 500 11.5px/1.4 var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--p-muted); }
+.variants { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+
+/* ---------- redline markers ---------- */
+.an { position: relative; }
+.mk {
+  position: absolute; top: -8px; left: -8px; z-index: 3;
+  display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--p-mark); color: var(--p-mark-fg);
+  font: 600 10px/1 var(--f-mono); box-shadow: 0 0 0 2px var(--a-bg);
+  pointer-events: none;
+}
+.mk.in { top: 6px; left: 10px; }
+.no-markers .mk { display: none; }
+.fold { position: absolute; left: 0; right: 0; height: 0; border-top: 1.5px dashed var(--p-mark); z-index: 4; pointer-events: none; }
+.fold span { position: absolute; right: 10px; top: -10px; font: 500 10px/1 var(--f-mono); background: var(--p-mark); color: var(--p-mark-fg); padding: 4px 6px; border-radius: 4px; }
+.no-markers .fold { display: none; }
+
+/* ---------- phone ---------- */
+.phone { width: 100%; max-width: 390px; justify-self: center; padding: 9px; border-radius: 48px; background: var(--p-frame); box-shadow: 0 0 0 1px var(--p-rule), 0 30px 60px -32px var(--p-shadow); }
+.screen {
+  position: relative; overflow: hidden; border-radius: 39px;
+  background: var(--a-bg); color: var(--a-text);
+  font-family: var(--f-app); font-size: 15px; line-height: 1.35;
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+  color-scheme: dark;
+}
+.app-light .screen { color-scheme: light; }
+.sb { display: flex; align-items: center; justify-content: space-between; padding: 13px 24px 6px 30px; font-size: 15px; font-weight: 600; }
+.island { width: 104px; height: 30px; border-radius: 20px; background: var(--p-frame); }
+.sbr { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.batt { position: relative; width: 24px; height: 11px; border-radius: 3px; box-shadow: inset 0 0 0 1.5px var(--a-text); }
+.batt::after { content: ""; position: absolute; inset: 2.5px 5px 2.5px 2.5px; border-radius: 1.5px; background: var(--a-text); }
+.home { width: 134px; height: 5px; margin: 8px auto 9px; border-radius: 3px; background: var(--a-text); opacity: 0.85; }
+.ab { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 6px 16px 12px; }
+.ab h4 { margin: 0; font-size: 31px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.1; }
+.ab2 { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 4px 12px 10px; }
+.ab2 .l { display: inline-flex; align-items: center; gap: 2px; color: var(--a-accent); font-size: 16px; }
+.ab2 .c { font-weight: 650; font-size: 16px; }
+.ab2 .r { justify-self: end; color: var(--a-accent); font-size: 15px; }
+.sub { color: var(--a-muted); font-size: 13px; }
+.stack { display: grid; gap: 12px; padding-bottom: 14px; }
+.card { margin: 0 12px; padding: 14px; border-radius: 18px; background: var(--a-surface); display: grid; gap: 10px; }
+.card-h { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.card-h b { font-size: 15.5px; }
+.def { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--a-muted); }
+.divider { height: 1px; background: var(--a-divider); }
+.kv { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 14.5px; }
+.kv .v, .v { font-weight: 650; text-align: right; }
+.kv.stacked { display: grid; gap: 2px; }
+.kv.stacked .v { text-align: left; font-weight: 600; }
+.kv .k { display: inline-flex; align-items: center; gap: 6px; }
+.ic { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.ic.s { width: 16px; height: 16px; }
+.help { display: inline-grid; place-items: center; width: 19px; height: 19px; flex: none; border-radius: 50%; box-shadow: inset 0 0 0 1px var(--a-outline); color: var(--a-muted); font-size: 11.5px; font-weight: 650; line-height: 1; }
+.link { color: var(--a-accent); font-weight: 600; }
+.center { text-align: center; justify-self: center; }
+
+/* bucket pill and count tiles */
+.pill { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; letter-spacing: 0.01em; white-space: nowrap; box-shadow: inset 0 0 0 1px var(--a-pill-edge); }
+.close { background: var(--b-close); color: var(--b-ink); }
+.roll { background: var(--b-roll); color: var(--b-ink); }
+.assign { background: var(--b-assign); color: var(--b-ink); }
+.leave { background: var(--b-leave); color: var(--b-ink-leave); }
+.nodata { background: transparent; color: var(--a-muted); box-shadow: inset 0 0 0 1.5px var(--a-muted); }
+.pill.nodata { outline: 1.5px dashed var(--a-muted); outline-offset: -1.5px; box-shadow: none; }
+.counts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 0 12px; }
+.count { display: grid; justify-items: center; gap: 3px; padding: 9px 4px 8px; border-radius: 14px; text-align: center; box-shadow: inset 0 0 0 1px var(--a-pill-edge); }
+.count b { font-size: 23px; line-height: 1; }
+.count span { font-size: 11.5px; font-weight: 650; }
+.count.nodata { outline: 1.5px dashed var(--a-muted); outline-offset: -1.5px; box-shadow: none; color: var(--a-text); }
+.aging { display: flex; align-items: center; gap: 9px; margin: 0 12px; padding: 10px 12px; border-radius: 14px; background: var(--a-surface); font-size: 13.5px; }
+.aging .grow { flex: 1; min-width: 0; }
+
+/* ledger strip */
+.ledger { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.ledger div { display: grid; gap: 2px; min-width: 0; }
+.ledger .lab { font-size: 11.5px; color: var(--a-muted); }
+.ledger .num { font-size: 19px; font-weight: 700; }
+.flagline { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 12px; background: var(--a-surface2); font-size: 13.5px; }
+.flagline .grow { flex: 1; min-width: 0; }
+
+/* list rows */
+.list { margin: 0 12px; border-radius: 18px; background: var(--a-surface); }
+.list-h { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px 10px; }
+.sortbtn { display: inline-flex; align-items: center; gap: 5px; color: var(--a-accent); font-size: 13.5px; font-weight: 600; }
+.row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 10px; padding: 11px 14px 12px; border-top: 1px solid var(--a-divider); }
+.row .t b { font-size: 15.5px; }
+.row .meta { color: var(--a-muted); font-size: 13px; }
+.row .reason { grid-column: 1 / -1; font-size: 14px; }
+.row .reading { display: flex; align-items: center; gap: 5px; color: var(--a-muted); font-size: 12.5px; }
+.row .upd { justify-self: end; }
+.reading { display: flex; align-items: center; gap: 6px; color: var(--a-muted); font-size: 12.5px; }
+
+/* buttons, chips, controls */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 12px 18px; border-radius: 999px; font-size: 15px; font-weight: 650; white-space: nowrap; }
+.btn.small { padding: 7px 13px; font-size: 13.5px; }
+.btn.block { display: flex; width: auto; margin: 0 12px; }
+.card .btn.block, .sheet .btn.block { margin: 0; }
+.filled { background: var(--a-accent); color: var(--a-on-accent); }
+.outlined { color: var(--a-accent); box-shadow: inset 0 0 0 1px var(--a-outline); }
+.tonal { background: var(--a-accent-soft); color: var(--a-text); }
+.textbtn { color: var(--a-accent); }
+.btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
+.pro { display: inline-flex; padding: 1px 6px; border-radius: 6px; background: var(--a-accent-soft); color: var(--a-text); font-size: 11px; font-weight: 700; letter-spacing: 0.02em; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { padding: 6px 12px; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--a-outline); font-size: 13.5px; }
+.chip.on { background: var(--a-accent-soft); box-shadow: inset 0 0 0 1px var(--a-accent); font-weight: 600; }
+.segm { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border-radius: 999px; box-shadow: inset 0 0 0 1px var(--a-outline); overflow: hidden; }
+.segm span { padding: 9px 6px; text-align: center; font-size: 14px; font-weight: 600; }
+.segm span + span { box-shadow: inset 1px 0 0 var(--a-outline); }
+.segm span.on { background: var(--a-accent-soft); }
+.switch { position: relative; width: 50px; height: 30px; flex: none; border-radius: 999px; background: var(--a-accent); }
+.switch::after { content: ""; position: absolute; top: 3px; right: 3px; width: 24px; height: 24px; border-radius: 50%; background: var(--a-on-accent); }
+.switch.off { background: var(--a-surface2); box-shadow: inset 0 0 0 1.5px var(--a-outline); }
+.switch.off::after { right: auto; left: 5px; top: 5px; width: 20px; height: 20px; background: var(--a-muted); }
+.switchrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 12px; padding: 12px 14px; border-radius: 16px; background: var(--a-surface); }
+.switchrow b { display: block; font-size: 14.5px; }
+
+/* form fields */
+.form { display: grid; gap: 12px; padding: 0 12px 16px; }
+.form .btn.block { margin: 0; }
+.field { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 8px; padding: 8px 12px 9px; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--a-outline); }
+.field .lbl { grid-column: 1; font-size: 11.5px; color: var(--a-muted); }
+.field .val, .field input, .field select { grid-column: 1; font-size: 16.5px; }
+.field .help, .field .tag { grid-column: 2; grid-row: 1 / span 2; }
+.field input { width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; color: var(--a-text); font-family: inherit; font-variant-numeric: tabular-nums; outline: none; }
+.field:focus-within { box-shadow: inset 0 0 0 2px var(--a-accent); }
+.field.carried { background: var(--a-surface2); box-shadow: inset 0 0 0 1px var(--a-outline); outline: 1px dashed var(--a-muted); outline-offset: -4px; }
+.tag { padding: 2px 7px; border-radius: 6px; background: var(--a-accent-soft); color: var(--a-text); font-size: 11px; font-weight: 650; }
+.helper { margin: -6px 0 0; padding: 0 4px; font-size: 12px; color: var(--a-muted); }
+.lblrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; color: var(--a-muted); }
+.two { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 10px; }
+.stepper .val { display: flex; align-items: center; justify-content: space-between; }
+.sbtn { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--a-surface2); font-size: 17px; font-weight: 600; }
+.disclose { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 14px; border-radius: 12px; box-shadow: inset 0 0 0 1px var(--a-divider); color: var(--a-muted); font-size: 14px; }
+.summary2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.summary2 div { display: grid; gap: 2px; }
+.summary2 .num { font-size: 21px; font-weight: 700; }
+.convrow { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.convrow select { font: inherit; font-size: 14px; color: var(--a-text); background: var(--a-surface2); border: 1px solid var(--a-outline); border-radius: 8px; padding: 5px 8px; }
+.convrow select:focus-visible { outline: 2px solid var(--a-accent); outline-offset: 1px; }
+.caution { color: var(--a-warn); }
+.err { color: var(--a-error); }
+.msg { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; line-height: 1.4; }
+
+/* sheet over a dimmed screen */
+.behind { position: relative; padding: 2px 16px 18px; }
+.behind::after { content: ""; position: absolute; inset: -60px 0 0 0; background: var(--a-scrim); }
+.sheet { position: relative; display: grid; gap: 11px; padding: 6px 16px 18px; border-radius: 26px 26px 0 0; background: var(--a-surface); }
+.grabber { width: 38px; height: 5px; margin: 4px auto 4px; border-radius: 3px; background: var(--a-outline); }
+.sheet .card { margin: 0; background: var(--a-surface2); }
+.pvh { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; font-size: 15px; font-weight: 600; }
+.change { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--a-text); }
+
+/* detail sheet */
+.det-h { display: grid; gap: 3px; padding: 0 16px 12px; }
+.det-h h5, .pw-title { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: -0.01em; }
+.vh { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; font-size: 15px; font-weight: 600; }
+.chain { display: grid; gap: 0; }
+.leg { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 2px 10px; padding: 9px 0; border-top: 1px solid var(--a-divider); font-size: 13.5px; }
+.leg:first-child { border-top: 0; }
+.leg .seq { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--a-surface2); font-size: 11.5px; font-weight: 700; }
+.leg .what b { font-size: 14px; }
+.leg .net { font-weight: 650; text-align: right; }
+.leg .aside { grid-column: 2 / -1; color: var(--a-muted); font-size: 12.5px; }
+.leg.current .seq { background: var(--a-accent); color: var(--a-on-accent); }
+.taxnote { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--a-surface2); font-size: 12px; line-height: 1.45; color: var(--a-muted); }
+.actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 12px; }
+.spark { width: 100%; height: 64px; display: block; }
+.spark .band { stroke: var(--a-muted); stroke-dasharray: 4 4; stroke-width: 1.2; fill: none; }
+.spark .line { stroke: var(--a-accent); stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.spark .area { fill: var(--a-accent-soft); stroke: none; }
+.spark .dot { fill: var(--a-accent); stroke: var(--a-surface); stroke-width: 2; }
+.spark text { fill: var(--a-muted); font: 10.5px var(--f-app); }
+
+/* paywall */
+.pw { display: grid; gap: 14px; padding: 0 16px 16px; }
+.pw .card, .pw .btn.block { margin: 0; }
+.pwctx { padding: 12px 14px; border-radius: 14px; background: var(--a-accent-soft); font-size: 14px; line-height: 1.45; }
+.feat { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; font-size: 14.5px; }
+.feat li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; }
+.feat .ic { color: var(--a-accent); }
+.privacy { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 10px; font-size: 13.5px; color: var(--a-text); }
+.plans { display: grid; gap: 8px; }
+.plan { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 12px; align-items: center; padding: 12px 14px; border-radius: 14px; box-shadow: inset 0 0 0 1px var(--a-outline); }
+.plan.on { box-shadow: inset 0 0 0 2px var(--a-accent); background: var(--a-surface); }
+.plan b { font-size: 15px; }
+.radio { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 2px var(--a-outline); }
+.plan.on .radio { box-shadow: inset 0 0 0 7px var(--a-accent); }
+.fine { margin: 0; font-size: 11.5px; line-height: 1.45; color: var(--a-muted); }
+.links { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 12px; font-size: 13px; }
+
+/* settings */
+.set { margin: 0 12px; border-radius: 18px; background: var(--a-surface); }
+.set-h { padding: 12px 14px 4px; font-size: 12px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--a-muted); }
+.set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; border-top: 1px solid var(--a-divider); font-size: 14.5px; }
+.set-h + .set-row { border-top: 0; }
+.set-row b { display: block; font-weight: 600; }
+.set-row .sub { font-size: 12.5px; }
+.set-row .v { color: var(--a-muted); font-weight: 600; white-space: nowrap; }
+.set .segm { width: 150px; flex: none; }
+.set .segm span { padding: 6px 4px; font-size: 12.5px; }
+.disclaimer { margin: 0; padding: 4px 14px 14px; font-size: 12.5px; line-height: 1.45; color: var(--a-muted); }
+
+/* scan */
+.shot { margin: 0 12px; display: grid; gap: 6px; justify-items: center; }
+.shot-in { width: 72%; padding: 12px 14px; border-radius: 14px; background: var(--a-surface2); box-shadow: inset 0 0 0 1px var(--a-outline); display: grid; gap: 5px; font-size: 12px; }
+.shot-in .st { font-weight: 700; font-size: 13px; }
+.shot-in .sr { display: flex; justify-content: space-between; color: var(--a-muted); }
+.shot-in .sr span:last-child { color: var(--a-text); }
+.scan { display: grid; gap: 0; }
+.scanrow { display: grid; grid-template-columns: minmax(0, 1fr) auto 20px; gap: 2px 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--a-divider); }
+.scanrow:first-child { border-top: 0; }
+.scanrow b { display: block; font-size: 14px; }
+.scanrow .src { font-size: 12px; color: var(--a-muted); }
+.scanrow .sv { font-weight: 700; font-size: 15px; }
+.scanrow .ok { color: var(--a-accent); }
+.scanrow .fl { color: var(--a-warn); }
+.pick { grid-column: 1 / -1; padding-top: 6px; }
+
+/* portfolio */
+.bigline { display: grid; gap: 2px; }
+.bigline .num { font-size: 26px; font-weight: 700; line-height: 1.1; }
+.bars { display: grid; gap: 8px; }
+.brow { display: grid; grid-template-columns: 44px minmax(0, 1fr) 40px; gap: 10px; align-items: center; font-size: 13px; }
+.brow .pct { text-align: right; font-weight: 650; }
+.track { position: relative; height: 9px; border-radius: 5px; background: var(--a-surface2); }
+.track i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; background: var(--a-accent); }
+.track .lim { position: absolute; left: 83.33%; top: -4px; bottom: -4px; width: 2px; border-radius: 1px; background: var(--a-text); }
+.brow.over b, .brow.over .pct { color: var(--a-text); }
+.limit-key { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--a-muted); }
+.limit-key i { width: 2px; height: 12px; background: var(--a-text); border-radius: 1px; }
+.cal { display: grid; gap: 8px; }
+.calg { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; text-align: center; font-size: 12.5px; }
+.calg .dow { color: var(--a-muted); font-size: 11px; font-weight: 650; padding-bottom: 2px; }
+.calg span { padding: 6px 0; border-radius: 8px; }
+.calg .o { color: var(--a-muted); }
+.calg .today { box-shadow: inset 0 0 0 1.5px var(--a-accent); }
+.calg .exp { background: var(--a-accent-soft); font-weight: 700; }
+.ob { display: grid; gap: 1px; padding: 8px 0; border-top: 1px solid var(--a-divider); font-size: 13px; }
+.ob .d { font-weight: 700; font-size: 13.5px; }
+
+/* share card */
+.share { margin: 0 12px; aspect-ratio: 4 / 5; max-width: 100%; padding: 22px 20px 18px; border-radius: 18px; background: var(--a-surface); box-shadow: inset 0 0 0 1px var(--a-divider); display: grid; grid-template-rows: auto auto 1fr auto auto; gap: 12px; }
+.sc-top { display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--a-muted); }
+.sc-month { font-size: 25px; font-weight: 700; letter-spacing: -0.01em; }
+.sc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; align-content: start; }
+.sc-grid div { display: grid; gap: 2px; padding-top: 8px; border-top: 1px solid var(--a-divider); }
+.sc-grid .wide { grid-column: 1 / -1; }
+.sc-k { font-size: 11.5px; color: var(--a-muted); }
+.sc-v { font-size: 22px; font-weight: 700; }
+.sc-def { margin: 0; font-size: 10.5px; line-height: 1.4; color: var(--a-muted); }
+.sc-foot { font-size: 10.5px; color: var(--a-muted); padding-top: 8px; border-top: 1px solid var(--a-divider); }
+
+/* nav bar */
+.nav { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 8px 4px 0; background: var(--a-surface); box-shadow: inset 0 1px 0 var(--a-divider); }
+.nav > span { display: grid; justify-items: center; gap: 3px; font-size: 11px; font-weight: 600; color: var(--a-muted); }
+.nav .nic { display: grid; place-items: center; width: 54px; height: 30px; border-radius: 999px; }
+.nav .on { color: var(--a-text); }
+.nav .on .nic { background: var(--a-accent-soft); }
+.nav .rec .nic { background: var(--a-accent); color: var(--a-on-accent); width: 48px; height: 34px; border-radius: 14px; margin-top: -2px; }
+.navwrap { background: var(--a-surface); }
+
+/* mini variants (notes column) */
+.mini { display: grid; gap: 7px; padding: 12px; border-radius: 14px; background: var(--a-surface); color: var(--a-text); font-family: var(--f-app); font-size: 13.5px; line-height: 1.4; box-shadow: 0 0 0 1px var(--p-rule); min-width: 0; }
+.mini-t { font: 500 11px/1.3 var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--a-muted); }
+.mini .field { padding: 6px 10px 7px; }
+
+/* tokens section */
+.tok { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.tokp { display: grid; gap: 12px; padding: 18px; border-radius: 16px; background: var(--a-bg); color: var(--a-text); font-family: var(--f-app); box-shadow: 0 0 0 1px var(--p-rule); min-width: 0; }
+.tokp h3 { font-family: var(--f-display); color: var(--a-text); }
+.sw { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; }
+.sw i { width: 34px; height: 34px; border-radius: 10px; box-shadow: inset 0 0 0 1px var(--a-outline); }
+.sw .nm { display: grid; }
+.sw .nm span { color: var(--a-muted); font-size: 12px; }
+.sw .hx { font: 12px var(--f-mono); color: var(--a-muted); text-align: right; }
+.bk { display: grid; gap: 10px; padding: 18px; border-radius: 16px; background: var(--p-panel); box-shadow: inset 0 0 0 1px var(--p-rule); }
+.bkstrip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px; border-radius: 12px; background: var(--a-bg); }
+.bkstrip .lab { font: 11px var(--f-mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--a-muted); width: 100%; }
+.grey { filter: grayscale(1); }
+.bktable { display: grid; gap: 0; font-size: 13.5px; overflow-x: auto; }
+.bktable .tr { display: grid; grid-template-columns: 90px 100px 50px minmax(160px, 1fr); gap: 10px; padding: 8px 0; border-top: 1px solid var(--p-rule); min-width: 420px; }
+.bktable .th { color: var(--p-muted); font: 500 11.5px var(--f-mono); letter-spacing: 0.05em; text-transform: uppercase; border-top: 0; }
+.bktable .mono { font-size: 12.5px; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.cols > div { display: grid; gap: 6px; align-content: start; font-size: 14.5px; }
+.cols ul { margin: 0; padding-left: 18px; display: grid; gap: 5px; }
+
+/* open choices */
+.oc { counter-reset: none; list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.oc li { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-top: 1px solid var(--p-rule); font-size: 14.5px; }
+.oc .id { font: 600 12.5px/1.6 var(--f-mono); color: var(--p-mark); }
+.foot { margin-top: 48px; padding-top: 14px; border-top: 1px solid var(--p-rule); font-size: 13px; color: var(--p-muted); display: grid; gap: 6px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .seg button { transition: background-color 0.15s ease, color 0.15s ease; }
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-today" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><rect x="7" y="12.5" width="4" height="4" rx="1"/></symbol>
+  <symbol id="i-journal" viewBox="0 0 24 24"><path d="M5 4.5h10.5a3 3 0 0 1 3 3V20H8a3 3 0 0 1-3-3z"/><path d="M5 17a3 3 0 0 1 3-3h10.5M9 8.5h6"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-screener" viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.2M12 18.3v2.2M3.5 12h2.2M18.3 12h2.2M6 6l1.6 1.6M16.4 16.4 18 18M6 18l1.6-1.6M16.4 7.6 18 6"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M6 21V4M6 4h10l-2 4 2 4H6"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol>
+  <symbol id="i-sort" viewBox="0 0 24 24"><path d="M7 5v14M4 16l3 3 3-3M17 19V5M14 8l3-3 3 3"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M5 9l7 7 7-7"/></symbol>
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M7 12h10"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 12v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.4"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 4 21 19.5H3z"/><path d="M12 10v4.5M12 17v.4"/></symbol>
+</svg>
+
+<div class="wrap" id="boards">
+
+<header class="top">
+  <p class="eyebrow">Wheel Triage · docs/design/pro-ui-reference.html</p>
+  <h1>Pro release UI reference</h1>
+  <p class="lede">The new and changed screens in <code>docs/brief-pro.md</code>, drawn from the app's own rules. Each numbered marker keys to a note that cites the requirement it serves. The Journal and the screener keep their current layouts and pick up the new theme.</p>
+  <div class="facts">
+    <div class="fact"><b>Sample book</b>Mon Sep 28, 2026, 9:41 AM · Standard profile defaults · 8 open legs · 5 cycles closed in September.</div>
+    <div class="fact"><b>Numbers</b>Computed by <code>docs/design/sample_book.py</code> with the formulas, gate order and reason strings in <code>lib/domain/rules/</code>. Sample data, not fixtures.</div>
+    <div class="fact"><b>Binding</b>The brief is binding; this page is not. Where they disagree, the brief wins. Layout is intent, built from stock Material 3 widgets, not a pixel spec.</div>
+  </div>
+</header>
+
+<div class="bar" role="toolbar" aria-label="View options">
+  <span class="ctl">App theme
+    <span class="seg"><button type="button" data-app-theme="dark" aria-pressed="true">Dark</button><button type="button" data-app-theme="light" aria-pressed="false">Light</button></span>
+  </span>
+  <span class="ctl">Markers
+    <span class="seg"><button type="button" data-markers="on" aria-pressed="true">On</button><button type="button" data-markers="off" aria-pressed="false">Off</button></span>
+  </span>
+  <nav class="toc" aria-label="Screens">
+    <a href="#theme">Theme</a><a href="#today">Today</a><a href="#record">Record a trade</a><a href="#snapshot">Update snapshot</a><a href="#detail">Position detail</a><a href="#paywall">Pro unlock</a><a href="#settings">Settings</a><a href="#scan">Screenshot scan</a><a href="#portfolio">Portfolio</a><a href="#share">Share card</a><a href="#choices">Open choices</a>
+  </nav>
+</div>
+
+<!-- ================================================================ WAVE 1 -->
+<section class="wave" id="theme" aria-labelledby="h-theme">
+  <div class="wave-head">
+    <p class="eyebrow">Wave 1 · Stage 4A</p>
+    <h2 id="h-theme">Theme foundation</h2>
+    <p class="lede">Dark by default, light supported, following the system setting (D-P8). One token set in <code>lib/core/</code>: Flutter's <code>ColorScheme</code> plus a bucket-colour <code>ThemeExtension</code>, and no colour literals anywhere else. Contrast figures are WCAG ratios computed from the hex values.</p>
+  </div>
+
+  <div class="tok">
+    <div class="tokp app-dark">
+      <h3>App, dark (default)</h3>
+      <div class="sw"><i style="background:var(--a-bg)"></i><span class="nm">Background<span>Screen ground</span></span><span class="hx">#101717</span></div>
+      <div class="sw"><i style="background:var(--a-surface)"></i><span class="nm">Surface<span>Cards, sheets, nav bar</span></span><span class="hx">#171F1F</span></div>
+      <div class="sw"><i style="background:var(--a-surface2)"></i><span class="nm">Surface raised<span>Carried-forward fields, tracks</span></span><span class="hx">#1F2A2A</span></div>
+      <div class="sw"><i style="background:var(--a-outline)"></i><span class="nm">Outline<span>Field borders (non-text)</span></span><span class="hx">#404E4E</span></div>
+      <div class="sw"><i style="background:var(--a-text)"></i><span class="nm">Text<span>14.8:1 on background</span></span><span class="hx">#E1EAE9</span></div>
+      <div class="sw"><i style="background:var(--a-muted)"></i><span class="nm">Muted text<span>7.3:1 on surface</span></span><span class="hx">#9CAFAF</span></div>
+      <div class="sw"><i style="background:var(--a-accent)"></i><span class="nm">Accent, teal<span>10.1:1 on background · 8.2:1 under its label</span></span><span class="hx">#60D3C6</span></div>
+      <div class="sw"><i style="background:var(--a-accent-soft)"></i><span class="nm">Accent container<span>Selected chips, tonal buttons</span></span><span class="hx">#1C3F3B</span></div>
+      <div class="sw"><i style="background:var(--a-warn)"></i><span class="nm">Caution<span>Soft warnings, debit rolls · 8.7:1</span></span><span class="hx">#FAA96A</span></div>
+      <div class="sw"><i style="background:var(--a-error)"></i><span class="nm">Error<span>Hard rejects · 7.3:1</span></span><span class="hx">#F98C8B</span></div>
+    </div>
+    <div class="tokp app-light">
+      <h3>App, light</h3>
+      <div class="sw"><i style="background:var(--a-bg)"></i><span class="nm">Background<span>Screen ground</span></span><span class="hx">#F2F6F6</span></div>
+      <div class="sw"><i style="background:var(--a-surface)"></i><span class="nm">Surface<span>Cards, sheets, nav bar</span></span><span class="hx">#FFFFFF</span></div>
+      <div class="sw"><i style="background:var(--a-surface2)"></i><span class="nm">Surface raised<span>Carried-forward fields, tracks</span></span><span class="hx">#E4EDED</span></div>
+      <div class="sw"><i style="background:var(--a-outline)"></i><span class="nm">Outline<span>Field borders (non-text)</span></span><span class="hx">#A3B4B4</span></div>
+      <div class="sw"><i style="background:var(--a-text)"></i><span class="nm">Text<span>14.6:1 on background</span></span><span class="hx">#192424</span></div>
+      <div class="sw"><i style="background:var(--a-muted)"></i><span class="nm">Muted text<span>6.2:1 on surface</span></span><span class="hx">#526464</span></div>
+      <div class="sw"><i style="background:var(--a-accent)"></i><span class="nm">Accent, teal<span>4.7:1 on background · 5.1:1 on surface</span></span><span class="hx">#007C76</span></div>
+      <div class="sw"><i style="background:var(--a-accent-soft)"></i><span class="nm">Accent container<span>Selected chips, tonal buttons</span></span><span class="hx">#C3EAE4</span></div>
+      <div class="sw"><i style="background:var(--a-warn)"></i><span class="nm">Caution<span>Soft warnings, debit rolls · 5.0:1</span></span><span class="hx">#B0561D</span></div>
+      <div class="sw"><i style="background:var(--a-error)"></i><span class="nm">Error<span>Hard rejects · 5.4:1</span></span><span class="hx">#BF3B3F</span></div>
+    </div>
+  </div>
+
+  <div class="bk">
+    <h3>Bucket badges</h3>
+    <p class="lede" style="font-size:14.5px">One fill per bucket in both themes, stepped in lightness (L* 88 / 75 / 61 / 45) so the badges still separate in greyscale. Assign no longer borrows the error colour: assignment is part of the strategy. "No data" has no fill, only a dashed outline (Feature Invariant 19). In the light theme each pill gets a hairline edge.</p>
+    <div class="bkstrip app-dark"><span class="lab">Dark</span><span class="pill close">Close</span><span class="pill roll">Roll</span><span class="pill assign">Assign</span><span class="pill leave">Leave</span><span class="pill nodata">No data</span></div>
+    <div class="bkstrip app-light"><span class="lab">Light</span><span class="pill close">Close</span><span class="pill roll">Roll</span><span class="pill assign">Assign</span><span class="pill leave">Leave</span><span class="pill nodata">No data</span></div>
+    <div class="bkstrip app-dark grey"><span class="lab">Greyscale check</span><span class="pill close">Close</span><span class="pill roll">Roll</span><span class="pill assign">Assign</span><span class="pill leave">Leave</span><span class="pill nodata">No data</span></div>
+    <div class="bktable" role="table" aria-label="Bucket colour values">
+      <div class="tr th" role="row"><span role="columnheader">Bucket</span><span role="columnheader">Fill</span><span role="columnheader">L*</span><span role="columnheader">Label and contrast</span></div>
+      <div class="tr" role="row"><span role="cell">Close</span><span class="mono" role="cell">#A5EDB7</span><span role="cell">88</span><span role="cell"><span class="mono">#192626</span> · 11.4:1</span></div>
+      <div class="tr" role="row"><span role="cell">Roll</span><span class="mono" role="cell">#E8AF51</span><span role="cell">75</span><span role="cell"><span class="mono">#192626</span> · 7.9:1</span></div>
+      <div class="tr" role="row"><span role="cell">Assign</span><span class="mono" role="cell">#7D8FDD</span><span role="cell">61</span><span role="cell"><span class="mono">#192626</span> · 5.1:1</span></div>
+      <div class="tr" role="row"><span role="cell">Leave</span><span class="mono" role="cell">#5A6E72</span><span role="cell">45</span><span role="cell"><span class="mono">#F4F7F7</span> · 5.0:1</span></div>
+      <div class="tr" role="row"><span role="cell">No data</span><span role="cell">none</span><span role="cell">–</span><span role="cell">Muted text and dashed outline · 7.3:1 dark, 6.2:1 light</span></div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div>
+      <p class="subhead">Type and numbers</p>
+      <ul>
+        <li>The platform font (SF Pro on iOS) on Flutter's Material 3 type scale: screen titles 26–31 bold, body 15, labels 12–13.</li>
+        <li>Tabular figures wherever digits line up (<code>FontFeature.tabularFigures()</code>).</li>
+        <li>Money in rows and detail keeps two decimals; summary tiles may round to whole dollars (OC-12).</li>
+        <li>Every number's screen-reader label names the quantity, and numbers and reasons wrap at large text sizes (<code>docs/conventions.md</code> §9).</li>
+      </ul>
+    </div>
+    <div>
+      <p class="subhead">Components, all stock Material 3</p>
+      <ul>
+        <li><code>NavigationBar</code> with five destinations; Record is a filled destination, not a floating button.</li>
+        <li><code>FilterChip</code> and <code>ChoiceChip</code> for tickers, dates and counts; <code>SegmentedButton</code> for put/call.</li>
+        <li><code>Card</code>, <code>FilledButton</code>, <code>FilledButton.tonal</code>, <code>OutlinedButton</code>, <code>TextButton</code>, <code>SwitchListTile</code>, outlined <code>TextField</code>.</li>
+        <li>The snapshot sheet is a modal bottom sheet; Record a trade and the paywall are full-screen routes.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="wave" aria-labelledby="h-w1">
+  <div class="wave-head">
+    <p class="eyebrow">Wave 1 · Stages 1–3</p>
+    <h2 id="h-w1">Daily use</h2>
+  </div>
+
+  <!-- ------------------------------------------------------------ TODAY -->
+  <article class="board" id="today" aria-labelledby="h-today">
+    <div class="phone" aria-label="Mockup: Today screen">
+      <div class="screen">
+        <div class="fold" style="top:760px"><span>≈ first screen ends · 6.1-inch iPhone</span></div>
+        <div class="sb"><span>9:41</span><span class="island"></span><span class="sbr">5G <span class="batt"></span></span></div>
+        <div class="ab"><div><div class="sub">Mon, Sep 28</div><h4>Today</h4></div></div>
+        <div class="stack">
+          <div class="counts an"><span class="mk" aria-hidden="true">1</span>
+            <div class="count assign"><b>1</b><span>Assign</span></div>
+            <div class="count roll"><b>1</b><span>Roll</span></div>
+            <div class="count close"><b>1</b><span>Close</span></div>
+            <div class="count leave"><b>2</b><span>Leave</span></div>
+            <div class="count nodata"><b>1</b><span>No data</span></div>
+          </div>
+          <div class="aging an"><span class="mk" aria-hidden="true">2</span><svg class="ic s"><use href="#i-clock"/></svg><span class="grow"><b>1 reading older than 7 days</b> · T, from Sep 17</span><svg class="ic s"><use href="#i-chev"/></svg></div>
+          <div class="card an"><span class="mk" aria-hidden="true">3</span>
+            <div class="ledger">
+              <div><span class="lab">Net premium · Sep</span><span class="num">$561</span></div>
+              <div><span class="lab">Year to date</span><span class="num">$4,826</span></div>
+              <div class="an"><span class="mk" aria-hidden="true">4</span><span class="lab">Committed now</span><span class="num">$24,460</span></div>
+            </div>
+            <p class="def">Premium: credits received minus buybacks paid, by trade date, before fees. Committed now: open puts at strike, shares at wheel-adjusted basis; 82% of your $30,000 wheel capital.</p>
+            <div class="flagline an"><span class="mk" aria-hidden="true">5</span><svg class="ic s"><use href="#i-info"/></svg><span class="grow">INTC 27% of wheel capital · limit 25%</span><span class="link">Portfolio</span></div>
+          </div>
+          <div class="card an"><span class="mk" aria-hidden="true">6</span>
+            <div class="card-h"><b>Past expiration, still open</b><span class="sub">Fri Sep 25</span></div>
+            <div><b>WBD</b> $11 put ×1<div class="sub">Last reading Sep 24: stock $12.10, above the strike</div></div>
+            <span class="btn filled small" style="justify-self:start">Mark all expired (1)</span>
+            <p class="def">Records WBD as expired worthless on Sep 25, no close debit. The close fee stays blank.</p>
+            <div class="divider"></div>
+            <div class="sub">Needs its own action</div>
+            <div><b>AAL</b> $13 put ×2<div class="sub">Last reading Sep 23: stock $12.60, below the strike</div></div>
+            <div class="btnrow"><span class="btn outlined small">Mark assigned</span><span class="btn outlined small">Mark expired</span></div>
+          </div>
+          <div class="card an"><span class="mk" aria-hidden="true">7</span>
+            <div class="card-h"><b>Expiring this week</b><span class="sub">Fri Oct 2</span></div>
+            <div class="kv"><span><b>SOFI</b> $14 put ×3</span><span class="v">$4,200 cash if assigned</span></div>
+            <div class="kv"><span><b>T</b> $28 call ×1</span><span class="v">100 shares delivered at $28 if assigned</span></div>
+          </div>
+          <div class="list">
+            <div class="list-h"><b>Open positions · 6</b><span class="sortbtn"><svg class="ic s"><use href="#i-sort"/></svg>By bucket</span></div>
+            <div class="row"><span class="t"><b>F</b> <span class="meta">$12 put ×2 · Oct 9 · 11 DTE</span></span><span class="pill assign">Assign</span><span class="reason">Delta 0.78 at or above 0.70</span></div>
+            <div class="row"><span class="t"><b>SOFI</b> <span class="meta">$14 put ×3 · Oct 2 · 4 DTE</span></span><span class="pill roll">Roll</span><span class="reason">Delta 0.52 at or above the 0.35 band</span></div>
+            <div class="row an"><span class="mk" aria-hidden="true">8</span><span class="t"><b>INTC</b> <span class="meta">$20 put ×4 · Oct 16 · 18 DTE</span></span><span class="pill close">Close</span><span class="reason">55% of credit captured</span><span class="reading"><svg class="ic s"><use href="#i-clock"/></svg>From Sep 25 reading</span></div>
+            <div class="row"><span class="t"><b>SBET</b> <span class="meta">$11 call ×1 · Oct 16 · 18 DTE</span></span><span class="pill leave">Leave</span><span class="reason">Delta 0.2534 below the 0.40 band</span><span class="reading"><svg class="ic s"><use href="#i-clock"/></svg>From Sep 25 reading</span></div>
+            <div class="row an"><span class="mk" aria-hidden="true">9</span><span class="t"><b>T</b> <span class="meta">$28 call ×1 · Oct 2 · 4 DTE</span></span><span class="pill leave">Leave</span><span class="reason">Delta 0.28 below the 0.30 band</span><span class="reading"><svg class="ic s"><use href="#i-clock"/></svg>From Sep 17 reading · 11 days old</span><span class="btn tonal small upd">Update</span></div>
+            <div class="row"><span class="t"><b>PFE</b> <span class="meta">$25 put ×1 · Oct 23 · 25 DTE</span></span><span class="pill nodata">No data</span><span class="reason">No snapshot yet</span><span></span><span class="btn tonal small upd">Update</span></div>
+          </div>
+        </div>
+        <div class="navwrap an"><span class="mk in" aria-hidden="true">10</span>
+          <div class="nav">
+            <span class="on"><span class="nic"><svg class="ic"><use href="#i-today"/></svg></span>Today</span>
+            <span><span class="nic"><svg class="ic"><use href="#i-journal"/></svg></span>Journal</span>
+            <span class="rec"><span class="nic"><svg class="ic"><use href="#i-plus"/></svg></span>Record</span>
+            <span><span class="nic"><svg class="ic"><use href="#i-screener"/></svg></span>Screener</span>
+            <span><span class="nic"><svg class="ic"><use href="#i-settings"/></svg></span>Settings</span>
+          </div>
+          <div class="home"></div>
+        </div>
+      </div>
+    </div>
+    <div class="board-text">
+      <p class="eyebrow">Stage 3 · replaces Positions as the start screen</p>
+      <h3 id="h-today">Today</h3>
+      <p>Answers "what needs me?" and "how is the month going?" before the list starts. Everything above the dashed line fits on the first screen.</p>
+      <ol class="notes">
+        <li><span class="n">1</span><span>Bucket counts in the list's own sort order. Tapping a count filters the list. "No data" is its own count and has no bucket. <span class="ref">Stage 3 · FI-19 · OC-1</span></span></li>
+        <li><span class="n">2</span><span>Readings older than 7 days: an overlapping count. T is still counted under Leave. Tapping it filters to those positions. <span class="ref">D-P11</span></span></li>
+        <li><span class="n">3</span><span>Ledger strip with the premium definition on screen. The wording shown is a candidate; the planner pins the definition. Year to date is a sample figure (the sample book starts in July). <span class="ref">Stage 3 · OC-2</span></span></li>
+        <li><span class="n">4</span><span>Current capital committed, named and defined apart from the Journal's peak figure. It includes the two legs past expiration until they're recorded. <span class="ref">D-P14 · OC-3</span></span></li>
+        <li><span class="n">5</span><span>Concentration against wheel capital, stated as a fact in the neutral surface colour, not as a warning. Opens Portfolio (Pro). A free user sees the same line with a Pro tag, and tapping it opens the paywall. <span class="ref">D-P6 · D-P5</span></span></li>
+        <li><span class="n">6</span><span>Past expiration. WBD's last reading was out of the money, so it's in "Mark all expired". AAL's was in the money, so it needs its own action. Both record Sep 25 as the close date. Legs past expiration appear only here, not in the counts or the list. <span class="ref">Stage 3 · D-P13</span></span></li>
+        <li><span class="n">7</span><span>The obligation at each date: cash if puts are assigned, shares delivered if calls are. <span class="ref">Stage 3</span></span></li>
+        <li><span class="n">8</span><span>Badge and reason stay together on every row. A reading older than a day names its date, as the detail sheet does today. <span class="ref">conventions §4 · brief-ledger §7</span></span></li>
+        <li><span class="n">9</span><span>Rows that need a reading (No data, or older than 7 days) get an inline Update: one tap to the sheet, two to saved. Other rows open the detail sheet, where Update snapshot is the primary action: two taps to the sheet, three to saved. <span class="ref">Stage 2 · OC-4</span></span></li>
+        <li><span class="n">10</span><span>Bottom navigation: Today, Journal, Record, Screener, Settings. The bar is fixed to the bottom of the screen. <span class="ref">Stage 3 · Stage 1</span></span></li>
+      </ol>
+      <p class="subhead">Variants</p>
+      <div class="variants">
+        <div class="mini"><span class="mini-t">Empty state</span><b>No open positions yet</b><span>Record a trade you've placed at your broker, or run the numbers in the screener first.</span><div class="btnrow"><span class="btn filled small">Record a trade</span><span class="btn outlined small">Open screener</span></div></div>
+        <div class="mini"><span class="mini-t">No wheel capital set</span><span>Set your wheel capital in Settings to see concentration per underlying.</span><span class="link">Set wheel capital</span></div>
+        <div class="mini"><span class="mini-t">Kept from today's app</span><span>The export reminder banner sits above the counts when it applies, once, dismissable. The first-run explainer still opens on a fresh install.</span></div>
+      </div>
+    </div>
+  </article>
+
+  <!-- ------------------------------------------------------------ RECORD -->
+  <article class="board" id="record" aria-labelledby="h-record">
+    <div class="phone" aria-label="Mockup: Record a trade">
+      <div class="screen">
+        <div class="sb"><span>9:41</span><span class="island"></span><span class="sbr">5G <span class="batt"></span></span></div>
+        <div class="ab2"><span class="l"><svg class="ic"><use href="#i-close"/></svg></span><span class="c">Record a trade</span><span></span></div>
+        <div class="form">
+          <div class="an" style="display:grid;gap:8px"><span class="mk" aria-hidden="true">1</span>
+            <div class="field"><span class="lbl">Ticker</span><span class="val">CCL</span><span class="help">?</span></div>
+            <div class="chips"><span class="chip on">CCL</span><span class="chip">INTC</span><span class="chip">SOFI</span><span class="chip">F</span><span class="chip">PFE</span><span class="chip">T</span></div>
+          </div>
+          <div class="an"><span class="mk" aria-hidden="true">2</span><div class="segm"><span class="on">Put</span><span>Call</span></div></div>
+          <div class="field"><span class="lbl">Strike</span><span class="val">$19.00</span><span class="help">?</span></div>
+          <div class="an" style="display:grid;gap:7px"><span class="mk" aria-hidden="true">3</span>
+            <div class="lblrow"><span>Expiration</span><span class="help">?</span></div>
+            <div class="chips"><span class="chip">Oct 2</span><span class="chip">Oct 9</span><span class="chip on">Oct 16</span><span class="chip">Oct 23</span><span class="chip">Other date…</span></div>
+            <span class="sub">Fri Oct 16 · 18 days to expiration</span>
+          </div>
+          <div class="two">
+            <div class="field an"><span class="mk" aria-hidden="true">4</span><span class="lbl">Credit per share</span><span class="val">$0.34</span><span class="help">?</span></div>
+            <div class="field stepper an"><span class="mk" aria-hidden="true">5</span><span class="lbl">Contracts</span><span class="val"><span class="sbtn">−</span>2<span class="sbtn">+</span></span></div>
+          </div>
+          <div class="switchrow an" style="margin:0"><span class="mk" aria-hidden="true">6</span><span><b>Happy to be assigned on this one?</b><span class="sub">If it goes deep in the money, assignment is fine. You can change this on the position later.</span></span><span class="switch"></span></div>
+          <div class="disclose an"><span class="mk" aria-hidden="true">7</span><span>Optional: stock price, IV, IV rank, open fee</span><svg class="ic s"><use href="#i-down"/></svg></div>
+          <div class="card an" style="margin:0"><span class="mk" aria-hidden="true">8</span>
+            <div class="summary2"><div><span class="sub">Annualised yield</span><span class="num">36%</span></div><div><span class="sub">Capital committed</span><span class="num">$3,800</span></div></div>
+            <p class="def">Yield uses the screener's formula: credit ÷ strike × 365 ÷ days to expiration. Capital: strike × 100 × contracts.</p>
+          </div>
+          <span class="btn filled block an"><span class="mk" aria-hidden="true">9</span>Record trade</span>
+          <p class="def center">Reminders: 7 days before and on expiration morning.</p>
+          <span class="center an"><span class="mk" aria-hidden="true">10</span><span class="link">Run the numbers first in the screener</span></span>
+        </div>
+        <div class="home"></div>
+      </div>
+    </div>
+    <div class="board-text">
+      <p class="eyebrow">Stage 1 · one tap from Today</p>
+      <h3 id="h-record">Record a trade</h3>
+      <p>For a trade already placed at the broker. Six required inputs, and a repeat ticker needs about five taps plus typing strike and credit. The owner's timing check sets the bar: a median under 20 seconds.</p>
+      <ol class="notes">
+        <li><span class="n">1</span><span>Recently used tickers as one-tap chips, including tickers from closed cycles. <span class="ref">Stage 1</span></span></li>
+        <li><span class="n">2</span><span>Put or call. With Call selected, the call attaches to a share-holding cycle that has no open call, or one line says why it can't be recorded here (see variants). <span class="ref">D-P12</span></span></li>
+        <li><span class="n">3</span><span>The next four Fridays as chips, plus Other date. DTE is derived. The existing non-Friday warning applies to Other dates. <span class="ref">Stage 1</span></span></li>
+        <li><span class="n">4</span><span>Per share by default. The Total per contract preference relabels this field and divides by 100. A put's credit bound is its strike, so no stock price is needed. A call with no stock price skips the check. <span class="ref">FI-20 · FI-21</span></span></li>
+        <li><span class="n">5</span><span>Contracts stepper, starting at 1. <span class="ref">Stage 1</span></span></li>
+        <li><span class="n">6</span><span>On by default and set per leg. <span class="ref">brief-ledger §3.2</span></span></li>
+        <li><span class="n">7</span><span>Optional fields collapsed. A blank fee is stored as not recorded, never as $0. <span class="ref">Stage 1 · brief-ledger §3.1</span></span></li>
+        <li><span class="n">8</span><span>Yield and capital committed shown before saving: 0.34 ÷ 19 × 365 ÷ 18 = 36%; 19 × 100 × 2 = $3,800. <span class="ref">Stage 1</span></span></li>
+        <li><span class="n">9</span><span>Saves exactly what Track this position saves: an underlying, a cycle, the first leg and its reminders. At 18 DTE the 21-day reminder has already passed, so two are scheduled. Opening a fourth cycle on the free plan shows the paywall instead (Wave 2). <span class="ref">Stage 1 · D-P2</span></span></li>
+        <li><span class="n">10</span><span>The screener stays as built and is one tap away. <span class="ref">Stage 1</span></span></li>
+      </ol>
+      <p class="subhead">Variants</p>
+      <div class="variants">
+        <div class="mini"><span class="mini-t">Call, no shares on record</span><div class="segm"><span>Put</span><span class="on">Call</span></div><span class="msg"><svg class="ic s"><use href="#i-info"/></svg><span>Calls are recorded against shares you hold from an assignment, and there are no CCL shares on record. Record this as a put, or open the screener.</span></span></div>
+        <div class="mini"><span class="mini-t">Call on shares with no open call</span><div class="segm"><span>Put</span><span class="on">Call</span></div><span class="msg"><svg class="ic s"><use href="#i-info"/></svg><span>Adds a covered call to your XYZ cycle: 100 shares, wheel-adjusted basis $X. It doesn't open a new cycle.</span></span></div>
+        <div class="mini"><span class="mini-t">Hard reject (Feature Invariant 20)</span><div class="field"><span class="lbl">Credit per share</span><span class="val">$34.00</span></div><span class="msg err"><svg class="ic s"><use href="#i-warn"/></svg><span>A premium can't exceed the strike price. Did you enter the total for the contract? Divide by 100 — one contract covers 100 shares.</span></span></div>
+        <div class="mini"><span class="mini-t">Other date</span><span class="chip on" style="justify-self:start">Thu Oct 15</span><span class="msg caution"><svg class="ic s"><use href="#i-warn"/></svg><span>Not a Friday — index and month-end products legitimately differ.</span></span></div>
+      </div>
+    </div>
+  </article>
+
+  <!-- ------------------------------------------------------------ SNAPSHOT -->
+  <article class="board" id="snapshot" aria-labelledby="h-snapshot">
+    <div class="phone" aria-label="Mockup: Update snapshot sheet with live preview">
+      <div class="screen">
+        <div class="sb"><span>9:41</span><span class="island"></span><span class="sbr">5G <span class="batt"></span></span></div>
+        <div class="behind" aria-hidden="true"><div class="sub">Mon, Sep 28</div><div style="font-size:31px;font-weight:700">Today</div></div>
+        <div class="sheet">
+          <div class="grabber"></div>
+          <div class="an"><span class="mk" aria-hidden="true">1</span><div style="font-size:19px;font-weight:700">Update snapshot</div><div class="sub">T $28 call · exp Fri Oct 2 · 4 DTE · credit $0.30</div></div>
+          <div class="kv an" style="font-size:14px"><span class="mk" aria-hidden="true">2</span><span>Snapshot date: Today, 9:41 AM</span><span class="link">Change</span></div>
+          <div class="field"><label class="lbl" for="snap-mark">Option mark ($ per share)</label><input id="snap-mark" type="text" inputmode="decimal" value="0.12" autocomplete="off"><span class="help">?</span></div>
+          <div class="field an"><span class="mk" aria-hidden="true">3</span><label class="lbl" for="snap-spot">Stock price ($)</label><input id="snap-spot" type="text" inputmode="decimal" value="27.05" autocomplete="off"><span class="help">?</span></div>
+          <div class="field an"><span class="mk" aria-hidden="true">4</span><label class="lbl" for="snap-delta">Delta, as shown on your broker screen</label><input id="snap-delta" type="text" inputmode="decimal" value="-0.21" autocomplete="off"><span class="help">?</span></div>
+          <p class="helper">Enter it exactly as your broker shows it, minus sign included. <span id="snap-mag">Magnitude: 0.2100</span></p>
+          <div class="convrow"><label for="snap-conv">Convention</label><select id="snap-conv"><option selected>Position</option><option>Option</option></select><span class="help">?</span></div>
+          <div class="field carried" id="iv-field"><label class="lbl" for="snap-iv">IV (%, optional)</label><input id="snap-iv" type="text" inputmode="decimal" value="21" autocomplete="off"><span class="tag" id="iv-tag">Carried</span></div>
+          <p class="helper" id="iv-helper">Carried forward from the Sep 17 snapshot</p>
+          <div class="card an" aria-live="polite"><span class="mk" aria-hidden="true">5</span>
+            <span class="sub">These numbers give</span>
+            <div class="pvh"><span class="pill close" id="pv-pill">Close</span><span id="pv-reason">60% of credit captured</span></div>
+            <div class="change an" id="pv-change"><span class="mk" aria-hidden="true">6</span><svg class="ic s"><use href="#i-info"/></svg>Was Leave on the Sep 17 reading</div>
+            <div class="kv"><span class="k">Captured <span class="help">?</span></span><span class="v" id="pv-cap">60%</span></div>
+            <div class="kv stacked"><span class="k">Roll band <span class="help">?</span></span><span class="v" id="pv-band">0.30 — from this snapshot's IV (21%)</span></div>
+            <div class="kv"><span class="k">Extrinsic remaining <span class="help">?</span></span><span class="v" id="pv-ext">$0.12</span></div>
+          </div>
+          <span class="btn outlined an"><span class="mk" aria-hidden="true">7</span><svg class="ic s"><use href="#i-scan"/></svg>Read from screenshot <span class="pro">Pro</span></span>
+          <span class="btn filled block an"><span class="mk" aria-hidden="true">8</span>Save snapshot</span>
+        </div>
+      </div>
+    </div>
+    <div class="board-text">
+      <p class="eyebrow">Stage 2 · opened from T's row on Today</p>
+      <h3 id="h-snapshot">Update snapshot, with a preview</h3>
+      <p>The preview on this page is live. Edit the mark, stock price, delta or IV and it re-runs the gate order: profit target, assignment, roll band, tail, then leave. In the app the preview comes from <code>classify()</code> itself, never from widget logic.</p>
+      <ol class="notes">
+        <li><span class="n">1</span><span>Opened straight from T's row: T's reading is 11 days old. The leg's own figures sit in the header. <span class="ref">Stage 2</span></span></li>
+        <li><span class="n">2</span><span>Defaults to now. Change allows backdating between the leg's open date and its expiration. Classification still uses real now. <span class="ref">brief-ledger §7</span></span></li>
+        <li><span class="n">3</span><span>Stock price was typed. IV is carried forward from the Sep 17 snapshot and stays marked until edited. <span class="ref">Stage 2 · OC-6</span></span></li>
+        <li><span class="n">4</span><span>Delta goes in exactly as shown, sign included, with a live magnitude readout and a per-snapshot convention. Gates read the magnitude only, so flipping the convention never changes the bucket. <span class="ref">conventions §2</span></span></li>
+        <li><span class="n">5</span><span>The bucket these numbers would produce, with its reason, captured %, roll band and its source, and extrinsic remaining. It uses the leg's pinned rule version (Standard v1 here). <span class="ref">Stage 2</span></span></li>
+        <li><span class="n">6</span><span>Says when saving would change the bucket. A save that changes it plays a haptic. <span class="ref">Stage 4B</span></span></li>
+        <li><span class="n">7</span><span>Screenshot scan entry point, Pro, arriving in Wave 3. <span class="ref">Stage 6</span></span></li>
+        <li><span class="n">8</span><span>Saving returns to Today, where T now reads Close · 60% of credit captured. <span class="ref">Stage 2</span></span></li>
+      </ol>
+      <p class="subhead">Try these</p>
+      <div class="variants">
+        <div class="mini"><span class="mini-t">Delta 0.35</span><span>Mark 0.20 and delta −0.35: captured 33%, below the profit target, and 0.35 is at or above the 0.30 band, so the bucket is Roll.</span></div>
+        <div class="mini"><span class="mini-t">Clear IV</span><span>With IV blank, the band falls back to IV at open (22%) and says so in its source line.</span></div>
+        <div class="mini"><span class="mini-t">Mark 0.25, delta 0.72</span><span>Captured is only 17%, so gate 1 passes, and gate 2 fires before the band check: Assign, "Delta 0.72 at or above 0.70". With the default mark of 0.12, gate 1 wins instead.</span></div>
+      </div>
+    </div>
+  </article>
+
+  <!-- ------------------------------------------------------------ DETAIL -->
+  <article class="board" id="detail" aria-labelledby="h-detail">
+    <div class="phone" aria-label="Mockup: Position detail for SBET">
+      <div class="screen">
+        <div class="sb"><span>9:41</span><span class="island"></span><span class="sbr">5G <span class="batt"></span></span></div>
+        <div class="ab2"><span class="l"><svg class="ic"><use href="#i-back"/></svg>Today</span><span></span><span></span></div>
+        <div class="det-h"><h5>SBET $11 call</h5><span class="sub">1 contract · exp Fri Oct 16 · 18 DTE · covered call on 100 shares</span></div>
+        <div class="stack">
+          <div class="card an"><span class="mk" aria-hidden="true">1</span>
+            <div class="vh"><span class="pill leave">Leave</span><span>Delta 0.2534 below the 0.40 band</span></div>
+            <span class="reading"><svg class="ic s"><use href="#i-clock"/></svg>Computed from the snapshot taken on Sep 25, 3:48 PM · Stale</span>
+            <span class="btn filled block an"><span class="mk" aria-hidden="true">2</span>Update snapshot</span>
+          </div>
+          <div class="card an"><span class="mk" aria-hidden="true">3</span>
+            <div class="kv"><span class="k">Captured <span class="help">?</span></span><span class="v">23%</span></div>
+            <div class="kv"><span class="k">Delta magnitude <span class="help">?</span></span><span class="v">0.2534</span></div>
+            <div class="kv stacked"><span class="k">Roll band <span class="help">?</span></span><span class="v">0.40 — from this snapshot's IV (87.61%)</span></div>
+            <div class="kv"><span class="k">One-sigma move <span class="help">?</span></span><span class="v">$1.95</span></div>
+            <div class="kv"><span class="k">Extrinsic remaining <span class="help">?</span></span><span class="v">$0.27</span></div>
+          </div>
+          <div class="card an"><span class="mk" aria-hidden="true">4</span>
+            <div class="card-h"><b>Delta history</b><span class="sub">Magnitude, 4 readings</span></div>
+            <svg class="spark" viewBox="0 0 300 64" role="img" aria-label="Delta magnitude by reading: Sep 11 0.31, Sep 16 0.29, Sep 21 0.33, Sep 25 0.2534. Band 0.40.">
+              <path class="area" d="M8 32 L102 36 L196 28 L292 43.3 L292 58 L8 58 Z"/>
+              <line class="band" x1="8" y1="14" x2="292" y2="14"/>
+              <text x="8" y="10">0.40 band</text>
+              <polyline class="line" points="8,32 102,36 196,28 292,43.3"/>
+              <circle class="dot" cx="292" cy="43.3" r="4"/>
+              <text x="256" y="62">Sep 25</text>
+            </svg>
+          </div>
+          <div class="card an"><span class="mk" aria-hidden="true">5</span>
+            <div class="card-h"><b>Roll chain</b><span class="sub">This cycle</span></div>
+            <div class="chain">
+              <div class="leg"><span class="seq">1</span><span class="what"><b>$12 put</b> · Aug 4</span><span class="net">−$0.12</span><span class="aside">Credit $0.50 · bought back at $0.62 when rolled, Aug 19</span></div>
+              <div class="leg"><span class="seq">2</span><span class="what"><b>$11.50 put</b> · Aug 19</span><span class="net">$0.92</span><span class="aside">The roll: $0.92 new credit − $0.62 buyback = $0.30 net credit. Assigned Sep 4.</span></div>
+              <div class="leg current"><span class="seq">3</span><span class="what"><b>$11 call</b> · Sep 10</span><span class="net">$0.35</span><span class="aside">Current leg, open. The credit on this screen is this leg's only.</span></div>
+            </div>
+            <div class="kv"><span class="k">Cycle cumulative credit <span class="help">?</span></span><span class="v">$1.15 a share · $115.00</span></div>
+          </div>
+          <div class="card an"><span class="mk" aria-hidden="true">6</span>
+            <div class="card-h"><b>Shares</b><span class="sub">100 shares · assigned Sep 4 at $11.50</span></div>
+            <div class="kv"><span class="k">Wheel-adjusted basis <span class="help">?</span></span><span class="v">$10.35</span></div>
+            <div class="kv"><span class="k">Tax basis</span><span class="v">$10.70</span></div>
+            <p class="taxnote">Tax treatment of options is genuinely complicated and varies by jurisdiction and account type. These figures are for your own tracking. Check them against your broker's 1099 and talk to a tax professional before filing.</p>
+          </div>
+          <div class="card an"><span class="mk" aria-hidden="true">7</span>
+            <div class="card-h"><b>Cycle P&amp;L</b><span class="sub">Unrealised, excludes closing costs</span></div>
+            <div class="msg"><svg class="ic s"><use href="#i-info"/></svg><span>Before fees — 1 leg missing fee data. <span class="link">Add fees</span></span></div>
+            <div class="kv"><span>Total premium</span><span class="v">$115.00</span></div>
+            <div class="kv"><span>Net result</span><span class="v">Before fees</span></div>
+            <div class="kv"><span>Return on capital</span><span class="v">Before fees</span></div>
+            <div class="kv"><span>Peak capital committed</span><span class="v">$1,200.00</span></div>
+            <div class="kv"><span>Days so far · rolls</span><span class="v">55 · 1</span></div>
+          </div>
+          <div class="switchrow an"><span class="mk" aria-hidden="true">8</span><span><b>Happy to be assigned on this one?</b><span class="sub">For this call: content to sell the shares at $11</span></span><span class="switch"></span></div>
+          <div class="actions an"><span class="mk" aria-hidden="true">9</span><span class="btn outlined small">Roll</span><span class="btn outlined small">Close</span><span class="btn outlined small">Mark assigned</span><span class="btn outlined small">Mark expired</span></div>
+        </div>
+        <div class="home"></div>
+      </div>
+    </div>
+    <div class="board-text">
+      <p class="eyebrow">Existing sheet · new theme</p>
+      <h3 id="h-detail">Position detail</h3>
+      <p>The sheet keeps its current content and order; this shows it on the new tokens. SBET is the S-015 regression position, shown here as a covered call after an assigned put, so every section appears.</p>
+      <ol class="notes">
+        <li><span class="n">1</span><span>Verdict and reason together, with the reading's date and the existing freshness label. Stale here means older than a day; that indicator is unchanged. <span class="ref">conventions §4 · D-P11</span></span></li>
+        <li><span class="n">2</span><span>Update snapshot stays the primary action. <span class="ref">brief §5.2</span></span></li>
+        <li><span class="n">3</span><span>The arithmetic, shown openly. One-sigma uses the stock price (brief-followup A1): 9.29 × 0.8761 × √(21 ÷ 365) = $1.95, at the snapshot's own DTE. <span class="ref">brief §5.2 · §4.1</span></span></li>
+        <li><span class="n">4</span><span>Delta history with the band line. The earlier points are sample values. <span class="ref">brief §5.2</span></span></li>
+        <li><span class="n">5</span><span>Every leg with its net, the roll's net credit spelled out, and the current leg marked. <span class="ref">brief §3.3</span></span></li>
+        <li><span class="n">6</span><span>Both bases, labelled, with the tax note verbatim. Tax basis 11.50 − 0.80 = $10.70; wheel-adjusted 10.70 − 0.35 = $10.35. <span class="ref">brief §3.6</span></span></li>
+        <li><span class="n">7</span><span>Unrealised cycle figures. A fee gap shows "Before fees" in place of the net, as the Journal does today. <span class="ref">brief-ledger §4.3 · §4.5</span></span></li>
+        <li><span class="n">8</span><span>Editable per leg. <span class="ref">brief-ledger §3.2</span></span></li>
+        <li><span class="n">9</span><span>The four actions. Mark expired records the expiration date when used on or after it. <span class="ref">brief §5.2 · D-P13</span></span></li>
+      </ol>
+    </div>
+  </article>
+</section>
+
+<!-- ================================================================ WAVE 2 -->
+<section class="wave" aria-labelledby="h-w2">
+  <div class="wave-head">
+    <p class="eyebrow">Wave 2 · Stage 5</p>
+    <h2 id="h-w2">Pro plans</h2>
+  </div>
+
+  <article class="board" id="paywall" aria-labelledby="h-paywall">
+    <div class="phone" aria-label="Mockup: Pro unlock">
+      <div class="screen">
+        <div class="sb"><span>9:41</span><span class="island"></span><span class="sbr">5G <span class="batt"></span></span></div>
+        <div class="ab2"><span class="l"><svg class="ic"><use href="#i-close"/></svg></span><span></span><span class="r">Not now</span></div>
+        <div class="pw">
+          <h5 class="pw-title an"><span class="mk" aria-hidden="true">1</span>Wheel Triage Pro</h5>
+          <div class="pwctx an"><span class="mk" aria-hidden="true">2</span>You have 3 open cycles, the free plan's limit, so recording a fourth needs Pro. Everything you've already recorded stays available on every plan.</div>
+          <div class="an"><span class="mk" aria-hidden="true">3</span><ul class="feat">
+            <li><svg class="ic"><use href="#i-check"/></svg><span><b>More than 3 open cycles</b></span></li>
+            <li><svg class="ic"><use href="#i-check"/></svg><span><b>Screenshot scan</b> · read a broker screenshot on this phone instead of typing</span></li>
+            <li><svg class="ic"><use href="#i-check"/></svg><span><b>Portfolio and assignment calendar</b> · capital, concentration and net delta across your book</span></li>
+            <li><svg class="ic"><use href="#i-check"/></svg><span>New Pro features reach every plan as they ship</span></li>
+          </ul></div>
+          <div class="privacy an"><span class="mk" aria-hidden="true">4</span><svg class="ic"><use href="#i-lock"/></svg><span>Your trades never leave your phone. Purchases go through the App Store, with no account to create.</span></div>
+          <div class="plans an"><span class="mk" aria-hidden="true">5</span>
+            <div class="plan on"><span class="radio"></span><span><b>Annual</b><span class="sub" style="display:block">7-day free trial, then $29.99 a year · $2.50 a month</span></span></div>
+            <div class="plan"><span class="radio"></span><span><b>Monthly</b><span class="sub" style="display:block">$4.99 a month</span></span></div>
+            <div class="plan"><span class="radio"></span><span><b>Lifetime</b><span class="sub" style="display:block">$79.99 once</span></span></div>
+          </div>
+          <span class="btn filled block an"><span class="mk" aria-hidden="true">6</span>Start 7-day free trial</span>
+          <p class="fine an"><span class="mk" aria-hidden="true">7</span>After the trial, $29.99 a year is charged to your Apple ID. The subscription renews automatically unless cancelled at least 24 hours before the end of the period. Manage or cancel it in your App Store account settings.</p>
+          <div class="links"><span class="link">Restore purchases</span><span class="link">Terms of Use</span><span class="link">Privacy Policy</span></div>
+        </div>
+        <div class="home"></div>
+      </div>
+    </div>
+    <div class="board-text">
+      <p class="eyebrow">Stage 5 · sample: a free user opening a fourth cycle</p>
+      <h3 id="h-paywall">Pro unlock</h3>
+      <p>Prices shown are the owner's sample prices. The app shows whatever the store returns, localised, and never hard-codes a price, period or trial term.</p>
+      <ol class="notes">
+        <li><span class="n">1</span><span>Opens only from a fourth cycle (as here), a Pro feature, or the Settings row, never on launch. Dismissable without a purchase. <span class="ref">Stage 5</span></span></li>
+        <li><span class="n">2</span><span>Says what triggered it, and that nothing recorded ever locks. <span class="ref">D-P2 · Stage 5</span></span></li>
+        <li><span class="n">3</span><span>Only what Pro includes at launch, plus one line about later features. Nothing is promised by name before it ships. <span class="ref">OC-9</span></span></li>
+        <li><span class="n">4</span><span>The privacy promise in plain words. It must stay true: nothing from the ledger ever reaches the purchase SDK. <span class="ref">D-P3 · conventions §5</span></span></li>
+        <li><span class="n">5</span><span>Annual preselected, with the trial when one is configured. The per-month figure is derived from the store's annual price. There is no "best value" or savings claim. <span class="ref">Stage 5 · OC-9</span></span></li>
+        <li><span class="n">6</span><span>The button names what happens for the selected plan: "Subscribe for $4.99 a month", "Buy lifetime for $79.99". <span class="ref">Stage 5</span></span></li>
+        <li><span class="n">7</span><span>Auto-renewal terms, Restore purchases, Terms of Use and Privacy Policy, as App Review requires. A lifetime owner never sees this screen; a subscriber who buys lifetime is told to cancel the subscription. <span class="ref">Stage 5 · Stage 9</span></span></li>
+      </ol>
+      <p class="subhead">Copy rules</p>
+      <div class="variants">
+        <div class="mini"><span class="mini-t">Passes the tone grep</span><span>No urgency, no countdowns, no discount framing, and nothing about returns or results. Pro is described by what it does, never by what it might earn.</span></div>
+      </div>
+    </div>
+  </article>
+
+  <article class="board" id="settings" aria-labelledby="h-settings">
+    <div class="phone" aria-label="Mockup: Settings">
+      <div class="screen">
+        <div class="sb"><span>9:41</span><span class="island"></span><span class="sbr">5G <span class="batt"></span></span></div>
+        <div class="ab"><h4>Settings</h4></div>
+        <div class="stack">
+          <div class="set an"><span class="mk" aria-hidden="true">1</span>
+            <div class="set-h">Wheel Triage Pro</div>
+            <div class="set-row"><span><b>Pro · Annual</b><span class="sub">Renews Oct 5, 2027</span></span></div>
+            <div class="set-row"><span>Manage subscription</span><svg class="ic s"><use href="#i-chev"/></svg></div>
+            <div class="set-row"><span class="link">Restore purchases</span></div>
+          </div>
+          <div class="set an"><span class="mk" aria-hidden="true">2</span>
+            <div class="set-h">Your book</div>
+            <div class="set-row"><span><b>Wheel capital</b><span class="sub">The money you set aside for the wheel</span></span><span class="v">$30,000</span></div>
+            <div class="set-row"><span><b>Concentration limit</b><span class="sub">Flags an underlying above this share of wheel capital</span></span><span class="v">25%</span></div>
+          </div>
+          <div class="set an"><span class="mk" aria-hidden="true">3</span>
+            <div class="set-h">Rules and entry</div>
+            <div class="set-row"><span>Rule thresholds · Standard</span><svg class="ic s"><use href="#i-chev"/></svg></div>
+            <div class="set-row"><span><b>Delta convention</b><span class="sub">For new snapshots</span></span><span class="segm"><span class="on">Position</span><span>Option</span></span></div>
+            <div class="set-row"><span><b>Total per contract</b><span class="sub">Type one contract's premium; the app divides by 100</span></span><span class="switch off"></span></div>
+            <div class="set-row"><span>Expiration reminders</span><span class="v">21 · 7 · 0 days</span></div>
+            <div class="set-row"><span>Export and backup</span><span class="v">Last export Sep 14</span></div>
+          </div>
+          <div class="set an"><span class="mk" aria-hidden="true">4</span>
+            <div class="set-h">About</div>
+            <div class="set-row"><span>How this app works</span><svg class="ic s"><use href="#i-chev"/></svg></div>
+            <p class="disclaimer">This app performs arithmetic on numbers you enter. It does not provide investment advice, does not receive market data, and has no view on any security. Options trading involves substantial risk of loss, including losses exceeding your initial investment. You are responsible for your own decisions.</p>
+          </div>
+        </div>
+        <div class="navwrap">
+          <div class="nav">
+            <span><span class="nic"><svg class="ic"><use href="#i-today"/></svg></span>Today</span>
+            <span><span class="nic"><svg class="ic"><use href="#i-journal"/></svg></span>Journal</span>
+            <span class="rec"><span class="nic"><svg class="ic"><use href="#i-plus"/></svg></span>Record</span>
+            <span><span class="nic"><svg class="ic"><use href="#i-screener"/></svg></span>Screener</span>
+            <span class="on"><span class="nic"><svg class="ic"><use href="#i-settings"/></svg></span>Settings</span>
+          </div>
+          <div class="home"></div>
+        </div>
+      </div>
+    </div>
+    <div class="board-text">
+      <p class="eyebrow">Stages 3 and 5</p>
+      <h3 id="h-settings">Settings</h3>
+      <p>Two new sections sit above today's settings, which keep their behaviour. The book section lands in Wave 1 with Today; the plan section lands in Wave 2.</p>
+      <ol class="notes">
+        <li><span class="n">1</span><span>Current plan, renewal date, Manage subscription (the store's page) and Restore purchases. A free user sees "Free · 3 open cycles" and a row that opens the paywall. <span class="ref">Stage 5</span></span></li>
+        <li><span class="n">2</span><span>Wheel capital and the concentration limit (25% by default). With no wheel capital set, no concentration flag appears anywhere. <span class="ref">D-P6 · Stage 3</span></span></li>
+        <li><span class="n">3</span><span>Existing settings, unchanged: the Standard profile's thresholds, entry defaults, reminders, export and backup. <span class="ref">brief-ledger §5–§6</span></span></li>
+        <li><span class="n">4</span><span>The persistent disclaimer from brief §10, missing from today's app, also shown in the first-run explainer. <span class="ref">Stage 3</span></span></li>
+      </ol>
+    </div>
+  </article>
+</section>
+
+<!-- ================================================================ WAVE 3 -->
+<section class="wave" aria-labelledby="h-w3">
+  <div class="wave-head">
+    <p class="eyebrow">Wave 3 · Stages 6–8</p>
+    <h2 id="h-w3">Pro features and the share card</h2>
+  </div>
+
+  <article class="board" id="scan" aria-labelledby="h-scan">
+    <div class="phone" aria-label="Mockup: Screenshot scan confirmation">
+      <div class="screen">
+        <div class="sb"><span>9:41</span><span class="island"></span><span class="sbr">5G <span class="batt"></span></span></div>
+        <div class="ab2"><span class="l"><svg class="ic"><use href="#i-close"/></svg></span><span class="c">Check what was read</span><span></span></div>
+        <div class="stack">
+          <div class="shot an"><span class="mk" aria-hidden="true">6</span>
+            <div class="shot-in" aria-label="Generic broker screenshot">
+              <span class="st">SBET  11 Call  Oct 16</span>
+              <span class="sr"><span>Mark</span><span>0.27</span></span>
+              <span class="sr"><span>Bid / Ask</span><span>0.26 / 0.28</span></span>
+              <span class="sr"><span>Delta</span><span>−0.2534</span></span>
+              <span class="sr"><span>Implied vol.</span><span>87.61%</span></span>
+              <span class="sr"><span>Last</span><span>9.29</span></span>
+              <span class="sr"><span>After hours</span><span>9.31</span></span>
+            </div>
+            <span class="sub">The screenshot you picked</span>
+          </div>
+          <div class="card an"><span class="mk" aria-hidden="true">1</span>
+            <div class="scan">
+              <div class="scanrow"><span><b>Option mark</b><span class="src">from "Mark 0.27"</span></span><span class="sv">0.27</span><svg class="ic s ok"><use href="#i-check"/></svg></div>
+              <div class="scanrow an"><span class="mk" aria-hidden="true">2</span><span><b>Stock price</b><span class="src">found "Last 9.29" and "After hours 9.31"</span></span><span class="sv">—</span><svg class="ic s fl"><use href="#i-flag"/></svg>
+                <div class="chips pick"><span class="chip">9.29</span><span class="chip">9.31</span><span class="chip">Type it</span></div>
+              </div>
+              <div class="scanrow an"><span class="mk" aria-hidden="true">3</span><span><b>Delta</b><span class="src">from "Delta −0.2534", sign kept</span></span><span class="sv">−0.2534</span><svg class="ic s ok"><use href="#i-check"/></svg></div>
+              <div class="scanrow"><span><b>IV</b><span class="src">from "Implied vol. 87.61%"</span></span><span class="sv">87.61</span><svg class="ic s ok"><use href="#i-check"/></svg></div>
+            </div>
+          </div>
+          <span class="btn filled block an"><span class="mk" aria-hidden="true">4</span>Use these values</span>
+          <span class="btn textbtn block">Enter by hand instead</span>
+          <div class="privacy an" style="margin:0 16px"><span class="mk" aria-hidden="true">5</span><svg class="ic"><use href="#i-lock"/></svg><span>Read on this phone. The screenshot is deleted when you leave this screen.</span></div>
+        </div>
+        <div class="home"></div>
+      </div>
+    </div>
+    <div class="board-text">
+      <p class="eyebrow">Stage 6 · Pro · from the snapshot sheet</p>
+      <h3 id="h-scan">Screenshot scan</h3>
+      <p>The same view serves Record a trade, with ticker, put/call, strike, expiration, fill price and quantity instead. The screenshot in this mockup is a generic layout, not any broker's design.</p>
+      <ol class="notes">
+        <li><span class="n">1</span><span>Every parsed field beside the text it came from. <span class="ref">Stage 6</span></span></li>
+        <li><span class="n">2</span><span>A field the parser isn't sure of is flagged and left empty, never guessed. Two candidates here: pick one or type it. <span class="ref">Stage 6</span></span></li>
+        <li><span class="n">3</span><span>Delta keeps its sign exactly as shown. <span class="ref">Stage 6 · conventions §2</span></span></li>
+        <li><span class="n">4</span><span>Nothing fills in until this tap. A flagged field left unresolved arrives in the sheet empty. <span class="ref">Stage 6</span></span></li>
+        <li><span class="n">5</span><span>Recognition runs on the phone (Vision on iOS), and the image, including the picker's temporary copy, is deleted when the flow ends. <span class="ref">D-P4</span></span></li>
+        <li><span class="n">6</span><span>An unreadable screenshot returns to manual entry with every field untouched. <span class="ref">Stage 6</span></span></li>
+      </ol>
+      <p class="subhead">Variant</p>
+      <div class="variants">
+        <div class="mini"><span class="mini-t">Unreadable</span><span class="msg"><svg class="ic s"><use href="#i-info"/></svg><span>Couldn't read this screenshot. Your fields are unchanged.</span></span><span class="link">Pick another screenshot</span></div>
+      </div>
+    </div>
+  </article>
+
+  <article class="board" id="portfolio" aria-labelledby="h-portfolio">
+    <div class="phone" aria-label="Mockup: Portfolio and assignment calendar">
+      <div class="screen">
+        <div class="sb"><span>9:41</span><span class="island"></span><span class="sbr">5G <span class="batt"></span></span></div>
+        <div class="ab2"><span class="l"><svg class="ic"><use href="#i-back"/></svg>Today</span><span></span><span></span></div>
+        <div class="det-h"><h5>Portfolio</h5><span class="sub">Pro · as of Mon Sep 28, 9:41 AM</span></div>
+        <div class="stack">
+          <div class="card an"><span class="mk" aria-hidden="true">1</span>
+            <div class="bigline"><span class="num">$24,460</span><span class="sub">committed now · 82% of $30,000 wheel capital</span></div>
+            <div class="bars">
+              <div class="brow over"><b>INTC</b><span class="track"><i style="width:88.9%"></i><span class="lim"></span></span><span class="pct">27%</span></div>
+              <div class="brow"><b>SOFI</b><span class="track"><i style="width:46.7%"></i><span class="lim"></span></span><span class="pct">14%</span></div>
+              <div class="brow"><b>T</b><span class="track"><i style="width:29.2%"></i><span class="lim"></span></span><span class="pct">9%</span></div>
+              <div class="brow"><b>AAL</b><span class="track"><i style="width:28.9%"></i><span class="lim"></span></span><span class="pct">9%</span></div>
+              <div class="brow"><b>PFE</b><span class="track"><i style="width:27.8%"></i><span class="lim"></span></span><span class="pct">8%</span></div>
+              <div class="brow"><b>F</b><span class="track"><i style="width:26.7%"></i><span class="lim"></span></span><span class="pct">8%</span></div>
+              <div class="brow"><b>WBD</b><span class="track"><i style="width:12.2%"></i><span class="lim"></span></span><span class="pct">4%</span></div>
+              <div class="brow"><b>SBET</b><span class="track"><i style="width:11.5%"></i><span class="lim"></span></span><span class="pct">3%</span></div>
+            </div>
+            <span class="limit-key"><i></i>Limit 25% · bars run to 30%</span>
+            <p class="def">Open puts at strike × 100 × contracts, shares at wheel-adjusted basis. Includes WBD and AAL, past expiration and not yet recorded.</p>
+          </div>
+          <div class="card an"><span class="mk" aria-hidden="true">2</span>
+            <div class="kv"><span><b>Net position delta</b></span><span class="v">+535 shares</span></div>
+            <p class="def">Signed position delta × 100 × contracts, plus 200 shares held (T, SBET).</p>
+            <span class="reading"><svg class="ic s"><use href="#i-clock"/></svg>Uses 1 reading older than 7 days: T, Sep 17</span>
+            <span class="reading">Left out: PFE (no reading); WBD, AAL (past expiration)</span>
+          </div>
+          <div class="card an"><span class="mk" aria-hidden="true">3</span>
+            <div class="card-h"><b>October 2026</b><span class="sub">Expirations</span></div>
+            <div class="calg" aria-label="October 2026 calendar with expirations on the 2nd, 9th, 16th and 23rd">
+              <span class="dow">S</span><span class="dow">M</span><span class="dow">T</span><span class="dow">W</span><span class="dow">T</span><span class="dow">F</span><span class="dow">S</span>
+              <span class="o">27</span><span class="o today">28</span><span class="o">29</span><span class="o">30</span><span>1</span><span class="exp">2</span><span>3</span>
+              <span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span class="exp">9</span><span>10</span>
+              <span>11</span><span>12</span><span>13</span><span>14</span><span>15</span><span class="exp">16</span><span>17</span>
+              <span>18</span><span>19</span><span>20</span><span>21</span><span>22</span><span class="exp">23</span><span>24</span>
+              <span>25</span><span>26</span><span>27</span><span>28</span><span>29</span><span>30</span><span>31</span>
+            </div>
+            <div class="ob"><span class="d">Fri Oct 2</span><span>SOFI $14 put ×3 · $4,200 cash if assigned</span><span>T $28 call ×1 · 100 shares delivered at $28</span></div>
+            <div class="ob"><span class="d">Fri Oct 9</span><span>F $12 put ×2 · $2,400 cash if assigned</span></div>
+            <div class="ob"><span class="d">Fri Oct 16</span><span>INTC $20 put ×4 · $8,000 cash if assigned</span><span>SBET $11 call ×1 · 100 shares delivered at $11</span></div>
+            <div class="ob"><span class="d">Fri Oct 23</span><span>PFE $25 put ×1 · $2,500 cash if assigned</span></div>
+          </div>
+          <div class="counts an"><span class="mk" aria-hidden="true">4</span>
+            <div class="count assign"><b>1</b><span>Assign</span></div>
+            <div class="count roll"><b>1</b><span>Roll</span></div>
+            <div class="count close"><b>1</b><span>Close</span></div>
+            <div class="count leave"><b>2</b><span>Leave</span></div>
+            <div class="count nodata"><b>1</b><span>No data</span></div>
+          </div>
+        </div>
+        <div class="home"></div>
+      </div>
+    </div>
+    <div class="board-text">
+      <p class="eyebrow">Stage 7 · Pro · completes brief §5.6</p>
+      <h3 id="h-portfolio">Portfolio and assignment calendar</h3>
+      <p>Reached from Today's ledger strip. It uses the same capital and concentration calculations as Today: one implementation, two views.</p>
+      <ol class="notes">
+        <li><span class="n">1</span><span>Current capital committed against wheel capital, per underlying, with the 25% limit line. INTC: 8,000 ÷ 30,000 = 27%. <span class="ref">Stage 7 · D-P6 · D-P14</span></span></li>
+        <li><span class="n">2</span><span>Net position delta from each snapshot's signed position delta and stored convention, plus shares held: 76 + 156 + 156 − 28 − 25 + 200 = +535. It names the old reading and lists what's left out. <span class="ref">Stage 7 · D-P11 · OC-8</span></span></li>
+        <li><span class="n">3</span><span>Month calendar with the obligation at each expiration. Today is outlined. <span class="ref">Stage 7</span></span></li>
+        <li><span class="n">4</span><span>Bucket summary, "No data" separate, with the same tiles as Today. <span class="ref">Stage 7 · FI-19</span></span></li>
+      </ol>
+    </div>
+  </article>
+
+  <article class="board" id="share" aria-labelledby="h-share">
+    <div class="phone" aria-label="Mockup: Share card">
+      <div class="screen">
+        <div class="sb"><span>9:41</span><span class="island"></span><span class="sbr">5G <span class="batt"></span></span></div>
+        <div class="ab2"><span class="l"><svg class="ic"><use href="#i-back"/></svg>Journal</span><span></span><span></span></div>
+        <div class="det-h"><h5>Share September</h5><span class="sub">An image of this month's closed cycles</span></div>
+        <div class="stack">
+          <div class="share an"><span class="mk" aria-hidden="true">1</span>
+            <div class="sc-top"><span>Wheel Triage</span><span>Monthly ledger</span></div>
+            <div class="sc-month">September 2026</div>
+            <div class="sc-grid an"><span class="mk" aria-hidden="true">4</span>
+              <div class="wide"><span class="sc-k">Return on capital</span><span class="sc-v">1.6%</span></div>
+              <div><span class="sc-k">Cycles closed</span><span class="sc-v">5</span></div>
+              <div><span class="sc-k">Closed positive</span><span class="sc-v">4 of 5</span></div>
+              <div><span class="sc-k">Average days in cycle</span><span class="sc-v">27</span></div>
+              <div><span class="sc-k">Median premium capture</span><span class="sc-v">82%</span></div>
+            </div>
+            <p class="sc-def an"><span class="mk" aria-hidden="true">2</span>Return on capital: net result ÷ peak capital committed, over cycles closed in September. Before fees: 3 closed legs have no fee recorded.</p>
+            <div class="sc-foot">Wheel Triage · a calculator and ledger for the wheel strategy · not investment advice</div>
+          </div>
+          <div class="set an"><span class="mk" aria-hidden="true">3</span>
+            <div class="set-row"><span>Show dollar amounts</span><span class="switch off"></span></div>
+            <div class="set-row"><span>Show tickers</span><span class="switch off"></span></div>
+          </div>
+          <span class="btn filled block an"><span class="mk" aria-hidden="true">5</span><svg class="ic s"><use href="#i-share"/></svg>Share image</span>
+        </div>
+        <div class="home"></div>
+      </div>
+    </div>
+    <div class="board-text">
+      <p class="eyebrow">Stage 8 · free</p>
+      <h3 id="h-share">Share card</h3>
+      <p>A fixed 1080 × 1350 image (4:5), drawn in the app's current theme and handed to the share sheet. The five cycles: BAC, KO, CCL (closed at a loss), UBER and SNAP (called away).</p>
+      <ol class="notes">
+        <li><span class="n">1</span><span>Built only from cycles closed in the month. Descriptive statistics, no streaks, badges or praise. The footer says what the app is. <span class="ref">Stage 8 · D-P7</span></span></li>
+        <li><span class="n">2</span><span>Return on capital states its definition: (32 + 35 − 30 + 110 + 210) ÷ (3,800 + 6,250 + 4,000 + 7,000 + 1,800) = 357 ÷ 22,850 = 1.6%. It says "before fees" because 3 closed legs have no fee recorded. <span class="ref">brief-ledger §4.3 · OC-7</span></span></li>
+        <li><span class="n">3</span><span>Dollar amounts and tickers are hidden by default. Turned on, the card adds "Net result $357.00 before fees" and "BAC · CCL · KO · SNAP · UBER". <span class="ref">Stage 8</span></span></li>
+        <li><span class="n">4</span><span>All five figures at the same size, so no single number reads as the headline. The median is the Journal's own figure, never a mean. <span class="ref">FI-29 · OC-11</span></span></li>
+        <li><span class="n">5</span><span>Shared through the existing share sheet. <span class="ref">Stage 8</span></span></li>
+      </ol>
+    </div>
+  </article>
+</section>
+
+<!-- ================================================================ OPEN CHOICES -->
+<section class="wave" id="choices" aria-labelledby="h-choices">
+  <div class="wave-head">
+    <p class="eyebrow">For the planner</p>
+    <h2 id="h-choices">Open choices</h2>
+    <p class="lede">Choices this reference made that no brief decides. The planner ratifies or changes each one and logs it in the wave's plan; until then none of them is binding.</p>
+  </div>
+  <ol class="oc">
+    <li><span class="id">OC-1</span><span>Bucket counts follow the list's sort order: Assign, Roll, Close, Leave, then No data.</span></li>
+    <li><span class="id">OC-2</span><span>"Premium collected this month" means credits received minus buybacks paid, by trade date, before fees. September in the sample: $719 − $158 = $561.</span></li>
+    <li><span class="id">OC-3</span><span>Current capital committed includes legs past expiration until they're recorded, and says so.</span></li>
+    <li><span class="id">OC-4</span><span>The inline Update button appears only on rows that need a reading; every other row opens the detail sheet.</span></li>
+    <li><span class="id">OC-5</span><span>The sort control reads "By bucket". Today's menu says "Bucket severity", and severity is language the bucket names avoid.</span></li>
+    <li><span class="id">OC-6</span><span>A carried-forward value stays marked until the user edits it. Today's sheet shows the helper line whatever happens.</span></li>
+    <li><span class="id">OC-7</span><span>The share card's return on capital is the sum of net results over the sum of peak capital, for cycles whose end date falls in the month, before fees.</span></li>
+    <li><span class="id">OC-8</span><span>Net delta leaves out legs past expiration as well as positions with no reading, and lists both.</span></li>
+    <li><span class="id">OC-9</span><span>The paywall lists launch features only, derives the per-month figure from the store price, and makes no savings claim.</span></li>
+    <li><span class="id">OC-10</span><span>In the light theme, bucket pills carry a hairline edge for shape; the dark theme doesn't need one.</span></li>
+    <li><span class="id">OC-11</span><span>Assigned and called-away legs count as 100% premium capture, as the Journal counts them today. Four of the six September legs here are 100%, which pulls the median up to 82%.</span></li>
+    <li><span class="id">OC-12</span><span>Summary tiles on Today and Portfolio round money to whole dollars; rows and the detail sheet keep two decimals (brief-ledger §8).</span></li>
+  </ol>
+</section>
+
+<footer class="foot">
+  <span>Supersedes the earlier "Pro release UI reference" canvas, which is not binding.</span>
+  <span>Re-run the sample numbers and contrast figures with <code>python docs/design/sample_book.py</code>.</span>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  var boards = document.getElementById('boards');
+
+  function setAppTheme(t) {
+    boards.classList.toggle('app-light', t === 'light');
+    document.querySelectorAll('[data-app-theme]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-app-theme') === t));
+    });
+    store('wt-ref-app-theme', t);
+  }
+  function setMarkers(on) {
+    boards.classList.toggle('no-markers', !on);
+    document.querySelectorAll('[data-markers]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String((b.getAttribute('data-markers') === 'on') === on));
+    });
+    store('wt-ref-markers', on ? 'on' : 'off');
+  }
+  document.querySelectorAll('[data-app-theme]').forEach(function (b) {
+    b.addEventListener('click', function () { setAppTheme(b.getAttribute('data-app-theme')); });
+  });
+  document.querySelectorAll('[data-markers]').forEach(function (b) {
+    b.addEventListener('click', function () { setMarkers(b.getAttribute('data-markers') === 'on'); });
+  });
+  setAppTheme(load('wt-ref-app-theme') === 'light' ? 'light' : 'dark');
+  setMarkers(load('wt-ref-markers') !== 'off');
+
+  /* Live preview for the snapshot sheet mockup. Reference-only: the app runs
+     classify() in lib/domain/rules/. Same gate order, same reason strings,
+     money in integer ten-thousandths so the 50% gate compares exactly.
+     The leg: T $28 call, credit $0.30, 4 DTE, IV at open 22%, Standard v1. */
+  var $ = function (id) { return document.getElementById(id); };
+  var fields = ['snap-mark', 'snap-spot', 'snap-delta', 'snap-iv'].map($);
+  if (!fields.every(Boolean)) return;
+  var CREDIT = 3000, STRIKE = 280000, DTE = 4, IV_AT_OPEN = 22;
+
+  function num(v) {
+    v = String(v).trim().replace(/[$,%\s]/g, '').replace('−', '-');
+    return /^-?(\d+\.?\d*|\.\d+)$/.test(v) ? parseFloat(v) : null;
+  }
+  function fmtMag(v) { var s = v.toFixed(4).replace(/0+$/, ''); return /\.$/.test(s) ? s + '0' : s; }
+  function trimPct(v) { var s = v.toFixed(4).replace(/0+$/, ''); return /\.$/.test(s) ? s.slice(0, -1) : s; }
+  function band(iv) { return iv === null ? 0.30 : iv > 70 ? 0.40 : iv >= 40 ? 0.35 : 0.30; }
+
+  function render() {
+    var mark = num(fields[0].value), spot = num(fields[1].value);
+    var delta = num(fields[2].value), ivIn = num(fields[3].value);
+    $('snap-mag').textContent = delta === null ? '' : 'Magnitude: ' + Math.abs(delta).toFixed(4);
+    var pill = $('pv-pill'), reason = $('pv-reason');
+    if (mark === null || spot === null || delta === null || mark < 0 || spot <= 0) {
+      pill.className = 'pill nodata'; pill.textContent = 'No data';
+      reason.textContent = 'Enter the option mark, stock price and delta';
+      ['pv-cap', 'pv-band', 'pv-ext'].forEach(function (id) { $(id).textContent = '--'; });
+      $('pv-change').hidden = true;
+      return;
+    }
+    var markT = Math.round(mark * 10000), spotT = Math.round(spot * 10000);
+    var mag = Math.abs(delta), iv = ivIn, src;
+    if (ivIn !== null) { src = "from this snapshot's IV (" + trimPct(ivIn) + '%)'; }
+    else { iv = IV_AT_OPEN; src = 'from IV at open (' + IV_AT_OPEN + '%)'; }
+    var b = band(iv);
+    var extT = markT - Math.max(0, spotT - STRIKE);
+    var capNum = (CREDIT - markT) * 100;            /* captured % = capNum / CREDIT */
+    var bucket, text;
+    if (capNum >= 50 * CREDIT) { bucket = 'close'; text = Math.round(capNum / CREDIT) + '% of credit captured'; }
+    else if (mag >= 0.70) { bucket = 'assign'; text = 'Delta ' + fmtMag(mag) + ' at or above 0.70'; }
+    else if (mag >= b) { bucket = 'roll'; text = 'Delta ' + fmtMag(mag) + ' at or above the ' + b.toFixed(2) + ' band'; }
+    else if (DTE <= 3 && extT <= 500) { bucket = 'close'; text = 'Only $' + (extT / 10000).toFixed(2) + ' of time value left'; }
+    else { bucket = 'leave'; text = 'Delta ' + fmtMag(mag) + ' below the ' + b.toFixed(2) + ' band'; }
+    pill.className = 'pill ' + bucket;
+    pill.textContent = bucket.charAt(0).toUpperCase() + bucket.slice(1);
+    reason.textContent = text;
+    $('pv-cap').textContent = Math.round(capNum / CREDIT) + '%';
+    $('pv-band').textContent = b.toFixed(2) + ' — ' + src;
+    $('pv-ext').textContent = (extT < 0 ? '-$' : '$') + (Math.abs(extT) / 10000).toFixed(2);
+    $('pv-change').hidden = bucket === 'leave';
+  }
+
+  var ivEdited = false;
+  fields.forEach(function (f) { f.addEventListener('input', render); });
+  fields[3].addEventListener('input', function () {
+    if (ivEdited) return;
+    ivEdited = true;
+    $('iv-field').classList.remove('carried');
+    $('iv-tag').hidden = true;
+    $('iv-helper').hidden = true;
+  });
+  render();
+})();
+</script>
