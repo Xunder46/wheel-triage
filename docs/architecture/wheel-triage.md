@@ -105,7 +105,7 @@ written (`test/data/db/user_preferences_v5_migration_test.dart`, S-214).
   an entry gate only — import deliberately does not call it.
 - `iv_resolution.dart` — `resolveIv({snapshot, leg})` returns a
   `ResolvedIv(value, source)`, resolving snapshot IV → leg's `ivAtOpen` →
-  `null`. This feeds `TriageInput.iv` in both `positions_list_controller.dart`
+  `null`. This feeds `TriageInput.iv` in both `today_controller.dart`
   and `position_detail_controller.dart` (brief-followup A3) — never
   `snapshot?.iv` directly. `oneSigmaMove`'s own IV source is unaffected;
   the resolution order is scoped to Gate 3 only. `rollBandLabel(band,
