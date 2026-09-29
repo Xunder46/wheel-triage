@@ -1,6 +1,13 @@
 // S-092: migration v2 -> v3 adds the three `leg` columns and the three
 // `user_preferences` columns, leaves every pre-existing v2 row untouched.
 //
+// `migrateAndValidate(db, N)` migrates the database *to* N — drift is told
+// the database's version is N, so `onUpgrade` receives `to == N` — and then
+// validates the result against the schema snapshot for N. N is therefore the
+// version the `DatabaseAtV3` helper below reads through, not the app's
+// current `schemaVersion` (5 since Pro Wave 1's Phase 2): targeting 5 would
+// make the v4/v5 steps run and the v3-shaped read below impossible.
+//
 // Follows the same `SchemaVerifier.schemaAt` pattern as
 // test/data/db/app_database_migration_test.dart and
 // test/data/user_preferences_migration_test.dart: build a real v2 database

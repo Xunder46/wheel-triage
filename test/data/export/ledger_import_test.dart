@@ -324,6 +324,40 @@ void _runTests(WheelRepository Function() createRepository) {
     );
     expect(await repo.exportToJson(), beforeJson);
   });
+
+  test('S-215(b): a format-2 file written before schema v5 imports with both new '
+      'preference fields at their defaults', () async {
+    final repo = createRepository();
+    await _closedPutCycle(
+      repo,
+      ticker: 'S215',
+      openedAt: DateTime.utc(2026, 1, 1),
+      closedAt: DateTime.utc(2026, 1, 20),
+    );
+    await repo.updatePreferences(
+      (await repo.getPreferences()).copyWith(
+        totalPerContractToggle: true,
+        notificationMilestones: const [7, 0],
+      ),
+    );
+
+    // Downgrade a real export to the pre-v5 shape: the format version is
+    // still 2 (D-7), only the two new keys are absent.
+    final decoded = jsonDecode(await repo.exportToJson()) as Map<String, dynamic>;
+    final prefs = decoded['preferences'] as Map<String, dynamic>;
+    prefs.remove('wheelCapital');
+    prefs.remove('concentrationLimitPct');
+    expect(decoded['formatVersion'], 2);
+
+    await repo.restoreFromJson(jsonEncode(decoded));
+
+    final restored = await repo.getPreferences();
+    expect(restored.wheelCapital, isNull);
+    expect(restored.concentrationLimitPct, 25.0);
+    // The file's own values still win over this app's defaults.
+    expect(restored.totalPerContractToggle, isTrue);
+    expect(restored.notificationMilestones, [7, 0]);
+  });
 }
 
 /// The legacy field name for a leg's pinned profile, derived from the v2

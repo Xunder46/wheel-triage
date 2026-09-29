@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 /// folder.
 ///
 /// [visible]/[onDismiss] are entirely computed and owned by the caller
-/// (`PositionsListScreen`, watching `preferencesControllerProvider` and its
+/// (`TodayScreen`, watching `preferencesControllerProvider` and its
 /// own loaded position list) -- this widget itself never reads a provider
 /// and never decides *when* it should show, only *how*.
 class ExportReminderBanner extends StatelessWidget {

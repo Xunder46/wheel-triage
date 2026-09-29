@@ -2,10 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:wheel_triage/core/help/help_topics.dart';
+import 'package:wheel_triage/core/theme/app_theme.dart';
 import 'package:wheel_triage/domain/rules/bucket.dart';
 import 'package:wheel_triage/widgets/bucket_badge.dart';
 
+// S-032's goldens predate the theme work (Stage 4A), so they are rendered
+// under the app's own light theme rather than a bare `MaterialApp`. S-218's
+// goldens cover the dark theme and the full token set.
 Widget _wrap(Bucket bucket) => MaterialApp(
+  theme: lightTheme,
   home: Scaffold(
     body: Center(child: BucketBadge(bucket: bucket)),
   ),

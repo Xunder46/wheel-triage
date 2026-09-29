@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:wheel_triage/data/in_memory_wheel_repository.dart';
+import 'package:wheel_triage/data/wheel_repository.dart';
 import 'package:wheel_triage/domain/models/leg.dart';
 import 'package:wheel_triage/domain/models/rule_profile_ids.dart';
+import 'package:wheel_triage/domain/models/wheel_cycle.dart';
 import 'package:wheel_triage/domain/rules/credit_bound.dart';
 import 'package:wheel_triage/state/preferences/preferences_provider.dart';
 import 'package:wheel_triage/state/repository_providers.dart';
@@ -275,13 +277,16 @@ void main() {
       container.listen(preferencesControllerProvider, (previous, next) {});
 
       final controller = container.read(screenerControllerProvider.notifier);
-      // S-051 row 1: strike=$50, spot=$45, credit=$25 (call, between 0.5x and 1x spot).
+      // S-051 row 1's shape, put-side: strike=$50, credit=$30 (between 0.5x
+      // and 1x the strike, so a soft warn). Put-side since D-12 — a call with
+      // no shares on record is refused before the save, which would make this
+      // scenario assert a refusal rather than a soft warn.
       controller
         ..setTicker('xyz')
-        ..setSide(OptionType.call)
+        ..setSide(OptionType.put)
         ..setStrike(Decimal.parse('50'))
         ..setSpot(Decimal.parse('45'))
-        ..setCredit(Decimal.parse('25'))
+        ..setCredit(Decimal.parse('30'))
         ..setDteConvenience(35);
 
       final outputs = container.read(screenerOutputsProvider);
@@ -397,6 +402,147 @@ void main() {
       // date, un-snapped to Friday -- and a non-Friday warns without
       // blocking (`hasEnoughToTrack` is unaffected by the warning).
       expect(state.nonFridayWarning, isTrue);
+    });
+  });
+
+  group('S-236: the screener\'s save path follows D-12 through the shared service', () {
+    late InMemoryWheelRepository repo;
+    late ProviderContainer container;
+
+    setUp(() {
+      repo = InMemoryWheelRepository();
+      container = ProviderContainer(
+        overrides: [
+          wheelRepositoryProvider.overrideWithValue(repo),
+          screenerControllerProvider.overrideWith(
+            (ref) => ScreenerController(ref, now: _fixedNow),
+          ),
+        ],
+      );
+      container.listen(screenerControllerProvider, (previous, next) {});
+      container.listen(screenerOutputsProvider, (previous, next) {});
+      container.listen(preferencesControllerProvider, (previous, next) {});
+    });
+
+    tearDown(() => container.dispose());
+
+    ScreenerController controller() => container.read(screenerControllerProvider.notifier);
+
+    /// T's holdingShares cycle: one put, assigned, one share lot, no open call.
+    Future<String> seedHoldingCycle() async {
+      final underlying = await repo.getOrCreateUnderlying('T');
+      final put = await repo.createCycle(
+        underlyingId: underlying.id,
+        firstLeg: NewLegInput(
+          optionType: OptionType.put,
+          strike: Decimal.parse('30'),
+          expiration: DateTime(2026, 2, 20),
+          contracts: 1,
+          openedAt: _fixedNow.subtract(const Duration(days: 40)),
+          openCreditPerShare: Decimal.parse('1.00'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+      final assigned = await repo.recordAssignment(
+        legId: put.leg.id,
+        shareLot: NewShareLotInput(
+          assignedAt: _fixedNow.subtract(const Duration(days: 5)),
+          assignmentStrike: Decimal.parse('30'),
+          contracts: 1,
+        ),
+      );
+      return assigned.cycle.id;
+    }
+
+    void fillCall(String ticker) {
+      controller()
+        ..setTicker(ticker)
+        ..setSide(OptionType.call)
+        ..setStrike(Decimal.parse('28'))
+        ..setSpot(Decimal.parse('28'))
+        ..setCredit(Decimal.parse('0.30'))
+        ..setDteConvenience(35)
+        ..setContracts(1);
+    }
+
+    test('(a) a call on T appends one leg to the existing cycle', () async {
+      final cycleId = await seedHoldingCycle();
+      final cyclesBefore = await repo.countCyclesForReplace();
+
+      fillCall('T');
+      expect(await controller().trackThisPosition(), isTrue);
+
+      expect(await repo.countCyclesForReplace(), cyclesBefore);
+      final legs = await repo.getLegsForCycle(cycleId);
+      expect(legs, hasLength(2));
+      expect(legs.last.optionType, OptionType.call);
+      expect(legs.last.sequence, 1);
+      expect(container.read(screenerControllerProvider).tracked, isTrue);
+    });
+
+    test('(b) a call on CCL with no shares on record is refused, nothing written', () async {
+      final underlying = await repo.getOrCreateUnderlying('CCL');
+      await repo.createCycle(
+        underlyingId: underlying.id,
+        firstLeg: NewLegInput(
+          optionType: OptionType.put,
+          strike: Decimal.parse('19'),
+          expiration: DateTime(2026, 2, 20),
+          contracts: 1,
+          openedAt: _fixedNow,
+          openCreditPerShare: Decimal.parse('0.34'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+      final cyclesBefore = await repo.countCyclesForReplace();
+
+      fillCall('CCL');
+      expect(await controller().trackThisPosition(), isFalse);
+
+      expect(
+        container.read(screenerControllerProvider).error,
+        'Calls are recorded against shares held from an assignment, and there '
+        'are no CCL shares on record.',
+      );
+      expect(await repo.countCyclesForReplace(), cyclesBefore);
+      expect(await repo.getOpenLegs(), hasLength(1));
+      expect(container.read(screenerControllerProvider).tracked, isFalse);
+    });
+
+    test('(c) the put side persists exactly as before: one cycle, one leg, sequence 0', () async {
+      final form = controller();
+      form
+        ..setTicker('ccl')
+        ..setSide(OptionType.put)
+        ..setStrike(Decimal.parse('19'))
+        ..setSpot(Decimal.parse('18.20'))
+        ..setCredit(Decimal.parse('0.34'))
+        ..setIv(21)
+        ..setIvRank(30)
+        ..setOpenFee(Decimal.parse('0.65'))
+        ..setAcceptsAssignment(false)
+        ..setDteConvenience(18)
+        ..setContracts(2);
+
+      expect(await form.trackThisPosition(), isTrue);
+
+      expect(await repo.countCyclesForReplace(), 1);
+      final leg = (await repo.getOpenLegs()).single;
+      expect(leg.sequence, 0);
+      expect(leg.optionType, OptionType.put);
+      expect(leg.strike, Decimal.parse('19'));
+      expect(leg.contracts, 2);
+      expect(leg.openCreditPerShare, Decimal.parse('0.34'));
+      expect(leg.ivAtOpen, 21);
+      expect(leg.ivRankAtOpen, 30);
+      expect(leg.underlyingPriceAtOpen, Decimal.parse('18.20'));
+      expect(leg.openFee, Decimal.parse('0.65'));
+      expect(leg.acceptsAssignment, isFalse);
+      expect(leg.ruleProfileVersionId, RuleProfileVersionIds.standardV1);
+      expect((await repo.getCycle(leg.cycleId))!.status, WheelCycleStatus.sellingPuts);
+      // The ticker is uppercased by the form, as it always was.
+      expect((await repo.getUnderlying((await repo.getCycle(leg.cycleId))!.underlyingId))!.ticker,
+          'CCL');
     });
   });
 }

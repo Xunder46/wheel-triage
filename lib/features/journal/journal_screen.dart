@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../widgets/app_bottom_nav.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../state/journal/journal_controller.dart';
@@ -20,6 +21,7 @@ class JournalScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Journal')),
       body: RefreshIndicator(onRefresh: controller.load, child: _Body(state: state)),
+      bottomNavigationBar: const AppBottomNav(currentPath: '/journal'),
     );
   }
 }

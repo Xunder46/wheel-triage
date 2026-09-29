@@ -9,16 +9,23 @@
 // re-read through a versioned schema snapshot to confirm both the new
 // table and every old row survived byte-identical.
 //
-// Migrated all the way to v3 (Phase 15), not stopped at v2: Dart-defined
-// tables carry only their current column set, so `onUpgrade`'s `from < 2`
-// step (`m.createTable(userPreferencesTable)`) always creates that table
-// with every column the table has *today* — including v3's three
-// additions — regardless of which target version a test requests. There
-// is no way to isolate the v1 -> v2 step alone anymore once a later
-// version has extended a table an earlier step creates fresh; this test
-// now doubles as the "device skips v2 entirely" coverage for the `from >=
-// 2` guard in `AppDatabase`'s v3 step (see `leg_v3_migration_test.dart`
-// for the isolated, from-a-real-v2-database v2 -> v3 case, S-092).
+// Migrated all the way to v5 (Pro Wave 1, Phase 2), not stopped at v2 or v3:
+// Dart-defined tables carry only their current column set, so `onUpgrade`'s
+// `from < 2` step (`m.createTable(userPreferencesTable)`) always creates that
+// table with every column the table has *today* — including v3's three
+// additions and v5's two — regardless of which target version a test
+// requests. There is no way to isolate the v1 -> v2 step alone anymore once a
+// later version has extended a table an earlier step creates fresh; this test
+// now doubles as the "device skips every later step" coverage for the
+// `from >= 2` guards in `AppDatabase`'s v3 and v5 steps (see
+// `leg_v3_migration_test.dart` for the isolated, from-a-real-v2-database
+// v2 -> v3 case, S-092, and `user_preferences_v5_migration_test.dart` for the
+// isolated v4 -> v5 case, S-214).
+//
+// Because the target is the current version, the assertions below read the
+// post-v4 shape too: `leg.rule_profile_id` has been renamed and rewritten to
+// `rule_profile_version_id`, and the 14 threshold columns live in
+// `rule_profile_version` rather than `rule_profile`.
 
 import 'package:drift_dev/api/migrations_native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,11 +33,11 @@ import 'package:wheel_triage/data/db/app_database.dart';
 import 'package:wheel_triage/domain/models/user_preferences_defaults.dart';
 
 import 'db/generated/schema.dart';
-import 'db/generated/schema_v3.dart' as v3;
+import 'db/generated/schema_v5.dart' as v5;
 import 'db/generated/schema_v1.dart' as v1;
 
 void main() {
-  test('v1 -> v3 migration adds user_preferences and preserves all v1 data', () async {
+  test('v1 -> v5 migration adds user_preferences and preserves all v1 data', () async {
     final verifier = SchemaVerifier(GeneratedHelper());
     final schema = await verifier.schemaAt(1);
 
@@ -103,20 +110,21 @@ void main() {
         );
     await oldDb.close();
 
-    // Run the app's real migration path (onUpgrade's 1 -> 2 -> 3 steps) and
-    // validate the resulting live schema matches drift_schema_v3.json.
+    // Run the app's real migration path (onUpgrade's 1 -> 2 -> 3 -> 4 -> 5
+    // steps) and validate the resulting live schema matches
+    // drift_schema_v5.json.
     final dbForMigration = AppDatabase(schema.newConnection());
-    await verifier.migrateAndValidate(dbForMigration, 3);
+    await verifier.migrateAndValidate(dbForMigration, 5);
     await dbForMigration.close();
 
-    final checkDb = v3.DatabaseAtV3(schema.newConnection());
+    final checkDb = v5.DatabaseAtV5(schema.newConnection());
     addTearDown(checkDb.close);
 
     // New table: exactly one seeded row, at the fixed id, with the app's
-    // default preference values (S-035's defaults plus Phase 15's three
-    // v3 additions), read through the raw v3 schema snapshot so this test
-    // only depends on drift_dev's own generated code, not
-    // lib/data/db/type_converters.dart.
+    // default preference values (S-035's defaults plus Phase 15's three v3
+    // additions plus Phase 2's two v5 additions), read through the raw v5
+    // schema snapshot so this test only depends on drift_dev's own generated
+    // code, not lib/data/db/type_converters.dart.
     final prefsRows = await checkDb.select(checkDb.userPreferences).get();
     expect(prefsRows, hasLength(1));
     final prefsRow = prefsRows.single;
@@ -134,6 +142,9 @@ void main() {
       prefsRow.notificationMilestones,
       UserPreferencesDefaults.notificationMilestones.join(','),
     );
+    // Phase 2's two v5 columns backfill to "not set" / 25, never to zero.
+    expect(prefsRow.wheelCapitalCents, isNull);
+    expect(prefsRow.concentrationLimitPct, 25.0);
 
     // Every pre-existing v1 row survives untouched, byte-identical.
     final underlyingRows = await checkDb.select(checkDb.underlying).get();
@@ -157,6 +168,10 @@ void main() {
     expect(legRows.single.openFee, isNull);
     expect(legRows.single.closeFee, isNull);
     expect(legRows.single.acceptsAssignment, isTrue);
+    // Phase 24's v4 step re-points the leg at its profile's v1 version, and
+    // the raw value carried over from v1's `rule_profile_id` is unchanged
+    // apart from the `-v1` suffix.
+    expect(legRows.single.ruleProfileVersionId, 'rule-profile-standard-v1');
 
     final snapshotRows = await checkDb.select(checkDb.snapshot).get();
     expect(snapshotRows, hasLength(1));
@@ -170,6 +185,20 @@ void main() {
     final ruleProfileRows = await checkDb.select(checkDb.ruleProfile).get();
     expect(ruleProfileRows, hasLength(1));
     expect(ruleProfileRows.single.id, 'rule-profile-standard');
-    expect(ruleProfileRows.single.tailExtrinsicThreshold, 500);
+    expect(ruleProfileRows.single.name, 'Standard');
+
+    // Phase 24's v4 step moved the 14 threshold columns into the append-only
+    // `rule_profile_version` table — this pre-existing v1 profile now has
+    // exactly one version row carrying every value it had at v1.
+    final versionRows = await checkDb.select(checkDb.ruleProfileVersion).get();
+    expect(versionRows, hasLength(1));
+    final versionRow = versionRows.single;
+    expect(versionRow.id, 'rule-profile-standard-v1');
+    expect(versionRow.profileId, 'rule-profile-standard');
+    expect(versionRow.version, 1);
+    expect(versionRow.profitTargetPct, 50.0);
+    expect(versionRow.assignThreshold, 0.70);
+    expect(versionRow.tailExtrinsicThreshold, 500);
+    expect(versionRow.targetDelta, 0.30);
   });
 }

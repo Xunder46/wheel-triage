@@ -1,5 +1,6 @@
 import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
+import '../../widgets/app_bottom_nav.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/models/leg.dart';
@@ -7,6 +8,7 @@ import '../../domain/rules/credit_bound.dart';
 import '../../state/preferences/preferences_provider.dart';
 import '../../state/screener/screener_controller.dart';
 import '../../widgets/help_chip.dart';
+import '../../widgets/labeled_number_field.dart';
 
 /// §5.1's entry screener: type a candidate trade, see the outputs, either
 /// "Just calculating" (nothing persisted) or "Track this position" (creates
@@ -26,6 +28,7 @@ class ScreenerScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Screener')),
+      bottomNavigationBar: const AppBottomNav(currentPath: '/screener'),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -54,12 +57,12 @@ class ScreenerScreen extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 12),
-          _NumberField(
+          LabeledNumberField(
             label: 'Strike (\$)',
             helpTopicId: 'strike',
             onChangedDecimal: controller.setStrike,
           ),
-          _NumberField(
+          LabeledNumberField(
             label: 'Stock price (\$)',
             helpTopicId: 'stock_price',
             onChangedDecimal: controller.setSpot,
@@ -68,7 +71,7 @@ class ScreenerScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: _NumberField(
+                child: LabeledNumberField(
                   label: totalPerContract ? 'Credit (\$ total for contract)' : 'Credit (\$ per share)',
                   helpTopicId: 'credit',
                   onChangedDecimal: controller.setCredit,
@@ -104,27 +107,27 @@ class ScreenerScreen extends ConsumerWidget {
             nonFridayWarning: form.nonFridayWarning,
             onPick: controller.setExpiration,
           ),
-          _NumberField(
+          LabeledNumberField(
             label: 'DTE (days) -- moves the expiration above',
             onChangedInt: controller.setDteConvenience,
           ),
-          _NumberField(
+          LabeledNumberField(
             label: 'IV (%)',
             helpTopicId: 'iv',
             onChangedDouble: controller.setIv,
           ),
-          _NumberField(
+          LabeledNumberField(
             label: 'IV rank',
             helpTopicId: 'iv_rank',
             onChangedDouble: controller.setIvRank,
           ),
-          _NumberField(
+          LabeledNumberField(
             label: 'Contracts',
             helpTopicId: 'contracts',
             initialText: '1',
             onChangedInt: (v) => controller.setContracts(v ?? 1),
           ),
-          _NumberField(
+          LabeledNumberField(
             label: 'Open fee (\$, optional)',
             onChangedDecimal: controller.setOpenFee,
           ),
@@ -236,46 +239,6 @@ class _ExpirationPicker extends StatelessWidget {
 
 String _dateText(DateTime d) =>
     '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-
-class _NumberField extends StatelessWidget {
-  const _NumberField({
-    required this.label,
-    this.helpTopicId,
-    this.initialText,
-    this.onChangedDecimal,
-    this.onChangedDouble,
-    this.onChangedInt,
-  });
-
-  final String label;
-  final String? helpTopicId;
-  final String? initialText;
-  final ValueChanged<Decimal?>? onChangedDecimal;
-  final ValueChanged<double?>? onChangedDouble;
-  final ValueChanged<int?>? onChangedInt;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: TextFormField(
-        initialValue: initialText,
-        decoration: InputDecoration(
-          labelText: label,
-          suffixIcon: helpTopicId == null
-              ? null
-              : Padding(padding: const EdgeInsets.all(8), child: HelpChip(topicId: helpTopicId!)),
-        ),
-        keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-        onChanged: (text) {
-          onChangedDecimal?.call(Decimal.tryParse(text.trim()));
-          onChangedDouble?.call(double.tryParse(text.trim()));
-          onChangedInt?.call(int.tryParse(text.trim()));
-        },
-      ),
-    );
-  }
-}
 
 class _OutputsSection extends StatelessWidget {
   const _OutputsSection({required this.outputs});

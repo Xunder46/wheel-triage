@@ -10,7 +10,9 @@ import 'package:wheel_triage/domain/models/rule_profile_ids.dart';
 import 'package:wheel_triage/domain/models/snapshot.dart';
 import 'package:wheel_triage/features/assignment/assignment_flow_screen.dart';
 import 'package:wheel_triage/features/positions/position_detail_sheet.dart';
+import 'package:wheel_triage/features/record/record_trade_screen.dart';
 import 'package:wheel_triage/features/screener/screener_screen.dart';
+import 'package:wheel_triage/state/record/record_controller.dart';
 import 'package:wheel_triage/state/repository_providers.dart';
 import 'package:wheel_triage/widgets/help_chip.dart';
 
@@ -165,6 +167,40 @@ void main() {
       await tester.pumpAndSettle();
 
       _expectChips(tester, const ['wheel_basis']);
+    });
+  });
+
+  group('S-082: record_trade_screen.dart chips', () {
+    testWidgets('every §C2 topic the Record screen shows is present', (tester) async {
+      await _tallSurface(tester);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [wheelRepositoryProvider.overrideWithValue(InMemoryWheelRepository())],
+          child: const MaterialApp(home: RecordTradeScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The optional-fields disclosure hides three of the topics until it is
+      // opened, and the credit label (and so its chip) differs by side.
+      ProviderScope.containerOf(tester.element(find.byType(RecordTradeScreen)))
+          .read(recordControllerProvider.notifier)
+        ..setSide(OptionType.call)
+        ..setShowOptional(true);
+      await tester.pumpAndSettle();
+
+      _expectChips(tester, const [
+        'ticker',
+        'side',
+        'strike',
+        'expiration',
+        'credit',
+        'contracts',
+        'stock_price',
+        'iv',
+        'iv_rank',
+        'annualised_yield',
+      ]);
     });
   });
 }

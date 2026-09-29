@@ -4506,6 +4506,31 @@ class $UserPreferencesTableTable extends UserPreferencesTable
         $UserPreferencesTableTable.$converternotificationMilestones,
       );
   @override
+  late final GeneratedColumnWithTypeConverter<Decimal?, int> wheelCapitalCents =
+      GeneratedColumn<int>(
+        'wheel_capital_cents',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      ).withConverter<Decimal?>(
+        $UserPreferencesTableTable.$converterwheelCapitalCents,
+      );
+  static const VerificationMeta _concentrationLimitPctMeta =
+      const VerificationMeta('concentrationLimitPct');
+  @override
+  late final GeneratedColumn<double> concentrationLimitPct =
+      GeneratedColumn<double>(
+        'concentration_limit_pct',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(
+          UserPreferencesDefaults.concentrationLimitPct,
+        ),
+      );
+  @override
   List<GeneratedColumn> get $columns => [
     id,
     totalPerContractToggle,
@@ -4515,6 +4540,8 @@ class $UserPreferencesTableTable extends UserPreferencesTable
     exportReminderDismissed,
     lastExportAtMs,
     notificationMilestones,
+    wheelCapitalCents,
+    concentrationLimitPct,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -4575,6 +4602,15 @@ class $UserPreferencesTableTable extends UserPreferencesTable
         ),
       );
     }
+    if (data.containsKey('concentration_limit_pct')) {
+      context.handle(
+        _concentrationLimitPctMeta,
+        concentrationLimitPct.isAcceptableOrUnknown(
+          data['concentration_limit_pct']!,
+          _concentrationLimitPctMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -4627,6 +4663,17 @@ class $UserPreferencesTableTable extends UserPreferencesTable
               data['${effectivePrefix}notification_milestones'],
             )!,
           ),
+      wheelCapitalCents: $UserPreferencesTableTable.$converterwheelCapitalCents
+          .fromSql(
+            attachedDatabase.typeMapping.read(
+              DriftSqlType.int,
+              data['${effectivePrefix}wheel_capital_cents'],
+            ),
+          ),
+      concentrationLimitPct: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}concentration_limit_pct'],
+      )!,
     );
   }
 
@@ -4641,6 +4688,8 @@ class $UserPreferencesTableTable extends UserPreferencesTable
       NullAwareTypeConverter.wrap(const DateTimeMsConverter());
   static TypeConverter<List<int>, String> $converternotificationMilestones =
       const IntListConverter();
+  static TypeConverter<Decimal?, int?> $converterwheelCapitalCents =
+      NullAwareTypeConverter.wrap(const CentsConverter());
 }
 
 class UserPreferencesRow extends DataClass
@@ -4653,6 +4702,8 @@ class UserPreferencesRow extends DataClass
   final bool exportReminderDismissed;
   final DateTime? lastExportAtMs;
   final List<int> notificationMilestones;
+  final Decimal? wheelCapitalCents;
+  final double concentrationLimitPct;
   const UserPreferencesRow({
     required this.id,
     required this.totalPerContractToggle,
@@ -4662,6 +4713,8 @@ class UserPreferencesRow extends DataClass
     required this.exportReminderDismissed,
     this.lastExportAtMs,
     required this.notificationMilestones,
+    this.wheelCapitalCents,
+    required this.concentrationLimitPct,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4694,6 +4747,14 @@ class UserPreferencesRow extends DataClass
         ),
       );
     }
+    if (!nullToAbsent || wheelCapitalCents != null) {
+      map['wheel_capital_cents'] = Variable<int>(
+        $UserPreferencesTableTable.$converterwheelCapitalCents.toSql(
+          wheelCapitalCents,
+        ),
+      );
+    }
+    map['concentration_limit_pct'] = Variable<double>(concentrationLimitPct);
     return map;
   }
 
@@ -4709,6 +4770,10 @@ class UserPreferencesRow extends DataClass
           ? const Value.absent()
           : Value(lastExportAtMs),
       notificationMilestones: Value(notificationMilestones),
+      wheelCapitalCents: wheelCapitalCents == null && nullToAbsent
+          ? const Value.absent()
+          : Value(wheelCapitalCents),
+      concentrationLimitPct: Value(concentrationLimitPct),
     );
   }
 
@@ -4738,6 +4803,12 @@ class UserPreferencesRow extends DataClass
       notificationMilestones: serializer.fromJson<List<int>>(
         json['notificationMilestones'],
       ),
+      wheelCapitalCents: serializer.fromJson<Decimal?>(
+        json['wheelCapitalCents'],
+      ),
+      concentrationLimitPct: serializer.fromJson<double>(
+        json['concentrationLimitPct'],
+      ),
     );
   }
   @override
@@ -4760,6 +4831,8 @@ class UserPreferencesRow extends DataClass
       'notificationMilestones': serializer.toJson<List<int>>(
         notificationMilestones,
       ),
+      'wheelCapitalCents': serializer.toJson<Decimal?>(wheelCapitalCents),
+      'concentrationLimitPct': serializer.toJson<double>(concentrationLimitPct),
     };
   }
 
@@ -4772,6 +4845,8 @@ class UserPreferencesRow extends DataClass
     bool? exportReminderDismissed,
     Value<DateTime?> lastExportAtMs = const Value.absent(),
     List<int>? notificationMilestones,
+    Value<Decimal?> wheelCapitalCents = const Value.absent(),
+    double? concentrationLimitPct,
   }) => UserPreferencesRow(
     id: id ?? this.id,
     totalPerContractToggle:
@@ -4789,6 +4864,10 @@ class UserPreferencesRow extends DataClass
         : this.lastExportAtMs,
     notificationMilestones:
         notificationMilestones ?? this.notificationMilestones,
+    wheelCapitalCents: wheelCapitalCents.present
+        ? wheelCapitalCents.value
+        : this.wheelCapitalCents,
+    concentrationLimitPct: concentrationLimitPct ?? this.concentrationLimitPct,
   );
   UserPreferencesRow copyWithCompanion(UserPreferencesTableCompanion data) {
     return UserPreferencesRow(
@@ -4814,6 +4893,12 @@ class UserPreferencesRow extends DataClass
       notificationMilestones: data.notificationMilestones.present
           ? data.notificationMilestones.value
           : this.notificationMilestones,
+      wheelCapitalCents: data.wheelCapitalCents.present
+          ? data.wheelCapitalCents.value
+          : this.wheelCapitalCents,
+      concentrationLimitPct: data.concentrationLimitPct.present
+          ? data.concentrationLimitPct.value
+          : this.concentrationLimitPct,
     );
   }
 
@@ -4827,7 +4912,9 @@ class UserPreferencesRow extends DataClass
           ..write('ivResolutionNoticeDismissed: $ivResolutionNoticeDismissed, ')
           ..write('exportReminderDismissed: $exportReminderDismissed, ')
           ..write('lastExportAtMs: $lastExportAtMs, ')
-          ..write('notificationMilestones: $notificationMilestones')
+          ..write('notificationMilestones: $notificationMilestones, ')
+          ..write('wheelCapitalCents: $wheelCapitalCents, ')
+          ..write('concentrationLimitPct: $concentrationLimitPct')
           ..write(')'))
         .toString();
   }
@@ -4842,6 +4929,8 @@ class UserPreferencesRow extends DataClass
     exportReminderDismissed,
     lastExportAtMs,
     notificationMilestones,
+    wheelCapitalCents,
+    concentrationLimitPct,
   );
   @override
   bool operator ==(Object other) =>
@@ -4855,7 +4944,9 @@ class UserPreferencesRow extends DataClass
               this.ivResolutionNoticeDismissed &&
           other.exportReminderDismissed == this.exportReminderDismissed &&
           other.lastExportAtMs == this.lastExportAtMs &&
-          other.notificationMilestones == this.notificationMilestones);
+          other.notificationMilestones == this.notificationMilestones &&
+          other.wheelCapitalCents == this.wheelCapitalCents &&
+          other.concentrationLimitPct == this.concentrationLimitPct);
 }
 
 class UserPreferencesTableCompanion
@@ -4868,6 +4959,8 @@ class UserPreferencesTableCompanion
   final Value<bool> exportReminderDismissed;
   final Value<DateTime?> lastExportAtMs;
   final Value<List<int>> notificationMilestones;
+  final Value<Decimal?> wheelCapitalCents;
+  final Value<double> concentrationLimitPct;
   final Value<int> rowid;
   const UserPreferencesTableCompanion({
     this.id = const Value.absent(),
@@ -4878,6 +4971,8 @@ class UserPreferencesTableCompanion
     this.exportReminderDismissed = const Value.absent(),
     this.lastExportAtMs = const Value.absent(),
     this.notificationMilestones = const Value.absent(),
+    this.wheelCapitalCents = const Value.absent(),
+    this.concentrationLimitPct = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   UserPreferencesTableCompanion.insert({
@@ -4889,6 +4984,8 @@ class UserPreferencesTableCompanion
     this.exportReminderDismissed = const Value.absent(),
     this.lastExportAtMs = const Value.absent(),
     this.notificationMilestones = const Value.absent(),
+    this.wheelCapitalCents = const Value.absent(),
+    this.concentrationLimitPct = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        totalPerContractToggle = Value(totalPerContractToggle),
@@ -4904,6 +5001,8 @@ class UserPreferencesTableCompanion
     Expression<bool>? exportReminderDismissed,
     Expression<int>? lastExportAtMs,
     Expression<String>? notificationMilestones,
+    Expression<int>? wheelCapitalCents,
+    Expression<double>? concentrationLimitPct,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -4921,6 +5020,9 @@ class UserPreferencesTableCompanion
       if (lastExportAtMs != null) 'last_export_at_ms': lastExportAtMs,
       if (notificationMilestones != null)
         'notification_milestones': notificationMilestones,
+      if (wheelCapitalCents != null) 'wheel_capital_cents': wheelCapitalCents,
+      if (concentrationLimitPct != null)
+        'concentration_limit_pct': concentrationLimitPct,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -4934,6 +5036,8 @@ class UserPreferencesTableCompanion
     Value<bool>? exportReminderDismissed,
     Value<DateTime?>? lastExportAtMs,
     Value<List<int>>? notificationMilestones,
+    Value<Decimal?>? wheelCapitalCents,
+    Value<double>? concentrationLimitPct,
     Value<int>? rowid,
   }) {
     return UserPreferencesTableCompanion(
@@ -4951,6 +5055,9 @@ class UserPreferencesTableCompanion
       lastExportAtMs: lastExportAtMs ?? this.lastExportAtMs,
       notificationMilestones:
           notificationMilestones ?? this.notificationMilestones,
+      wheelCapitalCents: wheelCapitalCents ?? this.wheelCapitalCents,
+      concentrationLimitPct:
+          concentrationLimitPct ?? this.concentrationLimitPct,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -5002,6 +5109,18 @@ class UserPreferencesTableCompanion
         ),
       );
     }
+    if (wheelCapitalCents.present) {
+      map['wheel_capital_cents'] = Variable<int>(
+        $UserPreferencesTableTable.$converterwheelCapitalCents.toSql(
+          wheelCapitalCents.value,
+        ),
+      );
+    }
+    if (concentrationLimitPct.present) {
+      map['concentration_limit_pct'] = Variable<double>(
+        concentrationLimitPct.value,
+      );
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -5019,6 +5138,8 @@ class UserPreferencesTableCompanion
           ..write('exportReminderDismissed: $exportReminderDismissed, ')
           ..write('lastExportAtMs: $lastExportAtMs, ')
           ..write('notificationMilestones: $notificationMilestones, ')
+          ..write('wheelCapitalCents: $wheelCapitalCents, ')
+          ..write('concentrationLimitPct: $concentrationLimitPct, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -7248,6 +7369,8 @@ typedef $$UserPreferencesTableTableCreateCompanionBuilder =
       Value<bool> exportReminderDismissed,
       Value<DateTime?> lastExportAtMs,
       Value<List<int>> notificationMilestones,
+      Value<Decimal?> wheelCapitalCents,
+      Value<double> concentrationLimitPct,
       Value<int> rowid,
     });
 typedef $$UserPreferencesTableTableUpdateCompanionBuilder =
@@ -7260,6 +7383,8 @@ typedef $$UserPreferencesTableTableUpdateCompanionBuilder =
       Value<bool> exportReminderDismissed,
       Value<DateTime?> lastExportAtMs,
       Value<List<int>> notificationMilestones,
+      Value<Decimal?> wheelCapitalCents,
+      Value<double> concentrationLimitPct,
       Value<int> rowid,
     });
 
@@ -7314,6 +7439,17 @@ class $$UserPreferencesTableTableFilterComposer
     column: $table.notificationMilestones,
     builder: (column) => ColumnWithTypeConverterFilters(column),
   );
+
+  ColumnWithTypeConverterFilters<Decimal?, Decimal, int>
+  get wheelCapitalCents => $composableBuilder(
+    column: $table.wheelCapitalCents,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnFilters<double> get concentrationLimitPct => $composableBuilder(
+    column: $table.concentrationLimitPct,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$UserPreferencesTableTableOrderingComposer
@@ -7362,6 +7498,16 @@ class $$UserPreferencesTableTableOrderingComposer
 
   ColumnOrderings<String> get notificationMilestones => $composableBuilder(
     column: $table.notificationMilestones,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get wheelCapitalCents => $composableBuilder(
+    column: $table.wheelCapitalCents,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get concentrationLimitPct => $composableBuilder(
+    column: $table.concentrationLimitPct,
     builder: (column) => ColumnOrderings(column),
   );
 }
@@ -7413,6 +7559,17 @@ class $$UserPreferencesTableTableAnnotationComposer
   GeneratedColumnWithTypeConverter<List<int>, String>
   get notificationMilestones => $composableBuilder(
     column: $table.notificationMilestones,
+    builder: (column) => column,
+  );
+
+  GeneratedColumnWithTypeConverter<Decimal?, int> get wheelCapitalCents =>
+      $composableBuilder(
+        column: $table.wheelCapitalCents,
+        builder: (column) => column,
+      );
+
+  GeneratedColumn<double> get concentrationLimitPct => $composableBuilder(
+    column: $table.concentrationLimitPct,
     builder: (column) => column,
   );
 }
@@ -7469,6 +7626,8 @@ class $$UserPreferencesTableTableTableManager
                 Value<bool> exportReminderDismissed = const Value.absent(),
                 Value<DateTime?> lastExportAtMs = const Value.absent(),
                 Value<List<int>> notificationMilestones = const Value.absent(),
+                Value<Decimal?> wheelCapitalCents = const Value.absent(),
+                Value<double> concentrationLimitPct = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => UserPreferencesTableCompanion(
                 id: id,
@@ -7479,6 +7638,8 @@ class $$UserPreferencesTableTableTableManager
                 exportReminderDismissed: exportReminderDismissed,
                 lastExportAtMs: lastExportAtMs,
                 notificationMilestones: notificationMilestones,
+                wheelCapitalCents: wheelCapitalCents,
+                concentrationLimitPct: concentrationLimitPct,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -7491,6 +7652,8 @@ class $$UserPreferencesTableTableTableManager
                 Value<bool> exportReminderDismissed = const Value.absent(),
                 Value<DateTime?> lastExportAtMs = const Value.absent(),
                 Value<List<int>> notificationMilestones = const Value.absent(),
+                Value<Decimal?> wheelCapitalCents = const Value.absent(),
+                Value<double> concentrationLimitPct = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => UserPreferencesTableCompanion.insert(
                 id: id,
@@ -7501,6 +7664,8 @@ class $$UserPreferencesTableTableTableManager
                 exportReminderDismissed: exportReminderDismissed,
                 lastExportAtMs: lastExportAtMs,
                 notificationMilestones: notificationMilestones,
+                wheelCapitalCents: wheelCapitalCents,
+                concentrationLimitPct: concentrationLimitPct,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

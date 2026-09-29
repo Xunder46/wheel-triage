@@ -264,3 +264,15 @@ against these before the beta.
   VoiceOver user as a bare verdict is to anyone.
 - Numbers and bucket reasons wrap at large text sizes; they are never
   truncated or cut off with an ellipsis.
+- **`lib/core/theme/app_theme.dart` is the only place a colour value is
+  written down.** Every surface reads a `ColorScheme` role or the
+  `BucketColors` theme extension; `grep -rnE
+  "(^|[^A-Za-z])Colors\.|Color\(0x" lib/ --include='*.dart'` must stay empty
+  outside that file. A colour literal in a screen is a violation even when it
+  looks right in one theme.
+- The bucket fills are stepped in L\* (88 / 75 / 61 / 45) so they separate in
+  greyscale, and every documented foreground/background pair clears 4.5:1 in
+  **both** themes. `test/core/theme/app_theme_contrast_test.dart` (S-219) is
+  the permanent guard: a palette edit that drops below the bar fails there
+  rather than in review. A container role the design table does not define is
+  derived from the table's own tokens, never invented.

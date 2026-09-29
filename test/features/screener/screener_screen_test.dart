@@ -1,10 +1,13 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:wheel_triage/data/in_memory_wheel_repository.dart';
+import 'package:wheel_triage/domain/models/leg.dart';
 import 'package:wheel_triage/features/screener/screener_screen.dart';
 import 'package:wheel_triage/state/repository_providers.dart';
+import 'package:wheel_triage/state/screener/screener_controller.dart';
 
 void main() {
   testWidgets(
@@ -40,6 +43,52 @@ void main() {
       // that it isn't the visually dominant element.
       expect(scoreLabelSize.height, lessThanOrEqualTo(titleSize.height + 4));
 
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'S-236(b): a refused call save shows the refusal line in place, not a "Position tracked." '
+    'confirmation',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final repo = InMemoryWheelRepository();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+          child: const MaterialApp(home: ScreenerScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // The screen's fields write into the controller, so setting the
+      // controller directly is the same state the fields would have produced.
+      ProviderScope.containerOf(tester.element(find.byType(ScreenerScreen)))
+          .read(screenerControllerProvider.notifier)
+        ..setTicker('ccl')
+        ..setSide(OptionType.call)
+        ..setStrike(Decimal.parse('19'))
+        ..setSpot(Decimal.parse('19'))
+        ..setCredit(Decimal.parse('0.34'))
+        ..setDteConvenience(18);
+      await tester.pump();
+
+      await tester.tap(find.text('Track this position'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Calls are recorded against shares held from an assignment, and there '
+          'are no CCL shares on record.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Position tracked.'), findsNothing);
+      expect(await repo.getOpenLegs(), isEmpty);
       expect(tester.takeException(), isNull);
     },
   );

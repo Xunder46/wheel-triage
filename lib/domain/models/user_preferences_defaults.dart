@@ -1,3 +1,5 @@
+import 'package:decimal/decimal.dart';
+
 import 'snapshot.dart';
 
 /// Default values for the seeded `user_preferences` row (mirrors
@@ -24,4 +26,14 @@ abstract final class UserPreferencesDefaults {
   static const exportReminderDismissed = false;
   static const DateTime? lastExportAt = null;
   static const notificationMilestones = [21, 7, 0];
+
+  // --- Schema v5 (Pro Wave 1, D-6) ---------------------------------------
+
+  /// `null` means "not set" — the concentration readout stays absent until
+  /// the user enters a capital figure. Never coerced to zero.
+  static const Decimal? wheelCapital = null;
+
+  /// The brief's 25% default. A `double` because it is a dimensionless
+  /// percentage, not money.
+  static const concentrationLimitPct = 25.0;
 }

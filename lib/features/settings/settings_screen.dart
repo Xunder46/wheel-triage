@@ -1,15 +1,19 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
+import '../../widgets/app_bottom_nav.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/disclaimer.dart';
 import '../../core/notifications/notification_scheduler.dart';
 import '../../data/export/ledger_export.dart';
 import '../../domain/models/rule_profile_ids.dart';
 import '../../domain/models/snapshot.dart';
+import '../../domain/rules/capital_committed.dart';
 import '../../state/export/export_controller.dart';
 import '../../state/journal/journal_controller.dart';
 import '../../state/notifications/notification_providers.dart';
-import '../../state/positions/positions_list_controller.dart';
+import '../../state/today/today_controller.dart';
 import '../../state/preferences/preferences_provider.dart';
 import '../../state/rule_profiles/rule_profile_editor_controller.dart';
 import '../../state/rule_profiles/rule_profile_providers.dart';
@@ -72,7 +76,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       // history and a new leg would pin a version the imported database may
       // not contain.
       ref.invalidate(preferencesControllerProvider);
-      ref.invalidate(positionsListControllerProvider);
+      ref.invalidate(todayControllerProvider);
       ref.invalidate(journalControllerProvider);
       ref.invalidate(ruleProfileEditorProvider);
       ref.invalidate(ruleProfileVersionsProvider(RuleProfileIds.standard));
@@ -113,6 +117,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
+      bottomNavigationBar: const AppBottomNav(currentPath: '/settings'),
       body: prefs == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(
@@ -162,6 +167,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 const Divider(height: 32),
                 const RuleProfileSection(),
+                const Divider(height: 32),
+                const _YourBookSection(),
                 const Divider(height: 32),
                 Text('Export and backup', style: textTheme.titleMedium),
                 const SizedBox(height: 4),
@@ -232,6 +239,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   icon: const Icon(Icons.replay),
                   label: const Text('How this app works'),
                 ),
+                const Divider(height: 32),
+                // D-18: the persistent disclaimer, verbatim, in the two
+                // places a user can always find it (S-249).
+                Text(
+                  kAppDisclaimer,
+                  style: textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
               ],
             ),
     );
@@ -274,6 +290,141 @@ class _MilestonesEditor extends ConsumerWidget {
                   .update((p) => p.copyWith(notificationMilestones: sorted));
             },
           ),
+      ],
+    );
+  }
+}
+
+/// D-6's "Your book": the two figures the concentration readout on Today is
+/// computed from. Both are **refused rather than clamped** -- a silently
+/// rewritten number would be a different fact about the user's own book than
+/// the one they entered.
+///
+/// The fields hold their own text and their own refusal message, and write
+/// straight through `PreferencesController` on every keystroke that parses:
+/// an incomplete entry is refused and nothing is written, so storage never
+/// holds a value the user did not mean.
+class _YourBookSection extends ConsumerStatefulWidget {
+  const _YourBookSection();
+
+  @override
+  ConsumerState<_YourBookSection> createState() => _YourBookSectionState();
+}
+
+class _YourBookSectionState extends ConsumerState<_YourBookSection> {
+  late final TextEditingController _capital;
+  late final TextEditingController _limit;
+  String? _capitalError;
+  String? _limitError;
+
+  @override
+  void initState() {
+    super.initState();
+    // The section only exists once preferences have loaded (its parent
+    // renders a spinner until then), so this read is never the `null` one.
+    final prefs = ref.read(preferencesControllerProvider).valueOrNull;
+    _capital = TextEditingController(text: _decimalText(prefs?.wheelCapital));
+    _limit = TextEditingController(text: _percentText(prefs?.concentrationLimitPct ?? 25.0));
+  }
+
+  @override
+  void dispose() {
+    _capital.dispose();
+    _limit.dispose();
+    super.dispose();
+  }
+
+  /// The stored figure as the user would have typed it; `null` capital is the
+  /// empty field, which is how "not set" reads.
+  static String _decimalText(Decimal? value) => value?.toString() ?? '';
+
+  /// `25`, not `25.0`: the limit is a percentage of the user's own capital,
+  /// and trailing zeros read as precision the figure does not have.
+  static String _percentText(double value) {
+    var text = value.toStringAsFixed(4);
+    if (text.contains('.')) text = text.replaceFirst(RegExp(r'0+$'), '');
+    if (text.endsWith('.')) text = text.substring(0, text.length - 1);
+    return text;
+  }
+
+  /// Strips the characters a user may type around a figure -- `$`, thousands
+  /// separators, spaces -- so `$30,000` is the same entry as `30000`. What is
+  /// left that does not parse is refused like any other out-of-range entry.
+  static String _bare(String text) => text.replaceAll(RegExp(r'[\$,\s]'), '');
+
+  void _onCapitalChanged(String text) {
+    final bare = _bare(text);
+    if (bare.isEmpty) {
+      setState(() => _capitalError = null);
+      ref.read(preferencesControllerProvider.notifier).setWheelCapital(null);
+      return;
+    }
+
+    Decimal? value;
+    try {
+      value = Decimal.parse(bare);
+    } on FormatException {
+      value = null;
+    }
+    if (value == null || !wheelCapitalInRange(value)) {
+      setState(() => _capitalError = kWheelCapitalRefusal);
+      return;
+    }
+    setState(() => _capitalError = null);
+    ref.read(preferencesControllerProvider.notifier).setWheelCapital(value);
+  }
+
+  void _onLimitChanged(String text) {
+    final value = double.tryParse(_bare(text));
+    if (value == null || !concentrationLimitInRange(value)) {
+      setState(() => _limitError = kConcentrationLimitRefusal);
+      return;
+    }
+    setState(() => _limitError = null);
+    ref.read(preferencesControllerProvider.notifier).setConcentrationLimit(value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Your book', style: textTheme.titleMedium),
+        const SizedBox(height: 4),
+        Text(
+          'Wheel capital is the money you have set aside for the wheel. Today '
+          'divides each underlying by it to show how concentrated the book is, '
+          'and flags anything over the limit below.',
+          style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 12),
+        TextFormField(
+          key: const ValueKey('wheel-capital'),
+          controller: _capital,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: 'Wheel capital',
+            prefixText: '\$',
+            helperText: 'The money you set aside for the wheel',
+            errorText: _capitalError,
+          ),
+          onChanged: _onCapitalChanged,
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          key: const ValueKey('concentration-limit'),
+          controller: _limit,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: 'Concentration limit',
+            suffixText: '%',
+            helperText: 'Flags an underlying above this share of wheel capital',
+            errorText: _limitError,
+          ),
+          onChanged: _onLimitChanged,
+        ),
       ],
     );
   }

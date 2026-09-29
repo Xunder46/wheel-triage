@@ -34,7 +34,7 @@ final class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? driftDatabase(name: 'wheel_triage'));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -131,6 +131,25 @@ final class AppDatabase extends _$AppDatabase {
             // Drop the 14 columns that moved to `rule_profile_version`.
             for (final column in _ruleProfileV3OnlyColumns) {
               await m.dropColumn(ruleProfileTable, column);
+            }
+          }
+          // Schema v5 (Pro Wave 1, Phase 2): two new columns on
+          // `user_preferences` — `wheel_capital_cents` (nullable, "not set"
+          // backfills to null) and `concentration_limit_pct` (real, SQL
+          // default 25) — and nothing else (S-214). Gated on `to` as well as
+          // `from`, like every step above, so a migration test targeting an
+          // intermediate version never runs it.
+          //
+          // The `from >= 2` guard mirrors the v3 step: a direct v1 -> v5
+          // jump creates the table fresh from its current Dart definition,
+          // which already carries both columns.
+          if (from < 5 && to >= 5) {
+            if (from >= 2) {
+              await m.addColumn(userPreferencesTable, userPreferencesTable.wheelCapitalCents);
+              await m.addColumn(
+                userPreferencesTable,
+                userPreferencesTable.concentrationLimitPct,
+              );
             }
           }
         },
@@ -234,6 +253,11 @@ final class AppDatabase extends _$AppDatabase {
         exportReminderDismissed: const Value(UserPreferencesDefaults.exportReminderDismissed),
         lastExportAtMs: const Value(UserPreferencesDefaults.lastExportAt),
         notificationMilestones: const Value(UserPreferencesDefaults.notificationMilestones),
+        // Schema v5 (Pro Wave 1, D-6). `concentrationLimitPct` carries a
+        // SQL-level `withDefault` for the same reason as the v3 columns
+        // above; `wheelCapitalCents` is nullable with no default, so it is
+        // simply omitted — "not set" is the absence of a value.
+        concentrationLimitPct: const Value(UserPreferencesDefaults.concentrationLimitPct),
       ),
     );
   }

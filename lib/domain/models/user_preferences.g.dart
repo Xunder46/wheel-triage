@@ -28,6 +28,11 @@ _UserPreferencesData _$UserPreferencesDataFromJson(Map<String, dynamic> json) =>
               ?.map((e) => (e as num).toInt())
               .toList() ??
           const [21, 7, 0],
+      wheelCapital: const NullableDecimalJsonConverter().fromJson(
+        json['wheelCapital'] as String?,
+      ),
+      concentrationLimitPct:
+          (json['concentrationLimitPct'] as num?)?.toDouble() ?? 25.0,
     );
 
 Map<String, dynamic> _$UserPreferencesDataToJson(
@@ -41,6 +46,10 @@ Map<String, dynamic> _$UserPreferencesDataToJson(
   'exportReminderDismissed': instance.exportReminderDismissed,
   'lastExportAt': instance.lastExportAt?.toIso8601String(),
   'notificationMilestones': instance.notificationMilestones,
+  'wheelCapital': const NullableDecimalJsonConverter().toJson(
+    instance.wheelCapital,
+  ),
+  'concentrationLimitPct': instance.concentrationLimitPct,
 };
 
 const _$DeltaConventionEnumMap = {

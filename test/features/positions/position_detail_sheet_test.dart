@@ -570,4 +570,43 @@ void main() {
       },
     );
   });
+
+  group('R18: the FAB opens the extracted sheet, preview and all', () {
+    testWidgets('two taps reach the preview card for the entered numbers', (tester) async {
+      tester.view.physicalSize = const Size(900, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final repo = InMemoryWheelRepository();
+      final legId = await _makeLegWithSnapshot(repo, 'FAB');
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+          child: MaterialApp(home: PositionDetailSheet(legId: legId)),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Tap one: the FAB. Tap two: a field, which must light the preview.
+      await tester.tap(find.text('Update snapshot'));
+      await tester.pumpAndSettle();
+      expect(find.text('Before you save'), findsNothing);
+
+      await tester.enterText(find.widgetWithText(TextField, 'Option mark (\$)'), '0.40');
+      await tester.enterText(find.widgetWithText(TextField, 'Stock price (\$)'), '46');
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Delta, as shown on your broker screen'),
+        '-0.35',
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Before you save'), findsOneWidget);
+      expect(find.text('Delta 0.35 at or above the 0.30 band'), findsOneWidget);
+      expect(find.text('Was Close on the Jan 1 reading'), findsOneWidget);
+      // Nothing saved: the preview is a preview, and the history is still one.
+      expect(await repo.getSnapshotsForLeg(legId), hasLength(1));
+    });
+  });
 }

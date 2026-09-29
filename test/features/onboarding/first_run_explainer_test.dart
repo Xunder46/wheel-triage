@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:wheel_triage/core/app_router.dart';
+import 'package:wheel_triage/core/disclaimer.dart';
 import 'package:wheel_triage/data/in_memory_wheel_repository.dart';
 import 'package:wheel_triage/features/onboarding/first_run_explainer.dart';
 import 'package:wheel_triage/state/preferences/preferences_provider.dart';
@@ -90,7 +91,10 @@ void main() {
       'reopening via Settings shows the same explainer; dismissing it does not '
       're-arm the automatic trigger (flag stays true, unchanged)',
       (tester) async {
-        tester.view.physicalSize = const Size(800, 2400);
+        // Tall enough that Settings' whole list -- the profile section, D-6's
+        // "Your book", the export block, the milestone editor, the explainer
+        // button and D-18's disclaimer -- is built without scrolling.
+        tester.view.physicalSize = const Size(800, 4000);
         tester.view.devicePixelRatio = 1.0;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);
@@ -117,7 +121,7 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        await tester.tap(find.byTooltip('Settings'));
+        await tester.tap(find.text('Settings'));
         await tester.pumpAndSettle();
         expect(find.text('How this app works'), findsOneWidget);
 
@@ -137,5 +141,32 @@ void main() {
         expect(find.text('How this app works'), findsOneWidget);
       },
     );
+  });
+
+  group('S-249: the disclaimer is on every card of the explainer', () {
+    testWidgets('it is present on the first card and survives a page turn', (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final repo = InMemoryWheelRepository();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+          child: const MaterialApp(home: FirstRunExplainerScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Outside the PageView, so it is not one card's body: the first card
+      // and the second both show it, unchanged.
+      expect(find.text(kAppDisclaimer), findsOneWidget);
+
+      await tester.tap(find.text('Next'));
+      await tester.pumpAndSettle();
+      expect(find.text('The loop'), findsOneWidget);
+      expect(find.text(kAppDisclaimer), findsOneWidget);
+    });
   });
 }

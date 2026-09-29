@@ -1,5 +1,7 @@
+import 'package:decimal/decimal.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import 'json_converters.dart';
 import 'snapshot.dart';
 
 part 'user_preferences.freezed.dart';
@@ -52,6 +54,19 @@ abstract class UserPreferencesData with _$UserPreferencesData {
     /// (Feature Invariant 31) — it never reschedules an already-open leg's
     /// already-scheduled notifications.
     @Default([21, 7, 0]) List<int> notificationMilestones,
+
+    /// The user's wheel capital, in dollars, or `null` when they have not
+    /// set one (Pro Wave 1, D-6). Stored on disk as integer **cents** —
+    /// equity money, never ten-thousandths — and `null` is a real state
+    /// ("not set"), not zero: the concentration readout is simply absent
+    /// until a value exists. A value outside `(0, ∞)` is refused at entry.
+    @NullableDecimalJsonConverter() Decimal? wheelCapital,
+
+    /// The share of [wheelCapital] one position may occupy, as a
+    /// percentage in `(0, 100]` (Pro Wave 1, D-6). Dimensionless, so a
+    /// `double` like the Greeks — it feeds no gate. A value outside that
+    /// range is refused at entry; the default is the brief's 25%.
+    @Default(25.0) double concentrationLimitPct,
   }) = _UserPreferencesData;
 
   factory UserPreferencesData.fromJson(Map<String, Object?> json) =>

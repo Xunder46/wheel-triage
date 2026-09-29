@@ -3,10 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/format.dart';
 import '../../domain/models/leg.dart';
-import '../../domain/models/snapshot.dart';
 import '../../domain/models/wheel_cycle.dart';
-import '../../domain/rules/formulas.dart' as formulas;
 import '../../domain/rules/snapshot_freshness.dart';
 import '../../state/positions/position_detail_controller.dart';
 import '../../state/preferences/preferences_provider.dart';
@@ -14,6 +13,7 @@ import '../../widgets/bucket_badge.dart';
 import '../../widgets/cycle_summary_card.dart';
 import '../../widgets/delta_sparkline.dart';
 import '../../widgets/help_chip.dart';
+import 'snapshot_sheet.dart';
 
 /// §5.2's position detail: current verdict + the arithmetic shown openly,
 /// the roll chain with its cumulative credit, a delta-history sparkline,
@@ -39,7 +39,7 @@ class PositionDetailSheet extends ConsumerWidget {
       floatingActionButton: state.leg == null
           ? null
           : FloatingActionButton.extended(
-              onPressed: () => _openUpdateSnapshotSheet(context, ref, legId, controller),
+              onPressed: () => showSnapshotSheet(context: context, legId: legId),
               icon: const Icon(Icons.edit_note),
               label: const Text('Update snapshot'),
             ),
@@ -105,7 +105,7 @@ class _DetailBody extends ConsumerWidget {
           const SizedBox(height: 12),
         ],
         Text(
-          '\$${leg.strike} ${leg.optionType.name} · exp ${_dateText(leg.expiration)} · '
+          '\$${leg.strike} ${leg.optionType.name} · exp ${dateText(leg.expiration)} · '
           '${leg.contracts}x',
           style: textTheme.titleMedium,
         ),
@@ -137,7 +137,7 @@ class _DetailBody extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                'Computed from the snapshot taken on ${_dateText(latestSnapshot.takenAt)}.',
+                'Computed from the snapshot taken on ${dateText(latestSnapshot.takenAt)}.',
                 style: textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic),
               ),
             ),
@@ -168,7 +168,7 @@ class _DetailBody extends ConsumerWidget {
                   ],
                 ),
                 const SizedBox(height: 8),
-                _Row('Captured', _pctText(state.capturedPct), helpTopicId: 'captured'),
+                _Row('Captured', pctText(state.capturedPct), helpTopicId: 'captured'),
                 _Row(
                   'Delta magnitude',
                   state.deltaMagnitude == null ? '--' : state.deltaMagnitude!.toStringAsFixed(4),
@@ -182,8 +182,8 @@ class _DetailBody extends ConsumerWidget {
                   helpTopicId: 'roll_band',
                   stacked: true,
                 ),
-                _Row('One-sigma move', _moneyText(state.oneSigmaMove), helpTopicId: 'one_sigma'),
-                _Row('Extrinsic remaining', _moneyText(state.extrinsic), helpTopicId: 'extrinsic'),
+                _Row('One-sigma move', moneyText(state.oneSigmaMove), helpTopicId: 'one_sigma'),
+                _Row('Extrinsic remaining', moneyText(state.extrinsic), helpTopicId: 'extrinsic'),
               ],
             ),
           ),
@@ -208,12 +208,12 @@ class _DetailBody extends ConsumerWidget {
                 for (final chainLeg in state.cycleLegs)
                   _Row(
                     'Leg ${chainLeg.sequence} (\$${chainLeg.strike} ${chainLeg.optionType.name})',
-                    _moneyText(chainLeg.openCreditPerShare - (chainLeg.closeDebitPerShare ?? Decimal.zero)),
+                    moneyText(chainLeg.openCreditPerShare - (chainLeg.closeDebitPerShare ?? Decimal.zero)),
                   ),
                 const Divider(),
                 _Row(
                   'Cycle cumulative credit',
-                  _moneyText(state.cycleCumulativeCredit),
+                  moneyText(state.cycleCumulativeCredit),
                   emphasize: true,
                   helpTopicId: 'cumulative_credit',
                 ),
@@ -342,39 +342,12 @@ class _Row extends StatelessWidget {
   }
 }
 
-String _dateText(DateTime d) =>
-    '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-
-/// S-143: fixed zero-decimal percentage formatting -- the same
-/// "'--' when null, else fixed decimals" shape as the screener's
-/// `_pctText`/`_moneyText` (`lib/features/screener/screener_screen.dart`),
-/// with this sheet's own explicitly-specified decimal count (zero, not the
-/// screener's one) so no raw `Decimal` (e.g. `-45.16129...%`) ever reaches
-/// the widget tree.
-String _pctText(Decimal? v) => v == null ? '--' : '${v.toStringAsFixed(0)}%';
-
-/// S-143: fixed two-decimal money formatting, matching the screener's
-/// `_moneyText` exactly.
-String _moneyText(Decimal? v) => v == null ? '--' : '\$${v.toStringAsFixed(2)}';
-
 String _freshnessLabel(Freshness f) => switch (f) {
   Freshness.fresh => 'Fresh',
   Freshness.recent => 'Recent',
   Freshness.old => 'Old',
   Freshness.stale => 'Stale',
 };
-
-/// Formats a carried-forward prefill value without a trailing `.0` (a whole
-/// IV like `40.0` should prefill as "40", not "40.0") -- `null` becomes the
-/// empty string, matching every other unset `TextEditingController` in this
-/// sheet.
-String _trimTrailingZeros(double? value) {
-  if (value == null) return '';
-  var s = value.toStringAsFixed(4);
-  s = s.replaceFirst(RegExp(r'0+$'), '');
-  if (s.endsWith('.')) s = s.substring(0, s.length - 1);
-  return s;
-}
 
 /// S-122: the "Add fees" affordance reachable from `CycleSummaryCard`'s
 /// "Before fees" banner — one row per leg still missing a fee, only asking
@@ -532,11 +505,7 @@ Future<void> _confirmMarkExpired(BuildContext context, PositionDetailController 
     ),
   );
   if (confirmed == true) {
-    await controller.closeDirect(
-      reason: CloseReason.expiredWorthless,
-      closeDebitPerShare: Decimal.zero,
-      closeFee: Decimal.tryParse(feeController.text.trim()),
-    );
+    await controller.markExpired(closeFee: Decimal.tryParse(feeController.text.trim()));
   }
 }
 
@@ -576,249 +545,4 @@ Future<void> _confirmClose(BuildContext context, PositionDetailController contro
       closeFee: Decimal.tryParse(feeController.text.trim()),
     );
   }
-}
-
-/// [pageContext] is the position detail screen's own context (outlives the
-/// bottom sheet) -- used to show a post-dismiss soft-warn SnackBar, since the
-/// sheet's own context is gone the moment it pops.
-Future<void> _openUpdateSnapshotSheet(
-  BuildContext pageContext,
-  WidgetRef ref,
-  String legId,
-  PositionDetailController controller,
-) {
-  final markController = TextEditingController();
-  final leg = ref.read(positionDetailControllerProvider(legId)).leg!;
-  // S-142: defaults to now; backdating is optional and range-validated
-  // against `[leg.openedAt, leg.expiration]` on submit (the controller is
-  // the source of truth for that check -- this field just lets the user
-  // pick a different date than "now").
-  var takenAt = DateTime.now();
-  // C4: Stock price and IV are prefilled from the previous snapshot (a
-  // starting point, not a fresh reading) -- Option mark and Delta are
-  // deliberately left blank, since those change too much to default
-  // usefully (brief-followup C4).
-  final previousSnapshot = ref.read(positionDetailControllerProvider(legId)).latestSnapshot;
-  final spotController = TextEditingController(
-    text: previousSnapshot?.underlyingPrice.toString() ?? '',
-  );
-  final deltaController = TextEditingController();
-  final ivController = TextEditingController(text: _trimTrailingZeros(previousSnapshot?.iv));
-  // `ref.watch` is only valid inside a ConsumerWidget's own `build` method --
-  // this modal builder runs later, outside that scope -- so both
-  // preference-derived starting values are read once here and kept in sync
-  // locally via `setSheetState` (the toggle also persists every change
-  // through the shared provider, Feature Invariant 21; the delta-convention
-  // default only ever pre-fills the *next* entry, Feature Invariant 5/S-071
-  // -- it never rewrites a stored `Snapshot.deltaConvention`).
-  var convention =
-      ref.read(preferencesControllerProvider).valueOrNull?.deltaConventionDefault ??
-      DeltaConvention.position;
-  String? localError;
-  var totalPerContract =
-      ref.read(preferencesControllerProvider).valueOrNull?.totalPerContractToggle ?? false;
-
-  return showModalBottomSheet(
-    context: pageContext,
-    isScrollControlled: true,
-    builder: (sheetContext) {
-      return StatefulBuilder(
-        builder: (context, setSheetState) {
-          return Padding(
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              top: 16,
-              bottom: MediaQuery.of(context).viewInsets.bottom + 16,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Update snapshot', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 12),
-                // S-142: backdating -- defaults to now; the calendar itself
-                // is bounded to `[leg.openedAt, leg.expiration]`, and the
-                // controller re-validates the same range on submit.
-                Row(
-                  children: [
-                    Expanded(child: Text('Snapshot date: ${_dateText(takenAt)}')),
-                    TextButton(
-                      onPressed: () async {
-                        final clampedInitial = takenAt.isBefore(leg.openedAt)
-                            ? leg.openedAt
-                            : (takenAt.isAfter(leg.expiration) ? leg.expiration : takenAt);
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate: clampedInitial,
-                          firstDate: leg.openedAt,
-                          lastDate: leg.expiration,
-                        );
-                        if (picked != null) setSheetState(() => takenAt = picked);
-                      },
-                      child: const Text('Change'),
-                    ),
-                  ],
-                ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: markController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(
-                          labelText: totalPerContract
-                              ? 'Option mark (\$ total for contract)'
-                              : 'Option mark (\$)',
-                          suffixIcon: const Padding(
-                            padding: EdgeInsets.all(8),
-                            child: HelpChip(topicId: 'option_mark'),
-                          ),
-                        ),
-                      ),
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Switch(
-                          value: totalPerContract,
-                          onChanged: (v) {
-                            setSheetState(() => totalPerContract = v);
-                            ref
-                                .read(preferencesControllerProvider.notifier)
-                                .update((p) => p.copyWith(totalPerContractToggle: v));
-                          },
-                        ),
-                        const Text('Total/contract', style: TextStyle(fontSize: 10)),
-                      ],
-                    ),
-                  ],
-                ),
-                TextField(
-                  controller: spotController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(
-                    labelText: 'Stock price (\$)',
-                    suffixIcon: const Padding(
-                      padding: EdgeInsets.all(8),
-                      child: HelpChip(topicId: 'stock_price'),
-                    ),
-                    // C4: prefilled values are clearly marked as carried
-                    // forward, so a stale value can't be mistaken for a
-                    // freshly typed one.
-                    helperText: previousSnapshot == null ? null : 'Carried forward from last snapshot',
-                  ),
-                ),
-                TextField(
-                  controller: deltaController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
-                  decoration: InputDecoration(
-                    labelText: 'Delta, as shown on your broker screen',
-                    helperText:
-                        'Enter it exactly as your broker shows it, minus sign included.',
-                    helperMaxLines: 2,
-                    suffixIcon: const Padding(
-                      padding: EdgeInsets.all(8),
-                      child: HelpChip(topicId: 'delta'),
-                    ),
-                  ),
-                  // C4: a live deltaMagnitude readout as the user types, so
-                  // the sign handling is visible rather than implied.
-                  onChanged: (_) => setSheetState(() {}),
-                ),
-                if (double.tryParse(deltaController.text.trim()) != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4, bottom: 4),
-                    child: Text(
-                      'Magnitude: '
-                      '${formulas.deltaMagnitude(double.parse(deltaController.text.trim()))!.toStringAsFixed(4)}',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                  ),
-                Row(
-                  children: [
-                    const Text('Convention:'),
-                    const SizedBox(width: 8),
-                    DropdownButton<DeltaConvention>(
-                      value: convention,
-                      items: const [
-                        DropdownMenuItem(value: DeltaConvention.position, child: Text('Position')),
-                        DropdownMenuItem(value: DeltaConvention.option, child: Text('Option')),
-                      ],
-                      onChanged: (v) => setSheetState(() => convention = v ?? convention),
-                    ),
-                    const HelpChip(topicId: 'delta_convention'),
-                  ],
-                ),
-                TextField(
-                  decoration: InputDecoration(
-                    suffixIcon: const Padding(
-                      padding: EdgeInsets.all(8),
-                      child: HelpChip(topicId: 'iv'),
-                    ),
-                    helperText: previousSnapshot?.iv == null
-                        ? null
-                        : 'Carried forward from last snapshot',
-                    labelText: 'IV (%, optional)',
-                  ),
-                  controller: ivController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                ),
-                const SizedBox(height: 16),
-                if (localError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Text(
-                      localError!,
-                      style: TextStyle(color: Theme.of(context).colorScheme.error),
-                    ),
-                  ),
-                FilledButton(
-                  onPressed: () async {
-                    final mark = Decimal.tryParse(markController.text.trim());
-                    // Local variable named `stockPrice` here in
-                    // `lib/features/`, since the S-060 terminology grep is
-                    // scoped to this directory and matches on any bare
-                    // occurrence of the shorter jargon word, not just UI
-                    // label text. The shorter name stays the canonical
-                    // internal identifier everywhere outside this directory
-                    // (`lib/state/`, `lib/domain/`), per the brief's own
-                    // allowance.
-                    final stockPrice = Decimal.tryParse(spotController.text.trim());
-                    final delta = double.tryParse(deltaController.text.trim());
-                    if (mark == null || stockPrice == null || delta == null) return;
-                    final iv = double.tryParse(ivController.text.trim());
-                    final ok = await controller.updateSnapshot(
-                      optionMark: mark,
-                      underlyingPrice: stockPrice,
-                      deltaAsEntered: delta,
-                      deltaConvention: convention,
-                      iv: iv,
-                      takenAt: takenAt,
-                    );
-                    if (ok) {
-                      // Read via the provider, not the protected `.state`
-                      // getter -- state is already updated synchronously by
-                      // `updateSnapshot` before it returns.
-                      final warning = ref.read(positionDetailControllerProvider(legId)).snapshotWarning;
-                      if (sheetContext.mounted) Navigator.of(sheetContext).pop();
-                      if (warning != null && pageContext.mounted) {
-                        ScaffoldMessenger.of(pageContext).showSnackBar(SnackBar(content: Text(warning)));
-                      }
-                    } else {
-                      setSheetState(
-                        () => localError = ref.read(positionDetailControllerProvider(legId)).snapshotError,
-                      );
-                    }
-                  },
-                  child: const Text('Save snapshot'),
-                ),
-              ],
-            ),
-          );
-        },
-      );
-    },
-  );
 }

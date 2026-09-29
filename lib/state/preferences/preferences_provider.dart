@@ -1,7 +1,9 @@
+import 'package:decimal/decimal.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/wheel_repository.dart';
 import '../../domain/models/user_preferences.dart';
+import '../../domain/rules/capital_committed.dart';
 import '../repository_providers.dart';
 
 /// The single shared source of [UserPreferencesData] for the whole app
@@ -57,6 +59,27 @@ class PreferencesController extends StateNotifier<AsyncValue<UserPreferencesData
   /// S-160): flips the lifetime flag permanently -- never re-armed, even
   /// after another 30-plus days elapse with no further export.
   Future<void> dismissExportReminder() => update((p) => p.copyWith(exportReminderDismissed: true));
+
+  /// D-6's wheel capital. `null` is a real state -- "not set" -- and clears
+  /// the field; the concentration readout is simply absent until a value
+  /// exists, which is why this is not a write of zero.
+  ///
+  /// A value outside [wheelCapitalInRange] is **ignored rather than
+  /// clamped**: the figure feeds a percentage the user reads as a fact about
+  /// their own book, and a silently rewritten one would be a different fact.
+  /// The refusal message itself belongs to the field that refused the entry
+  /// (S-248), so a caller that validates first sees no difference.
+  Future<void> setWheelCapital(Decimal? value) {
+    if (!wheelCapitalInRange(value)) return Future.value();
+    return update((p) => p.copyWith(wheelCapital: value));
+  }
+
+  /// D-6's concentration limit, in `(0, 100]`. Refused outside the range for
+  /// the same reason as [setWheelCapital].
+  Future<void> setConcentrationLimit(double limitPct) {
+    if (!concentrationLimitInRange(limitPct)) return Future.value();
+    return update((p) => p.copyWith(concentrationLimitPct: limitPct));
+  }
 }
 
 final preferencesControllerProvider =

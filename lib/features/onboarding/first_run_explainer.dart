@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/disclaimer.dart';
 import '../../state/preferences/preferences_provider.dart';
 
 /// Three swipeable cards, skippable, reachable again from Settings
@@ -102,7 +103,7 @@ class _FirstRunExplainerScreenState extends ConsumerState<FirstRunExplainerScree
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
               child: SizedBox(
                 width: double.infinity,
                 child: FilledButton(
@@ -113,6 +114,19 @@ class _FirstRunExplainerScreenState extends ConsumerState<FirstRunExplainerScree
                           curve: Curves.easeInOut,
                         ),
                   child: Text(isLastPage ? 'Done' : 'Next'),
+                ),
+              ),
+            ),
+            // D-18: the persistent disclaimer, verbatim. Outside the
+            // PageView so it is a footer of the explainer itself rather than
+            // one card's body -- it is on screen on every card, and no page
+            // turn can hide it (S-249).
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+              child: Text(
+                kAppDisclaimer,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
             ),

@@ -108,6 +108,14 @@ abstract class WheelRepository {
   /// (`closedAt == null`).
   Future<List<Leg>> getOpenLegs();
 
+  /// Every leg across every cycle, open and closed, ordered by `openedAt`
+  /// ascending with `sequence` as the tie-break (S-216) — the read path for
+  /// views that need the whole book rather than only the open legs
+  /// [getOpenLegs] returns. The tie-break matters: two legs on different
+  /// cycles can be opened in the same millisecond, and callers that render
+  /// legs in list order must see the same order from both implementations.
+  Future<List<Leg>> getAllLegs();
+
   /// Looks up a single leg by id. Returns `null` if it does not exist.
   Future<Leg?> getLeg(String id);
 
@@ -174,6 +182,25 @@ abstract class WheelRepository {
     Decimal? closeFee,
     required DateTime closedAt,
   });
+
+  /// Records several legs as expired in ONE atomic write (D-13, S-217):
+  /// either every leg in [legs] is closed or none is. Each leg is recorded
+  /// exactly as `closeLeg` with `reason: expiredWorthless`,
+  /// `closeDebitPerShare: Decimal.zero`, `closeFee: null` and the supplied
+  /// `closedAt` records it — including the put-leg-ends-its-cycle rule, so
+  /// a call leg on a cycle that is still `holdingShares` does not end that
+  /// cycle.
+  ///
+  /// [legs] pairs each leg id with the `closedAt` to record for it; the
+  /// caller supplies the expiration date per D-13's `recordedCloseDate`,
+  /// never "now". Returns the closed legs in the order supplied.
+  ///
+  /// Throws [ArgumentError] — changing nothing — if [legs] is empty, if any
+  /// id is unknown, or if any leg is already closed. Unlike [closeLeg] this
+  /// method never silently re-closes a leg: the batch is a bulk action over
+  /// a list the user selected, and a stale selection must fail loudly
+  /// rather than rewrite history.
+  Future<List<Leg>> markExpired({required List<({String legId, DateTime closedAt})> legs});
 
   /// Put-side assignment (§5.4, Feature Invariant 14): closes [legId]
   /// (`closeReason: assigned`), creates a [ShareLot] from [shareLot], and

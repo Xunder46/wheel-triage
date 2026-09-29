@@ -33,7 +33,7 @@ class ResolvedIv {
 /// Resolution order (Feature Invariant 18): the most recent [snapshot]'s
 /// `iv` -> [leg]'s `ivAtOpen` -> `null` (profile default). This is a
 /// **classification-behavior** function, not a display-only one — both
-/// `lib/state/positions/positions_list_controller.dart` and
+/// `lib/state/today/today_controller.dart` and
 /// `position_detail_controller.dart` call this *before* constructing a
 /// `TriageInput` and feed the resolved `.value` into `TriageInput.iv`,
 /// never `snapshot?.iv` directly (brief-followup A3; a blank IV on a real

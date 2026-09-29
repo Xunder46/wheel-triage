@@ -1,12 +1,16 @@
 # Wheel Triage — Architecture
 
-Consolidated reference for the shape of the codebase after Iterations 1–4
+Consolidated reference for the shape of the codebase after Iterations 1–5
 (M1–M4 plus the brief-followup corrections, the help system, fees/
 `acceptsAssignment`, cycle P&L and the journal, snapshot staleness,
-export/import, and expiration notifications). This is a map
+export/import, expiration notifications, and rule versioning) and Pro Wave 1
+Stages 0–3 (the dependency cleanup, the D-4 theme, Record a trade, the
+snapshot preview sheet, and the Today screen). This is a map
 of *where things live and why*, not a walkthrough of what they do —
 `docs/brief.md` and `docs/brief-followup.md` are the spec of record;
-`docs/plans/wheel-triage-plan.md` carries the phase-by-phase decisions and
+`docs/brief-ledger.md` wins over both where they disagree, and
+`docs/brief-pro.md` §2's decisions win over everything earlier;
+`docs/plans/pro-wave-1-plan.md` carries the phase-by-phase decisions and
 scenario register.
 
 ## Layering
@@ -15,8 +19,10 @@ scenario register.
 lib/domain/rules/    pure logic — formulas, classify(), resolveIv,
                      checkCreditBound, RuleProfile, validateRuleProfile,
                      Bucket, screener scoring, cycle P&L, journal aggregates,
-                     snapshot freshness. Zero Flutter imports (enforced by
-                     grep every phase).
+                     snapshot freshness, the shared triageInputFor assembly,
+                     capital committed/concentration, net premium, reading
+                     age, expiry and obligations. Zero Flutter imports
+                     (enforced by grep every phase).
 lib/domain/models/   plain persisted data classes (freezed). No business
                      logic beyond serialization.
 lib/data/            WheelRepository interface + DriftWheelRepository +
@@ -25,12 +31,16 @@ lib/data/            WheelRepository interface + DriftWheelRepository +
                      builder.
 lib/state/           Riverpod controllers/providers — orchestration between
                      domain/models and domain/rules, and the repository.
-lib/features/        Screens.
-lib/widgets/         Shared UI (BucketBadge, HelpChip, DeltaSparkline).
+lib/features/        Screens (screener, positions + Today, record, journal,
+                     settings, onboarding, export).
+lib/widgets/         Shared UI (BucketBadge, HelpChip, DeltaSparkline,
+                     LegTitle, LabeledNumberField, AppBottomNav,
+                     CycleSummaryCard, JournalRow).
 lib/core/            Cross-cutting, dependency-free utilities (date/money
-                     helpers, the app router, the help-topic registry, the
-                     notification id/copy/gateway layer, the export-reminder
-                     rule).
+                     helpers and `format.dart`'s display formatters, the app
+                     router, the theme and its colour tokens, the help-topic
+                     registry, the notification id/copy/gateway layer, the
+                     export-reminder rule, the D-P15 disclaimer text).
 ```
 
 Dependency direction is one-way: `rules ← models ← data ← state ← features`.
@@ -71,6 +81,16 @@ for the new `rule_profile_version` table (`id`, `profile_id`, `version`,
 value rewritten to its own `-v1` id. Versions are append-only — there is no
 update or delete method. Seed rows: three identities + three v1 versions
 (`test/data/db/rule_profile_v4_migration_test.dart`, S-190).
+
+Schema v5 (Pro Wave 1 Phase 2) adds no table either, only the two columns
+the Pro screens read: `user_preferences.wheel_capital_cents` (`int?`, the
+`CentsConverter` boundary — `null` means "not set", never zero) and
+`user_preferences.concentration_limit_pct` (`real`, default `25.0`). Both
+reach the UI through `UserPreferencesData`/`PreferencesController` and
+nowhere else; `lib/domain/models/user_preferences_defaults.dart` holds the
+one default (`wheelCapital` unset, 25%), and a value outside
+`wheelCapitalInRange` (`capital_committed.dart`) is ignored rather than
+written (`test/data/db/user_preferences_v5_migration_test.dart`, S-214).
 
 ## Rules engine (`lib/domain/rules/`)
 
@@ -129,6 +149,51 @@ update or delete method. Seed rows: three identities + three v1 versions
   `fresh`/`recent`/`old`/`stale` on calendar-day boundaries; feeds the
   position sheet's freshness label and names the snapshot date when a
   verdict is stale (S-141's boundary matrix pins the tiers).
+- `triage_input.dart` — `TriageInput` plus `triageInputFor({leg, snapshot,
+  dte})`, the **one** assembly of a `TriageInput` from a leg and its latest
+  reading. Three callers share it: the positions list, the position detail
+  sheet, and Record's pre-save preview (Pro Wave 1 D-17), so a preview
+  cannot drift from a live classification. It resolves IV through
+  `resolveIv` in both branches, including the null-snapshot one — a leg
+  opened at a known high IV keeps it for Gate 3 rather than dropping to the
+  profile default (Feature Invariant 18).
+- `capital_committed.dart` — `capitalCommittedForCycle`,
+  `currentCapitalCommitted`, `capitalCommittedByUnderlying`,
+  `concentrationPercent`/`concentrationRatio` and `concentrationFlags`
+  (Pro Wave 1 D-9/D-10). "Committed now" is the live figure — open puts at
+  strike plus a `holdingShares` cycle's shares at wheel-adjusted basis —
+  and is deliberately **not** `cycle_pnl.dart`'s `peakCapitalCommitted`,
+  which keeps the Journal's "capital committed" name (D-P14). The
+  concentration flag compares the **unrounded** ratio against the limit
+  (strictly greater, so a book exactly at the limit is not flagged) and
+  rounds only for display (A-5).
+- `premium_collected.dart` — `premiumCredits`, `premiumBuybacks`,
+  `netPremiumCollected` and the two period helpers (Pro Wave 1 D-8). Credits
+  and buybacks are attributed by each leg's own trade date, and **fees never
+  enter** the figure.
+- `reading_age.dart` — `kAgingDays = 7`, `readingAgeDays`, `needsReading`,
+  `olderThanAging` and `agingLine` (Pro Wave 1 D-11). `needsReading` is the
+  predicate that puts the inline Update on a row; `olderThanAging`
+  deliberately excludes the no-reading case, which stays its own exclusive
+  count (Feature Invariant 19).
+- `expiry.dart` / `obligation.dart` — the expiry card's two halves (Pro Wave
+  1 D-13). `expiry.dart` holds `isPastExpiration`,
+  `recordedCloseDateForExpiry` (the expiration date on or after it, the tap
+  time before it), `expiryBatchEligible` (past expiration **and** a reading
+  exists **and** that reading was out of the money — at-the-strike is not in
+  the money), `pastExpirationCard`, and the card's two sentences
+  (`expiryReadingLine` per leg, `expiryBatchExplanation` for the batch), so
+  the D-13 wording lives beside the D-13 rule and cannot drift from it
+  (A-25). `obligation.dart` holds
+  `expiringWithinSevenDays`, `expiringThisWeek` and `obligationFor`, whose
+  put line is cash-if-assigned and whose call line is shares-delivered.
+- `snapshot_preview.dart` — `buildSnapshotPreview(...)`, Record's pre-save
+  classification (Pro Wave 1 D-17): it builds a not-yet-persisted `Snapshot`,
+  runs the **same** `triageInputFor` + `classify` path a saved reading takes,
+  and returns the bucket, captured %, roll band, resolved IV, extrinsic and
+  the previous reading's own verdict for the "was … on the … reading" line.
+  Nothing here writes or reads storage; the sheet is a preview of a rule, not
+  a second implementation of it.
 
 ## Repository surface (`lib/data/`)
 
@@ -137,12 +202,27 @@ update or delete method. Seed rows: three identities + three v1 versions
 identically (`test/data/wheel_repository_contract_test.dart` is the shared
 parity suite). Every write that spans more than one row is one atomic
 method (`createCycle`, `recordRoll`, `recordAssignment`, `recordCallAway`,
-`closeLeg`) — callers never sequence two writes themselves. `getPreferences`/
-`updatePreferences` were schema v2's additions; `getClosedCycles()` (newest-
-`endedAt`-first, schema v3) followed; `getRuleProfileVersions`,
-`getRuleProfileVersion` and `appendRuleProfileVersion` (schema v4) are the
-newest, and deliberately append-only — no update or delete method exists,
-so the version a leg pinned can never be rewritten out from under it.
+`closeLeg`, `markExpired`) — callers never sequence two writes themselves.
+`getPreferences`/`updatePreferences` were schema v2's additions;
+`getClosedCycles()` (newest-`endedAt`-first, schema v3) followed;
+`getRuleProfileVersions`, `getRuleProfileVersion` and
+`appendRuleProfileVersion` (schema v4) are deliberately append-only — no
+update or delete method exists, so the version a leg pinned can never be
+rewritten out from under it. `getAllLegs()` is the open-and-closed
+counterpart to `getOpenLegs()`, ordered by `openedAt` then `sequence` so
+both implementations agree; it carries no `id` tie-break because ids are
+implementation-chosen (A-3), and it is what Today's ledger strip reads
+instead of issuing a query per leg and what Record reads to build its
+recent-ticker chips and to resolve a call's host cycle (D-12).
+`markExpired` is `closeLeg`'s bulk form: it
+records each supplied leg as `expiredWorthless` with a zero close debit and
+no close fee, honours the same put-leg-ends-its-cycle rule, and validates
+the whole batch before writing any of it, so an unknown id or an
+already-closed leg throws `ArgumentError` with nothing changed (A-3). It is
+called from exactly two places — `TodayController.markAllExpired` (one call
+for the whole batch, D-13) and `PositionDetailController.markExpired` (one
+leg, from the detail sheet's own action) — and neither sequences a second
+write around it.
 `getClosedCycles()` returns cycles only, never
 pre-aggregated per-leg totals, so a caller needing contract-weighted
 figures still calls `getLegsForCycle` per cycle rather than losing each
@@ -197,6 +277,110 @@ leg's fee renders "Before fees" and names the gap, with an edit-fees
 affordance on the summary card that asks only for the field(s) each leg is
 actually missing; the figure is never presented as fee-complete.
 
+## Today, Record and the theme (Pro Wave 1, Stages 1–3)
+
+**Today** (`lib/features/today/today_screen.dart`,
+`lib/state/today/today_controller.dart`) replaces the Positions screen at the
+unchanged `/positions` route, so the detail, roll and assignment flows under
+it are untouched. `TodayController.load()` is the only place a row's display
+data is derived: it reads `getOpenLegs()`, classifies each leg through the
+shared `triageInputFor` assembly, and hands the screen a `TodayItem` carrying
+the bucket, the DTE, the reading age, D-11's `needsReading`/`olderThanAging`
+predicates and D-13's `batchEligible`. The screen renders counts, the aging
+line, the D-9 ledger strip, the two expiry cards and the list; it re-derives
+nothing, so a change to a predicate is a change in one file. The five count
+chips are built from one `_bucketOrder` list, so the row order and the sort
+order are stated once, and `bucketLabel` supplies the wording. Coming back to
+the route reloads explicitly through a router-delegate listener — the screen
+stays alive underneath every pushed route, so `autoRefresh` never fires
+(S-205).
+
+D-P13 splits the book in `load()` rather than at render time: a leg past its
+expiration leaves `state.items` (and therefore the counts and the list) and
+appears only in `state.pastExpiration`, oldest first. `state.expiringThisWeek`
+is `obligation.expiringThisWeek`'s own grouping mapped back to the built
+items, so the seven-day window stays stated in the rules layer. Past
+expiration is read from `expiry.isPastExpiration`, not from a negative DTE,
+because a calendar day and a signed day count are not the same question.
+
+The two cards (`lib/features/today/expiring_this_week_card.dart`,
+`lib/features/today/past_expiration_card.dart`) are pure presentation over
+those two lists plus the rules layer's copy builders: no repository read, no
+re-derived rule, no local string. `PastExpirationCard` is the only stateful
+one — it holds its own inline error and disables its buttons while
+`todayControllerProvider.isLoading` — and both actions confirm before
+writing. The batch is **one** `markExpired` call (D-13's atomicity), then one
+notification cancel per leg, then a `load()`; a failure returns a message and
+deliberately leaves `TodayState.error` unset, so a failed batch cannot blank
+the screen (A-28). `TodayItem.cardEntry` is what lets a card call
+`expiryReadingLine`/`expiryBatchExplanation` without knowing how eligibility
+is decided.
+
+**Record** (`lib/features/record/record_trade_screen.dart`,
+`lib/state/record/record_controller.dart`,
+`lib/state/record/record_save_service.dart`) is D-16's day-after-the-fill
+form. `RecordController` holds the unset-by-default form state and every
+derived figure (credit bound, annualised yield, capital, the reminder line,
+D-12's host line) — the screen computes nothing (Feature Invariant 5).
+`RecordSaveService.save` is D-19's **single** write path for a new leg:
+Record and the screener's "Track this position" both call it, so the two
+cannot diverge on D-12's host-cycle resolution (`createCycle` vs
+`openNextLeg`), the standard profile's current version pin, or reminder
+scheduling. A refusal writes nothing — the refusal line is discovered by
+reading, never by creating an `Underlying` the user did not ask for (S-234).
+
+The snapshot preview is shared, not duplicated: `buildSnapshotPreview`
+(`lib/domain/rules/snapshot_preview.dart`) runs the entered numbers through
+the same `triageInputFor` + `classify` path a saved reading takes, and
+`lib/features/positions/snapshot_sheet.dart` hosts it for both entry points
+(Record's pre-save preview and the position sheet's inline Update), taking a
+`legId` and completing with `true` only on a real save.
+
+**The theme** (`lib/core/theme/app_theme.dart`, Pro Wave 1 D-4) is the one
+place a colour value is written down: `AppTokens` holds the surface/text
+roles plus the accent, caution and error roles and their containers;
+`AppTheme.dark`/`AppTheme.light` carry the reference's `--a-*` values (the
+dark set is primary, so a device in dark mode sees the design's own palette);
+`BucketPalette` plus the `BucketColors` `ThemeExtension` resolve the five
+bucket fills and their inks per theme; `AppTheme.dark`/`AppTheme.light` are
+the two assembled `ThemeData`s. `main.dart` sets `themeMode: ThemeMode.system`
+and the app follows the device. Nothing outside that file names a colour —
+the sweep is `grep -rn "Colors\.\|Color(0x" lib/ | grep -v lib/core/theme/`
+(a bare `Colors.` in a widget is the residue that spreads), and every surface
+reads a token or a `ColorScheme` role rather than a literal that happens to
+look right in one theme.
+
+**The new preferences** (`UserPreferencesData.wheelCapital`,
+`concentrationLimitPct`, schema v5) are reached only through
+`PreferencesController.setWheelCapital`/`setConcentrationLimitPct`, which
+refuse an out-of-range value instead of clamping it — a silently corrected
+number is worse than a refused one. `wheelCapital` unset is a normal state
+every consumer renders as "not set", never as zero.
+
+**The disclaimer** (`lib/core/disclaimer.dart`, D-P15 as fixed by D-18) is
+one `const String`, rendered verbatim at the foot of Settings and as a footer
+under every first-run explainer card — never paraphrased, trimmed or placed
+behind a dismiss (S-249).
+
+### Drift-risk areas
+
+These are the places where the same fact is reachable from two directions,
+so a change must land in both or neither. Each is deliberately single-sourced
+rather than synchronized by discipline:
+
+| Fact | The one owner | What would drift |
+|---|---|---|
+| Every colour value | `lib/core/theme/app_theme.dart` | A widget literal that looks right in dark mode |
+| A `TriageInput` | `triageInputFor` | The list, the detail sheet and Record's preview classifying differently |
+| A bucket's wording | `bucketLabel` | The badge, the counts and the preview line naming the same verdict differently |
+| A leg's contract text | `legContractText` (`lib/core/format.dart`) | Today's rows, the expiry cards and the sheet formatting `×3` three ways |
+| The D-13 card sentences | `lib/domain/rules/expiry.dart` | The card, the confirm dialog and the detail sheet disagreeing |
+| The 7-day expiry window | `obligation.dart` | The card's grouping and a second "due soon" caller disagreeing on the boundary |
+| A new leg's write | `RecordSaveService.save` | Record and the screener creating different rows for the same trade |
+| A preference | `PreferencesController` | A per-screen copy that stops tracking Settings |
+| Repository behaviour | `WheelRepository` + its contract suite | One implementation gaining a method the other lacks |
+| A threshold bound | `validateRuleProfile` | A widget re-implementing a range check |
+
 ## Export/import (`lib/data/export/`, `lib/state/export/`)
 
 `ledger_export.dart` defines the `LedgerExport` envelope — every persisted
@@ -246,19 +430,32 @@ user has even been asked would be a false signal.
 ## State layer conventions worth knowing
 
 - `lib/state/preferences/preferences_provider.dart`'s `PreferencesController`
-  is the single shared source for every preference-backed field across four
-  screens (screener, snapshot sheet, roll planner, assignment flow) plus
-  Settings and the first-run explainer — never a per-screen copy.
-  `update()` awaits its own `ready` first, so a caller that reaches the
+  is the single shared source for every preference-backed field across six
+  screens (screener, snapshot sheet, roll planner, assignment flow, Today,
+  Record) plus Settings and the first-run explainer — never a per-screen
+  copy. `update()` awaits its own `ready` first, so a caller that reaches the
   notifier and calls `update()` immediately can never have the write
-  silently dropped by an in-flight initial load.
+  silently dropped by an in-flight initial load. The two Pro fields
+  (`wheelCapital`, `concentrationLimitPct`) go through the same controller and
+  its own setters, which refuse an out-of-range value rather than clamping it.
+- Two state classes own a whole feature's writes rather than a screen:
+  `RecordSaveService.save` (D-19) is the single path that creates a leg, and
+  `TodayController.markAllExpired`/`markExpiredLeg` are the single paths that
+  close one as `expiredWorthless`. A screen that calls the repository itself
+  for either is the defect these exist to prevent.
 - Money-typed no-arbitrage conversion (`lib/core/money/total_per_contract.dart`'s
-  `perShareValue`) and the expiration-picker default
+  `perShareValue`), the whole-dollar tile rounding
+  (`lib/core/money/whole_dollars.dart`'s `wholeDollars`, which rounds rather
+  than truncates), the display formatters (`lib/core/format.dart` — money,
+  percentages, the three date shapes, the month abbreviation and a leg's
+  contract text), the expiration-picker default
   (`lib/core/dates/nearest_friday.dart`'s `nearestFriday`/`defaultExpiration`)
-  are dependency-free `lib/core/` helpers shared across screens rather than
-  duplicated per screen — the DTE-derives-expiration bug (brief-followup A5)
-  existed at two independent call sites in the first build precisely because
-  the logic wasn't shared.
+  and the shared form field (`lib/widgets/labeled_number_field.dart`) are
+  dependency-free helpers shared across screens rather than duplicated per
+  screen — the DTE-derives-expiration bug (brief-followup A5) existed at two
+  independent call sites in the first build precisely because the logic
+  wasn't shared. `lib/widgets/leg_title.dart`'s `LegTitle` is the same
+  pattern for a row's ticker + contract, shared by both expiry cards.
 - UI code that needs a controller method's just-written result reads it
   back via `ref.read(providerFamily(id))`, never the `StateNotifier`'s own
   `.state` getter (`@protected`/`@visibleForTesting`).
@@ -307,7 +504,12 @@ default, the total-per-contract toggle, the Active-profile section, the
 first-run explainer re-run entry point, plus Iteration 4's additions —
 Export and Import entries (through `ExportController`, never the plugins or
 the repository directly) and the notification-milestone checkbox editor
-with its denied-permission note. Profile create/clone/edit stays out of
+with its denied-permission note — plus Pro Wave 1's two: the wheel capital
+(whole dollars) and the concentration limit (a percentage), both written
+through `PreferencesController` and both refusing an out-of-range value
+rather than clamping it. `lib/core/disclaimer.dart`'s D-P15 text is the
+screen's footer, and the same string is the footer of every first-run
+explainer card. Profile create/clone/edit stays out of
 scope; Iteration 5's D-1 narrows the feature to editing the single
 `Standard` profile's thresholds in place (multiple named profiles are
 dropped, so there is no picker).

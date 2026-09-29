@@ -35,7 +35,6 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   flutter_riverpod: 2.6.1
-  riverpod_annotation: 2.6.1
   drift: 2.28.0
   drift_flutter: 0.2.6
   sqlite3_flutter_libs: 0.5.42
@@ -52,7 +51,6 @@ dependencies:
   # `depend_on_referenced_packages` and documents that the rules engine
   # depends on Rational's exactness intentionally, not by accident.
   rational: ^2.2.3
-  fl_chart: ^1.2.0
   flutter_local_notifications: ^22.3.1
   intl: ^0.20.3
   share_plus: ^13.3.0
@@ -70,19 +68,23 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
-  # Code generation, pinned to a mutually-compatible analyzer/build era.
-  # See docs/plans/wheel-triage-plan.md Assumption Log: riverpod_generator
-  # 2.x (matching riverpod_annotation 2.x, per the brief's "Riverpod 2.x"
-  # pin) caps analyzer at <8.0.0, which is older than the analyzer floor
-  # every current freezed/json_serializable/drift_dev release requires.
-  # These exact versions are the newest mutually-resolvable set.
+  # Code generation, pinned as a mutually-compatible analyzer/build set.
+  # These exact versions are the newest that resolve and regenerate the
+  # committed artifacts reproducibly against the pinned `drift` /
+  # `drift_flutter` versions above. A future bump must re-verify the whole
+  # window, not bump one package on its own.
   build_runner: 2.5.4
-  riverpod_generator: 2.6.5
   drift_dev: 2.28.0
   freezed: 3.1.0
   json_serializable: 6.9.5
-  custom_lint: 0.7.5
-  riverpod_lint: 2.6.5
+
+  # Pinned directly, not left to transitive resolution. `analyzer` 7.7.x
+  # throws `Missing implementation of visitDotShorthandInvocation` from
+  # `ThrowingAstVisitor` while `build_runner` writes library bundles, which
+  # crashes code generation on this SDK. 7.6.0 is the newest version that
+  # regenerates the committed artifacts; every codegen package above accepts
+  # it (`>=6.9.0 <8.0.0`, `drift_dev` `>=7.3.0 <8.0.0`).
+  analyzer: 7.6.0
 
   mocktail: ^1.0.4
 

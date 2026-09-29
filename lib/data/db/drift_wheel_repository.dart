@@ -197,6 +197,17 @@ class DriftWheelRepository implements WheelRepository {
   }
 
   @override
+  Future<List<Leg>> getAllLegs() async {
+    final rows = await (_db.select(_db.legTable)
+          ..orderBy([
+            (t) => OrderingTerm.asc(t.openedAtMs),
+            (t) => OrderingTerm.asc(t.sequence),
+          ]))
+        .get();
+    return rows.map(_legFromRow).toList();
+  }
+
+  @override
   Future<Leg?> getLeg(String id) async {
     final row = await (_db.select(_db.legTable)..where((t) => t.id.equals(id))).getSingleOrNull();
     return row == null ? null : _legFromRow(row);
@@ -333,36 +344,83 @@ class DriftWheelRepository implements WheelRepository {
       );
     }
     return _db.transaction(() async {
-      final leg = await _requireLeg(legId);
-
-      final updatedLeg = leg.copyWith(
-        closedAt: closedAt,
-        closeReason: reason,
+      return _closeLegInTransaction(
+        legId: legId,
+        reason: reason,
         closeDebitPerShare: closeDebitPerShare,
         closeFee: closeFee,
+        closedAt: closedAt,
       );
-      await (_db.update(_db.legTable)..where((t) => t.id.equals(legId)))
-          .write(_legToCompanion(updatedLeg));
+    });
+  }
 
-      var cycle = await _requireCycle(leg.cycleId);
+  /// The shared body of [closeLeg] and [markExpired] — one leg closed plus
+  /// the put-leg-ends-its-cycle rule (Feature Invariant 16), so the batch
+  /// path cannot drift from the single-leg one. Runs inside whatever
+  /// transaction its caller already opened.
+  Future<({Leg leg, WheelCycle cycle})> _closeLegInTransaction({
+    required String legId,
+    required CloseReason reason,
+    required Decimal? closeDebitPerShare,
+    required Decimal? closeFee,
+    required DateTime closedAt,
+  }) async {
+    final leg = await _requireLeg(legId);
 
-      // Feature Invariant 16: a direct put-side close always ends the
-      // cycle; a direct call-side close never does (shares are still
-      // held while `holdingShares`).
-      if (leg.optionType == OptionType.put) {
-        final outcome = reason == CloseReason.closedEarly
-            ? WheelCycleOutcome.closedEarly
-            : WheelCycleOutcome.expiredWorthless;
-        cycle = cycle.copyWith(
-          status: WheelCycleStatus.closed,
-          outcome: outcome,
-          endedAt: closedAt,
-        );
-        await (_db.update(_db.wheelCycleTable)..where((t) => t.id.equals(cycle.id)))
-            .write(_cycleToCompanion(cycle));
+    final updatedLeg = leg.copyWith(
+      closedAt: closedAt,
+      closeReason: reason,
+      closeDebitPerShare: closeDebitPerShare,
+      closeFee: closeFee,
+    );
+    await (_db.update(_db.legTable)..where((t) => t.id.equals(legId)))
+        .write(_legToCompanion(updatedLeg));
+
+    var cycle = await _requireCycle(leg.cycleId);
+
+    // Feature Invariant 16: a direct put-side close always ends the
+    // cycle; a direct call-side close never does (shares are still
+    // held while `holdingShares`).
+    if (leg.optionType == OptionType.put) {
+      final outcome = reason == CloseReason.closedEarly
+          ? WheelCycleOutcome.closedEarly
+          : WheelCycleOutcome.expiredWorthless;
+      cycle = cycle.copyWith(
+        status: WheelCycleStatus.closed,
+        outcome: outcome,
+        endedAt: closedAt,
+      );
+      await (_db.update(_db.wheelCycleTable)..where((t) => t.id.equals(cycle.id)))
+          .write(_cycleToCompanion(cycle));
+    }
+
+    return (leg: updatedLeg, cycle: cycle);
+  }
+
+  @override
+  Future<List<Leg>> markExpired({required List<({String legId, DateTime closedAt})> legs}) {
+    _rejectEmptyExpiryBatch(legs);
+    return _db.transaction(() async {
+      // Validate every leg before writing any of them: an unknown id or an
+      // already-closed leg must leave the database untouched (S-217 b/d).
+      // The whole batch is one transaction on top of that, so a failure
+      // part-way through still rolls back (S-217 a's atomicity).
+      for (final entry in legs) {
+        _validateMarkExpiredTarget(await _legOrNull(entry.legId), entry.legId);
       }
 
-      return (leg: updatedLeg, cycle: cycle);
+      final closed = <Leg>[];
+      for (final entry in legs) {
+        final result = await _closeLegInTransaction(
+          legId: entry.legId,
+          reason: CloseReason.expiredWorthless,
+          closeDebitPerShare: Decimal.zero,
+          closeFee: null,
+          closedAt: entry.closedAt,
+        );
+        closed.add(result.leg);
+      }
+      return closed;
     });
   }
 
@@ -602,6 +660,15 @@ class DriftWheelRepository implements WheelRepository {
     return _legFromRow(row);
   }
 
+  /// [_requireLeg]'s lookup without the throw — `markExpired` validates the
+  /// whole batch through the shared `_validateMarkExpiredTarget` instead,
+  /// which needs to tell "unknown id" from "already closed".
+  Future<Leg?> _legOrNull(String legId) async {
+    final row =
+        await (_db.select(_db.legTable)..where((t) => t.id.equals(legId))).getSingleOrNull();
+    return row == null ? null : _legFromRow(row);
+  }
+
   Future<WheelCycle> _requireCycle(String cycleId) async {
     final row = await (_db.select(_db.wheelCycleTable)..where((t) => t.id.equals(cycleId)))
         .getSingleOrNull();
@@ -645,6 +712,36 @@ void _validateLegMetadataUpdate({
     throw ArgumentError(
       'updateLegMetadata: no field would change — pass at least one of '
       'acceptsAssignment, openFee, closeFee, clearOpenFee, or clearCloseFee.',
+    );
+  }
+}
+
+/// Shared validation for [WheelRepository.markExpired], duplicated verbatim
+/// in `InMemoryWheelRepository` (same rationale as
+/// `_validateLegMetadataUpdate` above). Each implementation passes the leg
+/// it looked up in its own storage, or `null` when the id is unknown — this
+/// function is the only place either the "unknown id" or the "already
+/// closed" rule is stated, so the two cannot drift apart.
+void _rejectEmptyExpiryBatch(List<({String legId, DateTime closedAt})> legs) {
+  if (legs.isEmpty) {
+    throw ArgumentError.value(
+      legs,
+      'legs',
+      'markExpired requires at least one leg — an empty batch is never a '
+          'silent no-op.',
+    );
+  }
+}
+
+void _validateMarkExpiredTarget(Leg? leg, String legId) {
+  if (leg == null) {
+    throw ArgumentError.value(legId, 'legId', 'No leg with this id exists');
+  }
+  if (leg.closedAt != null) {
+    throw ArgumentError.value(
+      legId,
+      'legId',
+      'This leg is already closed — markExpired never re-closes a leg.',
     );
   }
 }
@@ -850,6 +947,8 @@ UserPreferencesData _userPreferencesFromRow(UserPreferencesRow row) => UserPrefe
       exportReminderDismissed: row.exportReminderDismissed,
       lastExportAt: row.lastExportAtMs,
       notificationMilestones: row.notificationMilestones,
+      wheelCapital: row.wheelCapitalCents,
+      concentrationLimitPct: row.concentrationLimitPct,
     );
 
 UserPreferencesTableCompanion _userPreferencesToCompanion(UserPreferencesData p) =>
@@ -862,4 +961,6 @@ UserPreferencesTableCompanion _userPreferencesToCompanion(UserPreferencesData p)
       exportReminderDismissed: Value(p.exportReminderDismissed),
       lastExportAtMs: Value(p.lastExportAt),
       notificationMilestones: Value(p.notificationMilestones),
+      wheelCapitalCents: Value(p.wheelCapital),
+      concentrationLimitPct: Value(p.concentrationLimitPct),
     );

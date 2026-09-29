@@ -5,6 +5,7 @@ import 'package:timezone/data/latest.dart' as tz_data;
 
 import 'core/app_router.dart';
 import 'core/notifications/notification_scheduler.dart';
+import 'core/theme/app_theme.dart';
 import 'data/db/app_database.dart';
 import 'data/db/drift_wheel_repository.dart';
 import 'state/notifications/notification_providers.dart';
@@ -52,7 +53,11 @@ class WheelTriageApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp.router(
       title: 'Wheel Triage',
-      theme: ThemeData(colorScheme: ColorScheme.fromSeed(seedColor: Colors.teal)),
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      // D-3: the dark set is the design's primary palette, so a device in dark
+      // mode sees the reference and a device in light mode gets the light one.
+      themeMode: ThemeMode.system,
       routerConfig: router,
     );
   }

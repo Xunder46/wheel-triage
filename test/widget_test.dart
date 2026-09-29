@@ -1,5 +1,5 @@
 // Smoke test: the app boots without throwing and reaches its documented
-// initial route (`/positions`, see lib/core/app_router.dart) without a red
+// initial route (`/positions` -- Today -- see lib/core/app_router.dart) without a red
 // error screen. Uses `InMemoryWheelRepository` — the app's own
 // `ProviderScope` override (in `main()`) is not exercised by a widget test,
 // since that would require a real Drift/sqlite native library.
@@ -13,7 +13,7 @@ import 'package:wheel_triage/main.dart';
 import 'package:wheel_triage/state/repository_providers.dart';
 
 void main() {
-  testWidgets('App launches without throwing, reaches the Positions screen', (
+  testWidgets('App launches without throwing, reaches the Today screen', (
     WidgetTester tester,
   ) async {
     await tester.pumpWidget(
@@ -24,7 +24,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Positions'), findsWidgets);
+    expect(find.text('Today'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 

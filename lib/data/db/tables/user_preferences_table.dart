@@ -38,6 +38,20 @@ class UserPreferencesTable extends Table {
       .map(const IntListConverter())
       .withDefault(Constant(UserPreferencesDefaults.notificationMilestones.join(',')))();
 
+  // --- Schema v5 (Pro Wave 1, D-6) ---------------------------------------
+  //
+  // `wheelCapitalCents` is nullable with no default: "not set" backfills to
+  // `null`, never to zero. Money is integer **cents** here — equity, not
+  // option prices — so `CentsConverter`, not `TenThousandthsConverter`.
+  // `concentrationLimitPct` is a dimensionless percentage, so a plain real
+  // with the brief's 25 as its SQL-level default, matching the v3 pattern
+  // above.
+
+  IntColumn get wheelCapitalCents =>
+      integer().nullable().map(NullAwareTypeConverter.wrap(const CentsConverter()))();
+  RealColumn get concentrationLimitPct =>
+      real().withDefault(const Constant(UserPreferencesDefaults.concentrationLimitPct))();
+
   @override
   Set<Column> get primaryKey => {id};
 }

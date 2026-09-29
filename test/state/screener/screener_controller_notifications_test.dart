@@ -44,9 +44,12 @@ void main() {
 
   void fillForm() {
     final controller = container.read(screenerControllerProvider.notifier);
+    // Put-side since D-12: a call on a ticker with no shares on record is now
+    // refused before anything is written, and these scenarios are about the
+    // scheduling, not the side.
     controller
       ..setTicker('sbet')
-      ..setSide(OptionType.call)
+      ..setSide(OptionType.put)
       ..setStrike(Decimal.parse('11'))
       ..setSpot(Decimal.parse('9'))
       ..setCredit(Decimal.parse('0.35'))

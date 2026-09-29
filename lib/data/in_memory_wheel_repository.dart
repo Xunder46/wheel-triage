@@ -63,6 +63,8 @@ class InMemoryWheelRepository implements WheelRepository {
     exportReminderDismissed: UserPreferencesDefaults.exportReminderDismissed,
     lastExportAt: UserPreferencesDefaults.lastExportAt,
     notificationMilestones: UserPreferencesDefaults.notificationMilestones,
+    wheelCapital: UserPreferencesDefaults.wheelCapital,
+    concentrationLimitPct: UserPreferencesDefaults.concentrationLimitPct,
   );
 
   /// The seeded v1 threshold version for a built-in profile — the same
@@ -234,6 +236,16 @@ class InMemoryWheelRepository implements WheelRepository {
       _legs.values.where((l) => l.closedAt == null).toList();
 
   @override
+  Future<List<Leg>> getAllLegs() async {
+    final legs = _legs.values.toList()
+      ..sort((a, b) {
+        final byOpenedAt = a.openedAt.compareTo(b.openedAt);
+        return byOpenedAt != 0 ? byOpenedAt : a.sequence.compareTo(b.sequence);
+      });
+    return legs;
+  }
+
+  @override
   Future<Leg?> getLeg(String id) async => _legs[id];
 
   @override
@@ -350,6 +362,25 @@ class InMemoryWheelRepository implements WheelRepository {
       );
     }
 
+    return _closeLegInTransaction(
+      legId: legId,
+      reason: reason,
+      closeDebitPerShare: closeDebitPerShare,
+      closeFee: closeFee,
+      closedAt: closedAt,
+    );
+  }
+
+  /// The shared body of [closeLeg] and [markExpired] — one leg closed plus
+  /// the put-leg-ends-its-cycle rule (Feature Invariant 16), so the batch
+  /// path cannot drift from the single-leg one.
+  ({Leg leg, WheelCycle cycle}) _closeLegInTransaction({
+    required String legId,
+    required CloseReason reason,
+    required Decimal? closeDebitPerShare,
+    required Decimal? closeFee,
+    required DateTime closedAt,
+  }) {
     final leg = _requireLeg(legId);
     final updatedLeg = leg.copyWith(
       closedAt: closedAt,
@@ -373,6 +404,30 @@ class InMemoryWheelRepository implements WheelRepository {
     }
 
     return (leg: updatedLeg, cycle: cycle);
+  }
+
+  @override
+  Future<List<Leg>> markExpired({
+    required List<({String legId, DateTime closedAt})> legs,
+  }) async {
+    _rejectEmptyExpiryBatch(legs);
+
+    // Validate every leg before writing any of them, so an unknown id or an
+    // already-closed leg leaves every leg and cycle untouched (S-217 b/d).
+    for (final entry in legs) {
+      _validateMarkExpiredTarget(_legs[entry.legId], entry.legId);
+    }
+
+    return [
+      for (final entry in legs)
+        _closeLegInTransaction(
+          legId: entry.legId,
+          reason: CloseReason.expiredWorthless,
+          closeDebitPerShare: Decimal.zero,
+          closeFee: null,
+          closedAt: entry.closedAt,
+        ).leg,
+    ];
   }
 
   @override
@@ -596,6 +651,36 @@ void _validateLegMetadataUpdate({
     throw ArgumentError(
       'updateLegMetadata: no field would change — pass at least one of '
       'acceptsAssignment, openFee, closeFee, clearOpenFee, or clearCloseFee.',
+    );
+  }
+}
+
+/// Shared validation for [WheelRepository.markExpired], duplicated verbatim
+/// in `DriftWheelRepository` (same rationale as
+/// `_validateLegMetadataUpdate` above). Each implementation passes the leg
+/// it looked up in its own storage, or `null` when the id is unknown — this
+/// function is the only place either the "unknown id" or the "already
+/// closed" rule is stated, so the two cannot drift apart.
+void _rejectEmptyExpiryBatch(List<({String legId, DateTime closedAt})> legs) {
+  if (legs.isEmpty) {
+    throw ArgumentError.value(
+      legs,
+      'legs',
+      'markExpired requires at least one leg — an empty batch is never a '
+          'silent no-op.',
+    );
+  }
+}
+
+void _validateMarkExpiredTarget(Leg? leg, String legId) {
+  if (leg == null) {
+    throw ArgumentError.value(legId, 'legId', 'No leg with this id exists');
+  }
+  if (leg.closedAt != null) {
+    throw ArgumentError.value(
+      legId,
+      'legId',
+      'This leg is already closed — markExpired never re-closes a leg.',
     );
   }
 }

@@ -15,9 +15,10 @@ import 'package:wheel_triage/domain/models/leg.dart';
 import 'package:wheel_triage/domain/models/rule_profile_ids.dart';
 import 'package:wheel_triage/domain/models/snapshot.dart';
 import 'package:wheel_triage/domain/rules/bucket.dart';
+import 'package:wheel_triage/features/settings/rule_profile_section.dart';
 import 'package:wheel_triage/features/settings/settings_screen.dart';
 import 'package:wheel_triage/state/positions/position_detail_controller.dart';
-import 'package:wheel_triage/state/positions/positions_list_controller.dart';
+import 'package:wheel_triage/state/today/today_controller.dart';
 import 'package:wheel_triage/state/repository_providers.dart';
 import 'package:wheel_triage/state/rule_profiles/rule_profile_providers.dart';
 
@@ -121,7 +122,15 @@ void main() {
       expect(find.textContaining(_historyLine(1)), findsOneWidget);
 
       // All 14 fields are real inputs, pre-filled from the current version.
-      expect(find.byType(TextFormField), findsNWidgets(14));
+      // Scoped to the section: Settings carries other fields now (D-6's
+      // wheel capital and concentration limit, S-248).
+      expect(
+        find.descendant(
+          of: find.byType(RuleProfileSection),
+          matching: find.byType(TextFormField),
+        ),
+        findsNWidgets(14),
+      );
       for (final label in const [
         'Profit target (%)',
         'Assign threshold (delta)',
@@ -235,9 +244,9 @@ void main() {
       expect(detail.profile.versionId, RuleProfileVersionIds.standardV1);
       expect(detail.bucket, isA<BucketClose>());
 
-      container.listen(positionsListControllerProvider, (previous, next) {});
-      await container.read(positionsListControllerProvider.notifier).load(now: _now);
-      final items = container.read(positionsListControllerProvider).items;
+      container.listen(todayControllerProvider, (previous, next) {});
+      await container.read(todayControllerProvider.notifier).load(now: _now);
+      final items = container.read(todayControllerProvider).items;
       expect(items.single.leg.id, legAId);
       expect(items.single.bucket, isA<BucketClose>());
     });

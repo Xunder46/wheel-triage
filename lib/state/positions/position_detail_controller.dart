@@ -12,6 +12,7 @@ import '../../domain/rules/bucket.dart';
 import '../../domain/rules/classify.dart';
 import '../../domain/rules/credit_bound.dart';
 import '../../domain/rules/cycle_pnl.dart';
+import '../../domain/rules/expiry.dart';
 import '../../domain/rules/formulas.dart' as formulas;
 import '../../domain/rules/iv_resolution.dart';
 import '../../domain/rules/roll_chain.dart';
@@ -253,16 +254,10 @@ class PositionDetailController extends StateNotifier<PositionDetailState> {
       // Feature Invariant 18 (brief-followup A3): resolve snapshot IV -> leg
       // ivAtOpen -> profile default, and feed the *resolved* value into
       // TriageInput.iv -- never `snapshot?.iv` directly. This changes actual
-      // Gate 3 classification, not just a display label.
+      // Gate 3 classification, not just a display label. The assembly itself
+      // is shared with the positions list and Record's preview (D-17, S-227).
       final resolved = resolveIv(snapshot: snapshot, leg: leg);
-      final input = TriageInput(
-        capturedPct: captured,
-        deltaMagnitude: deltaMag,
-        iv: resolved.value,
-        dte: dteValue,
-        extrinsic: extrinsicValue,
-        acceptsAssignment: leg.acceptsAssignment,
-      );
+      final input = triageInputFor(leg: leg, snapshot: snapshot, dte: dteValue);
       final bucket = classify(input, profile);
       final band = profile.rollBandFor(resolved.value);
       final cumulative = cycleCumulativeCredit(cycleLegs);
@@ -445,6 +440,22 @@ class PositionDetailController extends StateNotifier<PositionDetailState> {
       state = state.copyWith(actionSubmitting: false, actionError: 'Could not close this leg: $e');
       return false;
     }
+  }
+
+  /// D-13's "Mark expired" (S-253): the same direct close as [closeDirect],
+  /// with the recorded date pinned by [recordedCloseDateForExpiry] — on or
+  /// after the expiration date the expiration date is recorded, so a leg
+  /// marked on the Monday after a Friday expiry lands in the month it
+  /// actually expired in. Before the expiration date the tap time is kept.
+  Future<bool> markExpired({Decimal? closeFee, DateTime? now}) async {
+    final leg = state.leg;
+    if (leg == null) return false;
+    return closeDirect(
+      reason: CloseReason.expiredWorthless,
+      closeDebitPerShare: Decimal.zero,
+      closeFee: closeFee,
+      closedAt: recordedCloseDateForExpiry(leg, now ?? DateTime.now()),
+    );
   }
 
   /// S-124: flips `acceptsAssignment` on the current leg (editable while

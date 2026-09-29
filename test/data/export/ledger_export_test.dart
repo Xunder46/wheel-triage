@@ -180,6 +180,10 @@ void _runTests(WheelRepository Function() createRepository) {
         exportReminderDismissed: true,
         lastExportAt: DateTime.utc(2026, 3, 1),
         notificationMilestones: const [14, 3],
+        // S-215(a): the two schema-v5 fields ride the existing preferences
+        // object, so the format version stays 2 (D-7).
+        wheelCapital: Decimal.parse('30000.00'),
+        concentrationLimitPct: 20.0,
       ),
     );
 
@@ -199,6 +203,14 @@ void _runTests(WheelRepository Function() createRepository) {
     expect(after.shareLots, unorderedEquals(before.shareLots));
     expect(after.ruleProfiles, unorderedEquals(before.ruleProfiles));
     expect(after.preferences, before.preferences);
+    // S-215(a): the two v5 fields survive the round trip, and the format
+    // version is unchanged at 2 (D-7).
+    expect(before.preferences.wheelCapital, Decimal.parse('30000.00'));
+    expect(before.preferences.concentrationLimitPct, 20.0);
+    expect(after.preferences.wheelCapital, Decimal.parse('30000.00'));
+    expect(after.preferences.concentrationLimitPct, 20.0);
+    expect(before.formatVersion, 2);
+    expect(after.formatVersion, 2);
 
     // Explicit spot checks on the two deliberately risky shapes, both
     // before AND after the round trip -- a null fee coerced to zero, or a

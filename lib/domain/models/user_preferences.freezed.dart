@@ -39,7 +39,16 @@ mixin _$UserPreferencesData {
 /// A Settings change here only pre-fills the *next* leg's schedule
 /// (Feature Invariant 31) — it never reschedules an already-open leg's
 /// already-scheduled notifications.
- List<int> get notificationMilestones;
+ List<int> get notificationMilestones;/// The user's wheel capital, in dollars, or `null` when they have not
+/// set one (Pro Wave 1, D-6). Stored on disk as integer **cents** —
+/// equity money, never ten-thousandths — and `null` is a real state
+/// ("not set"), not zero: the concentration readout is simply absent
+/// until a value exists. A value outside `(0, ∞)` is refused at entry.
+@NullableDecimalJsonConverter() Decimal? get wheelCapital;/// The share of [wheelCapital] one position may occupy, as a
+/// percentage in `(0, 100]` (Pro Wave 1, D-6). Dimensionless, so a
+/// `double` like the Greeks — it feeds no gate. A value outside that
+/// range is refused at entry; the default is the brief's 25%.
+ double get concentrationLimitPct;
 /// Create a copy of UserPreferencesData
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -52,16 +61,16 @@ $UserPreferencesDataCopyWith<UserPreferencesData> get copyWith => _$UserPreferen
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserPreferencesData&&(identical(other.totalPerContractToggle, totalPerContractToggle) || other.totalPerContractToggle == totalPerContractToggle)&&(identical(other.deltaConventionDefault, deltaConventionDefault) || other.deltaConventionDefault == deltaConventionDefault)&&(identical(other.firstRunExplainerShown, firstRunExplainerShown) || other.firstRunExplainerShown == firstRunExplainerShown)&&(identical(other.ivResolutionNoticeDismissed, ivResolutionNoticeDismissed) || other.ivResolutionNoticeDismissed == ivResolutionNoticeDismissed)&&(identical(other.exportReminderDismissed, exportReminderDismissed) || other.exportReminderDismissed == exportReminderDismissed)&&(identical(other.lastExportAt, lastExportAt) || other.lastExportAt == lastExportAt)&&const DeepCollectionEquality().equals(other.notificationMilestones, notificationMilestones));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UserPreferencesData&&(identical(other.totalPerContractToggle, totalPerContractToggle) || other.totalPerContractToggle == totalPerContractToggle)&&(identical(other.deltaConventionDefault, deltaConventionDefault) || other.deltaConventionDefault == deltaConventionDefault)&&(identical(other.firstRunExplainerShown, firstRunExplainerShown) || other.firstRunExplainerShown == firstRunExplainerShown)&&(identical(other.ivResolutionNoticeDismissed, ivResolutionNoticeDismissed) || other.ivResolutionNoticeDismissed == ivResolutionNoticeDismissed)&&(identical(other.exportReminderDismissed, exportReminderDismissed) || other.exportReminderDismissed == exportReminderDismissed)&&(identical(other.lastExportAt, lastExportAt) || other.lastExportAt == lastExportAt)&&const DeepCollectionEquality().equals(other.notificationMilestones, notificationMilestones)&&(identical(other.wheelCapital, wheelCapital) || other.wheelCapital == wheelCapital)&&(identical(other.concentrationLimitPct, concentrationLimitPct) || other.concentrationLimitPct == concentrationLimitPct));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,totalPerContractToggle,deltaConventionDefault,firstRunExplainerShown,ivResolutionNoticeDismissed,exportReminderDismissed,lastExportAt,const DeepCollectionEquality().hash(notificationMilestones));
+int get hashCode => Object.hash(runtimeType,totalPerContractToggle,deltaConventionDefault,firstRunExplainerShown,ivResolutionNoticeDismissed,exportReminderDismissed,lastExportAt,const DeepCollectionEquality().hash(notificationMilestones),wheelCapital,concentrationLimitPct);
 
 @override
 String toString() {
-  return 'UserPreferencesData(totalPerContractToggle: $totalPerContractToggle, deltaConventionDefault: $deltaConventionDefault, firstRunExplainerShown: $firstRunExplainerShown, ivResolutionNoticeDismissed: $ivResolutionNoticeDismissed, exportReminderDismissed: $exportReminderDismissed, lastExportAt: $lastExportAt, notificationMilestones: $notificationMilestones)';
+  return 'UserPreferencesData(totalPerContractToggle: $totalPerContractToggle, deltaConventionDefault: $deltaConventionDefault, firstRunExplainerShown: $firstRunExplainerShown, ivResolutionNoticeDismissed: $ivResolutionNoticeDismissed, exportReminderDismissed: $exportReminderDismissed, lastExportAt: $lastExportAt, notificationMilestones: $notificationMilestones, wheelCapital: $wheelCapital, concentrationLimitPct: $concentrationLimitPct)';
 }
 
 
@@ -72,7 +81,7 @@ abstract mixin class $UserPreferencesDataCopyWith<$Res>  {
   factory $UserPreferencesDataCopyWith(UserPreferencesData value, $Res Function(UserPreferencesData) _then) = _$UserPreferencesDataCopyWithImpl;
 @useResult
 $Res call({
- bool totalPerContractToggle, DeltaConvention deltaConventionDefault, bool firstRunExplainerShown, bool ivResolutionNoticeDismissed, bool exportReminderDismissed, DateTime? lastExportAt, List<int> notificationMilestones
+ bool totalPerContractToggle, DeltaConvention deltaConventionDefault, bool firstRunExplainerShown, bool ivResolutionNoticeDismissed, bool exportReminderDismissed, DateTime? lastExportAt, List<int> notificationMilestones,@NullableDecimalJsonConverter() Decimal? wheelCapital, double concentrationLimitPct
 });
 
 
@@ -89,7 +98,7 @@ class _$UserPreferencesDataCopyWithImpl<$Res>
 
 /// Create a copy of UserPreferencesData
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? totalPerContractToggle = null,Object? deltaConventionDefault = null,Object? firstRunExplainerShown = null,Object? ivResolutionNoticeDismissed = null,Object? exportReminderDismissed = null,Object? lastExportAt = freezed,Object? notificationMilestones = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? totalPerContractToggle = null,Object? deltaConventionDefault = null,Object? firstRunExplainerShown = null,Object? ivResolutionNoticeDismissed = null,Object? exportReminderDismissed = null,Object? lastExportAt = freezed,Object? notificationMilestones = null,Object? wheelCapital = freezed,Object? concentrationLimitPct = null,}) {
   return _then(_self.copyWith(
 totalPerContractToggle: null == totalPerContractToggle ? _self.totalPerContractToggle : totalPerContractToggle // ignore: cast_nullable_to_non_nullable
 as bool,deltaConventionDefault: null == deltaConventionDefault ? _self.deltaConventionDefault : deltaConventionDefault // ignore: cast_nullable_to_non_nullable
@@ -98,7 +107,9 @@ as bool,ivResolutionNoticeDismissed: null == ivResolutionNoticeDismissed ? _self
 as bool,exportReminderDismissed: null == exportReminderDismissed ? _self.exportReminderDismissed : exportReminderDismissed // ignore: cast_nullable_to_non_nullable
 as bool,lastExportAt: freezed == lastExportAt ? _self.lastExportAt : lastExportAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,notificationMilestones: null == notificationMilestones ? _self.notificationMilestones : notificationMilestones // ignore: cast_nullable_to_non_nullable
-as List<int>,
+as List<int>,wheelCapital: freezed == wheelCapital ? _self.wheelCapital : wheelCapital // ignore: cast_nullable_to_non_nullable
+as Decimal?,concentrationLimitPct: null == concentrationLimitPct ? _self.concentrationLimitPct : concentrationLimitPct // ignore: cast_nullable_to_non_nullable
+as double,
   ));
 }
 
@@ -183,10 +194,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( bool totalPerContractToggle,  DeltaConvention deltaConventionDefault,  bool firstRunExplainerShown,  bool ivResolutionNoticeDismissed,  bool exportReminderDismissed,  DateTime? lastExportAt,  List<int> notificationMilestones)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( bool totalPerContractToggle,  DeltaConvention deltaConventionDefault,  bool firstRunExplainerShown,  bool ivResolutionNoticeDismissed,  bool exportReminderDismissed,  DateTime? lastExportAt,  List<int> notificationMilestones, @NullableDecimalJsonConverter()  Decimal? wheelCapital,  double concentrationLimitPct)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _UserPreferencesData() when $default != null:
-return $default(_that.totalPerContractToggle,_that.deltaConventionDefault,_that.firstRunExplainerShown,_that.ivResolutionNoticeDismissed,_that.exportReminderDismissed,_that.lastExportAt,_that.notificationMilestones);case _:
+return $default(_that.totalPerContractToggle,_that.deltaConventionDefault,_that.firstRunExplainerShown,_that.ivResolutionNoticeDismissed,_that.exportReminderDismissed,_that.lastExportAt,_that.notificationMilestones,_that.wheelCapital,_that.concentrationLimitPct);case _:
   return orElse();
 
 }
@@ -204,10 +215,10 @@ return $default(_that.totalPerContractToggle,_that.deltaConventionDefault,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( bool totalPerContractToggle,  DeltaConvention deltaConventionDefault,  bool firstRunExplainerShown,  bool ivResolutionNoticeDismissed,  bool exportReminderDismissed,  DateTime? lastExportAt,  List<int> notificationMilestones)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( bool totalPerContractToggle,  DeltaConvention deltaConventionDefault,  bool firstRunExplainerShown,  bool ivResolutionNoticeDismissed,  bool exportReminderDismissed,  DateTime? lastExportAt,  List<int> notificationMilestones, @NullableDecimalJsonConverter()  Decimal? wheelCapital,  double concentrationLimitPct)  $default,) {final _that = this;
 switch (_that) {
 case _UserPreferencesData():
-return $default(_that.totalPerContractToggle,_that.deltaConventionDefault,_that.firstRunExplainerShown,_that.ivResolutionNoticeDismissed,_that.exportReminderDismissed,_that.lastExportAt,_that.notificationMilestones);case _:
+return $default(_that.totalPerContractToggle,_that.deltaConventionDefault,_that.firstRunExplainerShown,_that.ivResolutionNoticeDismissed,_that.exportReminderDismissed,_that.lastExportAt,_that.notificationMilestones,_that.wheelCapital,_that.concentrationLimitPct);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -224,10 +235,10 @@ return $default(_that.totalPerContractToggle,_that.deltaConventionDefault,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( bool totalPerContractToggle,  DeltaConvention deltaConventionDefault,  bool firstRunExplainerShown,  bool ivResolutionNoticeDismissed,  bool exportReminderDismissed,  DateTime? lastExportAt,  List<int> notificationMilestones)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( bool totalPerContractToggle,  DeltaConvention deltaConventionDefault,  bool firstRunExplainerShown,  bool ivResolutionNoticeDismissed,  bool exportReminderDismissed,  DateTime? lastExportAt,  List<int> notificationMilestones, @NullableDecimalJsonConverter()  Decimal? wheelCapital,  double concentrationLimitPct)?  $default,) {final _that = this;
 switch (_that) {
 case _UserPreferencesData() when $default != null:
-return $default(_that.totalPerContractToggle,_that.deltaConventionDefault,_that.firstRunExplainerShown,_that.ivResolutionNoticeDismissed,_that.exportReminderDismissed,_that.lastExportAt,_that.notificationMilestones);case _:
+return $default(_that.totalPerContractToggle,_that.deltaConventionDefault,_that.firstRunExplainerShown,_that.ivResolutionNoticeDismissed,_that.exportReminderDismissed,_that.lastExportAt,_that.notificationMilestones,_that.wheelCapital,_that.concentrationLimitPct);case _:
   return null;
 
 }
@@ -239,7 +250,7 @@ return $default(_that.totalPerContractToggle,_that.deltaConventionDefault,_that.
 @JsonSerializable()
 
 class _UserPreferencesData implements UserPreferencesData {
-  const _UserPreferencesData({this.totalPerContractToggle = false, this.deltaConventionDefault = DeltaConvention.position, this.firstRunExplainerShown = false, this.ivResolutionNoticeDismissed = false, this.exportReminderDismissed = false, this.lastExportAt, final  List<int> notificationMilestones = const [21, 7, 0]}): _notificationMilestones = notificationMilestones;
+  const _UserPreferencesData({this.totalPerContractToggle = false, this.deltaConventionDefault = DeltaConvention.position, this.firstRunExplainerShown = false, this.ivResolutionNoticeDismissed = false, this.exportReminderDismissed = false, this.lastExportAt, final  List<int> notificationMilestones = const [21, 7, 0], @NullableDecimalJsonConverter() this.wheelCapital, this.concentrationLimitPct = 25.0}): _notificationMilestones = notificationMilestones;
   factory _UserPreferencesData.fromJson(Map<String, dynamic> json) => _$UserPreferencesDataFromJson(json);
 
 /// "Total per contract" toggle (Feature Invariant 21): one global
@@ -283,6 +294,17 @@ class _UserPreferencesData implements UserPreferencesData {
   return EqualUnmodifiableListView(_notificationMilestones);
 }
 
+/// The user's wheel capital, in dollars, or `null` when they have not
+/// set one (Pro Wave 1, D-6). Stored on disk as integer **cents** —
+/// equity money, never ten-thousandths — and `null` is a real state
+/// ("not set"), not zero: the concentration readout is simply absent
+/// until a value exists. A value outside `(0, ∞)` is refused at entry.
+@override@NullableDecimalJsonConverter() final  Decimal? wheelCapital;
+/// The share of [wheelCapital] one position may occupy, as a
+/// percentage in `(0, 100]` (Pro Wave 1, D-6). Dimensionless, so a
+/// `double` like the Greeks — it feeds no gate. A value outside that
+/// range is refused at entry; the default is the brief's 25%.
+@override@JsonKey() final  double concentrationLimitPct;
 
 /// Create a copy of UserPreferencesData
 /// with the given fields replaced by the non-null parameter values.
@@ -297,16 +319,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserPreferencesData&&(identical(other.totalPerContractToggle, totalPerContractToggle) || other.totalPerContractToggle == totalPerContractToggle)&&(identical(other.deltaConventionDefault, deltaConventionDefault) || other.deltaConventionDefault == deltaConventionDefault)&&(identical(other.firstRunExplainerShown, firstRunExplainerShown) || other.firstRunExplainerShown == firstRunExplainerShown)&&(identical(other.ivResolutionNoticeDismissed, ivResolutionNoticeDismissed) || other.ivResolutionNoticeDismissed == ivResolutionNoticeDismissed)&&(identical(other.exportReminderDismissed, exportReminderDismissed) || other.exportReminderDismissed == exportReminderDismissed)&&(identical(other.lastExportAt, lastExportAt) || other.lastExportAt == lastExportAt)&&const DeepCollectionEquality().equals(other._notificationMilestones, _notificationMilestones));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UserPreferencesData&&(identical(other.totalPerContractToggle, totalPerContractToggle) || other.totalPerContractToggle == totalPerContractToggle)&&(identical(other.deltaConventionDefault, deltaConventionDefault) || other.deltaConventionDefault == deltaConventionDefault)&&(identical(other.firstRunExplainerShown, firstRunExplainerShown) || other.firstRunExplainerShown == firstRunExplainerShown)&&(identical(other.ivResolutionNoticeDismissed, ivResolutionNoticeDismissed) || other.ivResolutionNoticeDismissed == ivResolutionNoticeDismissed)&&(identical(other.exportReminderDismissed, exportReminderDismissed) || other.exportReminderDismissed == exportReminderDismissed)&&(identical(other.lastExportAt, lastExportAt) || other.lastExportAt == lastExportAt)&&const DeepCollectionEquality().equals(other._notificationMilestones, _notificationMilestones)&&(identical(other.wheelCapital, wheelCapital) || other.wheelCapital == wheelCapital)&&(identical(other.concentrationLimitPct, concentrationLimitPct) || other.concentrationLimitPct == concentrationLimitPct));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,totalPerContractToggle,deltaConventionDefault,firstRunExplainerShown,ivResolutionNoticeDismissed,exportReminderDismissed,lastExportAt,const DeepCollectionEquality().hash(_notificationMilestones));
+int get hashCode => Object.hash(runtimeType,totalPerContractToggle,deltaConventionDefault,firstRunExplainerShown,ivResolutionNoticeDismissed,exportReminderDismissed,lastExportAt,const DeepCollectionEquality().hash(_notificationMilestones),wheelCapital,concentrationLimitPct);
 
 @override
 String toString() {
-  return 'UserPreferencesData(totalPerContractToggle: $totalPerContractToggle, deltaConventionDefault: $deltaConventionDefault, firstRunExplainerShown: $firstRunExplainerShown, ivResolutionNoticeDismissed: $ivResolutionNoticeDismissed, exportReminderDismissed: $exportReminderDismissed, lastExportAt: $lastExportAt, notificationMilestones: $notificationMilestones)';
+  return 'UserPreferencesData(totalPerContractToggle: $totalPerContractToggle, deltaConventionDefault: $deltaConventionDefault, firstRunExplainerShown: $firstRunExplainerShown, ivResolutionNoticeDismissed: $ivResolutionNoticeDismissed, exportReminderDismissed: $exportReminderDismissed, lastExportAt: $lastExportAt, notificationMilestones: $notificationMilestones, wheelCapital: $wheelCapital, concentrationLimitPct: $concentrationLimitPct)';
 }
 
 
@@ -317,7 +339,7 @@ abstract mixin class _$UserPreferencesDataCopyWith<$Res> implements $UserPrefere
   factory _$UserPreferencesDataCopyWith(_UserPreferencesData value, $Res Function(_UserPreferencesData) _then) = __$UserPreferencesDataCopyWithImpl;
 @override @useResult
 $Res call({
- bool totalPerContractToggle, DeltaConvention deltaConventionDefault, bool firstRunExplainerShown, bool ivResolutionNoticeDismissed, bool exportReminderDismissed, DateTime? lastExportAt, List<int> notificationMilestones
+ bool totalPerContractToggle, DeltaConvention deltaConventionDefault, bool firstRunExplainerShown, bool ivResolutionNoticeDismissed, bool exportReminderDismissed, DateTime? lastExportAt, List<int> notificationMilestones,@NullableDecimalJsonConverter() Decimal? wheelCapital, double concentrationLimitPct
 });
 
 
@@ -334,7 +356,7 @@ class __$UserPreferencesDataCopyWithImpl<$Res>
 
 /// Create a copy of UserPreferencesData
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? totalPerContractToggle = null,Object? deltaConventionDefault = null,Object? firstRunExplainerShown = null,Object? ivResolutionNoticeDismissed = null,Object? exportReminderDismissed = null,Object? lastExportAt = freezed,Object? notificationMilestones = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? totalPerContractToggle = null,Object? deltaConventionDefault = null,Object? firstRunExplainerShown = null,Object? ivResolutionNoticeDismissed = null,Object? exportReminderDismissed = null,Object? lastExportAt = freezed,Object? notificationMilestones = null,Object? wheelCapital = freezed,Object? concentrationLimitPct = null,}) {
   return _then(_UserPreferencesData(
 totalPerContractToggle: null == totalPerContractToggle ? _self.totalPerContractToggle : totalPerContractToggle // ignore: cast_nullable_to_non_nullable
 as bool,deltaConventionDefault: null == deltaConventionDefault ? _self.deltaConventionDefault : deltaConventionDefault // ignore: cast_nullable_to_non_nullable
@@ -343,7 +365,9 @@ as bool,ivResolutionNoticeDismissed: null == ivResolutionNoticeDismissed ? _self
 as bool,exportReminderDismissed: null == exportReminderDismissed ? _self.exportReminderDismissed : exportReminderDismissed // ignore: cast_nullable_to_non_nullable
 as bool,lastExportAt: freezed == lastExportAt ? _self.lastExportAt : lastExportAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,notificationMilestones: null == notificationMilestones ? _self._notificationMilestones : notificationMilestones // ignore: cast_nullable_to_non_nullable
-as List<int>,
+as List<int>,wheelCapital: freezed == wheelCapital ? _self.wheelCapital : wheelCapital // ignore: cast_nullable_to_non_nullable
+as Decimal?,concentrationLimitPct: null == concentrationLimitPct ? _self.concentrationLimitPct : concentrationLimitPct // ignore: cast_nullable_to_non_nullable
+as double,
   ));
 }
 

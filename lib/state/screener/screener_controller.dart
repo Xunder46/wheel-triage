@@ -3,15 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/dates/nearest_friday.dart';
 import '../../core/money/total_per_contract.dart';
-import '../../data/wheel_repository.dart';
 import '../../domain/models/leg.dart';
 import '../../domain/rules/credit_bound.dart';
 import '../../domain/rules/formulas.dart';
 import '../../domain/rules/rule_profile.dart';
 import '../../domain/rules/screener.dart';
-import '../notifications/notification_providers.dart';
 import '../preferences/preferences_provider.dart';
-import '../repository_providers.dart';
+import '../record/record_save_service.dart';
 import '../rule_profiles/rule_profile_providers.dart';
 
 /// §5.1's entry-screener form. Every field is nullable/unset until the user
@@ -266,45 +264,34 @@ class ScreenerController extends StateNotifier<ScreenerFormState> {
     final effectiveNow = now ?? _now;
     state = form.copyWith(isSaving: true, clearError: true);
     try {
-      final repo = _ref.read(wheelRepositoryProvider);
-      final profile = await _ref.read(currentRuleProfileProvider.future);
-      final underlying = await repo.getOrCreateUnderlying(form.ticker.trim());
-      final result = await repo.createCycle(
-        underlyingId: underlying.id,
-        firstLeg: NewLegInput(
-          optionType: form.side,
-          strike: form.strike!,
-          expiration: form.expiration!,
-          contracts: form.contracts,
-          openedAt: effectiveNow,
-          openCreditPerShare: form.credit!,
-          ruleProfileVersionId: profile.versionId,
-          ivAtOpen: form.iv,
-          ivRankAtOpen: form.ivRank,
-          underlyingPriceAtOpen: form.spot,
-          openFee: form.openFee,
-          acceptsAssignment: form.acceptsAssignment,
-        ),
-      );
-
-      // Phase 21/S-170: "Track this position" is the app's first-ever
-      // leg-creation call site, so this is also where lazy notification
-      // permission gets requested (Feature Invariant 32) --
-      // `NotificationScheduler` itself enforces "only once."
-      final milestones =
-          _ref.read(preferencesControllerProvider).valueOrNull?.notificationMilestones ??
-          const [21, 7, 0];
-      await _ref
-          .read(notificationSchedulerProvider)
-          .scheduleForLeg(
-            legId: result.leg.id,
-            ticker: underlying.ticker,
-            optionType: form.side,
+      // D-19: the screener's "Track this position" and Record's save are the
+      // same entry point, so a call on a ticker with no shares on record is
+      // refused here with the D-12 line rather than opening a put-shaped
+      // cycle holding a call leg. The put side is unchanged: `save` still
+      // creates one underlying, one `sellingPuts` cycle and its first leg,
+      // then schedules that leg's reminders (Phase 21/S-170's lazy
+      // permission request lives inside `NotificationScheduler`).
+      final result = await _ref
+          .read(recordSaveServiceProvider)
+          .save(
+            ticker: form.ticker.trim(),
+            side: form.side,
             strike: form.strike!,
             expiration: form.expiration!,
-            milestones: milestones,
+            contracts: form.contracts,
+            openCreditPerShare: form.credit!,
+            ivAtOpen: form.iv,
+            ivRankAtOpen: form.ivRank,
+            underlyingPriceAtOpen: form.spot,
+            openFee: form.openFee,
+            acceptsAssignment: form.acceptsAssignment,
             now: effectiveNow,
           );
+
+      if (result.isRefused) {
+        state = state.copyWith(isSaving: false, error: result.refusalReason);
+        return false;
+      }
 
       state = state.copyWith(isSaving: false, tracked: true);
       return true;

@@ -6,17 +6,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:wheel_triage/core/disclaimer.dart';
 import 'package:wheel_triage/core/notifications/notification_scheduler.dart';
 import 'package:wheel_triage/data/in_memory_wheel_repository.dart';
 import 'package:wheel_triage/data/wheel_repository.dart';
 import 'package:wheel_triage/domain/models/leg.dart';
 import 'package:wheel_triage/domain/models/rule_profile_ids.dart';
 import 'package:wheel_triage/domain/models/snapshot.dart';
+import 'package:wheel_triage/domain/rules/capital_committed.dart';
 import 'package:wheel_triage/features/positions/position_detail_sheet.dart';
 import 'package:wheel_triage/features/settings/settings_screen.dart';
 import 'package:wheel_triage/state/export/export_controller.dart';
 import 'package:wheel_triage/state/notifications/notification_providers.dart';
-import 'package:wheel_triage/state/positions/positions_list_controller.dart';
+import 'package:wheel_triage/state/today/today_controller.dart';
 import 'package:wheel_triage/state/preferences/preferences_provider.dart';
 import 'package:wheel_triage/state/repository_providers.dart';
 import 'package:wheel_triage/state/rule_profiles/rule_profile_providers.dart';
@@ -367,7 +369,7 @@ void main() {
         firstLeg: NewLegInput(
           optionType: OptionType.put,
           strike: Decimal.parse('45'),
-          expiration: DateTime(2026, 3, 1),
+          expiration: DateTime.now().add(const Duration(days: 30)),
           contracts: 1,
           openedAt: DateTime(2026, 1, 1),
           openCreditPerShare: Decimal.parse('0.60'),
@@ -393,9 +395,9 @@ void main() {
         ],
       );
       addTearDown(container.dispose);
-      container.listen(positionsListControllerProvider, (previous, next) {});
-      await container.read(positionsListControllerProvider.notifier).load();
-      final beforeItems = container.read(positionsListControllerProvider).items;
+      container.listen(todayControllerProvider, (previous, next) {});
+      await container.read(todayControllerProvider.notifier).load();
+      final beforeItems = container.read(todayControllerProvider).items;
       expect(beforeItems, hasLength(1));
 
       await tester.pumpWidget(
@@ -414,7 +416,7 @@ void main() {
       expect(find.textContaining('legs[0]'), findsOneWidget);
       // ...and nothing else on screen changed: the positions list provider
       // was never invalidated/reloaded, and the underlying leg is untouched.
-      final afterItems = container.read(positionsListControllerProvider).items;
+      final afterItems = container.read(todayControllerProvider).items;
       expect(afterItems.map((i) => i.leg.id), beforeItems.map((i) => i.leg.id));
       expect(await repo.getLeg(result.leg.id), isNotNull);
     });
@@ -492,6 +494,122 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.textContaining("won't fire until you turn them back on"), findsNothing);
+    });
+  });
+
+  group('S-248: Settings gains wheel capital and the concentration limit', () {
+    Future<void> pump(WidgetTester tester, InMemoryWheelRepository repo) async {
+      tester.view.physicalSize = const Size(800, 6000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+          child: const MaterialApp(home: SettingsScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    Finder field(String key) => find.byKey(ValueKey(key));
+
+    testWidgets('wheel capital persists and reads back after a restart', (tester) async {
+      final repo = InMemoryWheelRepository();
+      await pump(tester, repo);
+
+      expect(find.text('Your book'), findsOneWidget);
+      await tester.enterText(field('wheel-capital'), '30000');
+      await tester.pumpAndSettle();
+
+      expect((await repo.getPreferences()).wheelCapital, Decimal.parse('30000'));
+
+      // A fresh screen over the same storage reads the stored figure back.
+      await pump(tester, repo);
+      expect(
+        find.descendant(of: field('wheel-capital'), matching: find.text('30000')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a blank field clears wheel capital back to "not set"', (tester) async {
+      final repo = InMemoryWheelRepository();
+      await repo.updatePreferences(
+        (await repo.getPreferences()).copyWith(wheelCapital: Decimal.parse('30000')),
+      );
+      await pump(tester, repo);
+
+      await tester.enterText(field('wheel-capital'), '');
+      await tester.pumpAndSettle();
+
+      expect((await repo.getPreferences()).wheelCapital, isNull);
+    });
+
+    testWidgets('a value outside (0, infinity) is refused, never clamped', (tester) async {
+      final repo = InMemoryWheelRepository();
+      await pump(tester, repo);
+
+      await tester.enterText(field('wheel-capital'), '0');
+      await tester.pumpAndSettle();
+      expect(find.text(kWheelCapitalRefusal), findsOneWidget);
+      expect((await repo.getPreferences()).wheelCapital, isNull);
+
+      await tester.enterText(field('wheel-capital'), '-5');
+      await tester.pumpAndSettle();
+      expect(find.text(kWheelCapitalRefusal), findsOneWidget);
+      expect((await repo.getPreferences()).wheelCapital, isNull);
+
+      await tester.enterText(field('wheel-capital'), 'abc');
+      await tester.pumpAndSettle();
+      expect(find.text(kWheelCapitalRefusal), findsOneWidget);
+      expect((await repo.getPreferences()).wheelCapital, isNull);
+
+      await tester.enterText(field('wheel-capital'), '30000');
+      await tester.pumpAndSettle();
+      expect(find.text(kWheelCapitalRefusal), findsNothing);
+      expect((await repo.getPreferences()).wheelCapital, Decimal.parse('30000'));
+    });
+
+    testWidgets('the limit defaults to 25 and persists; outside (0, 100] it is refused', (
+      tester,
+    ) async {
+      final repo = InMemoryWheelRepository();
+      await pump(tester, repo);
+
+      expect(
+        find.descendant(of: field('concentration-limit'), matching: find.text('25')),
+        findsOneWidget,
+      );
+
+      await tester.enterText(field('concentration-limit'), '0');
+      await tester.pumpAndSettle();
+      expect(find.text(kConcentrationLimitRefusal), findsOneWidget);
+      expect((await repo.getPreferences()).concentrationLimitPct, 25.0);
+
+      await tester.enterText(field('concentration-limit'), '101');
+      await tester.pumpAndSettle();
+      expect(find.text(kConcentrationLimitRefusal), findsOneWidget);
+      expect((await repo.getPreferences()).concentrationLimitPct, 25.0);
+
+      // 100 is inside the range: the boundary is inclusive at the top.
+      await tester.enterText(field('concentration-limit'), '100');
+      await tester.pumpAndSettle();
+      expect(find.text(kConcentrationLimitRefusal), findsNothing);
+      expect((await repo.getPreferences()).concentrationLimitPct, 100.0);
+
+      await tester.enterText(field('concentration-limit'), '30');
+      await tester.pumpAndSettle();
+      expect((await repo.getPreferences()).concentrationLimitPct, 30.0);
+    });
+
+    testWidgets('the disclaimer is the last thing in Settings, in D-P15\'s words', (
+      tester,
+    ) async {
+      final repo = InMemoryWheelRepository();
+      await pump(tester, repo);
+
+      expect(find.text(kAppDisclaimer), findsOneWidget);
     });
   });
 }

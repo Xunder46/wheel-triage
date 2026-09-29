@@ -59,3 +59,16 @@ final class BucketLeave extends Bucket {
 final class BucketUnknown extends Bucket {
   const BucketUnknown({required super.reason});
 }
+
+/// The neutral-verb display label for [bucket] — `Close`/`Roll`/`Assign`/
+/// `Leave`, and `No data` for [BucketUnknown] (Feature Invariant 19).
+///
+/// One definition, so the label cannot drift between the badge, Today's
+/// count chips and the preview's change line.
+String bucketLabel(Bucket bucket) => switch (bucket) {
+  BucketClose() => 'Close',
+  BucketRoll() => 'Roll',
+  BucketAssign() => 'Assign',
+  BucketLeave() => 'Leave',
+  BucketUnknown() => 'No data',
+};

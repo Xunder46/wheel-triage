@@ -10,6 +10,7 @@ import 'package:wheel_triage/domain/models/rule_profile_ids.dart';
 import 'package:wheel_triage/domain/models/snapshot.dart';
 import 'package:wheel_triage/domain/models/wheel_cycle.dart';
 import 'package:wheel_triage/domain/rules/bucket.dart';
+import 'package:wheel_triage/domain/rules/premium_collected.dart' as premium;
 import 'package:wheel_triage/state/notifications/notification_providers.dart';
 import 'package:wheel_triage/state/positions/position_detail_controller.dart';
 import 'package:wheel_triage/state/repository_providers.dart';
@@ -260,5 +261,114 @@ void main() {
         expect(reopenedBucket, postCloseBucket); // same type AND same reason
       },
     );
+  });
+
+  group('S-253: the date a "Mark expired" records', () {
+    Future<({String legId, String cycleId})> open(
+      InMemoryWheelRepository repo, {
+      required DateTime expiration,
+      required DateTime openedAt,
+    }) async {
+      final underlying = await repo.getOrCreateUnderlying('D13');
+      final result = await repo.createCycle(
+        underlyingId: underlying.id,
+        firstLeg: NewLegInput(
+          optionType: OptionType.put,
+          strike: Decimal.parse('50'),
+          expiration: expiration,
+          contracts: 1,
+          openedAt: openedAt,
+          openCreditPerShare: Decimal.parse('0.60'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+      return (legId: result.leg.id, cycleId: result.cycle.id);
+    }
+
+    Future<bool> markExpired(
+      InMemoryWheelRepository repo,
+      String legId, {
+      required DateTime now,
+    }) async {
+      final container = ProviderContainer(
+        overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+      );
+      addTearDown(container.dispose);
+      container.listen(
+        positionDetailControllerProvider(legId),
+        (previous, next) {},
+      );
+      final controller = container.read(
+        positionDetailControllerProvider(legId).notifier,
+      );
+      await controller.load(now: now);
+      return controller.markExpired(now: now);
+    }
+
+    test('a leg expiring three days ago records its expiration date', () async {
+      final repo = InMemoryWheelRepository();
+      final leg = await open(
+        repo,
+        expiration: DateTime(2026, 9, 25),
+        openedAt: DateTime(2026, 9, 5),
+      );
+
+      expect(await markExpired(repo, leg.legId, now: DateTime(2026, 9, 28)), isTrue);
+
+      final closed = (await repo.getLeg(leg.legId))!;
+      expect(closed.closedAt, DateTime(2026, 9, 25));
+      expect(closed.closeReason, CloseReason.expiredWorthless);
+      expect(closed.closeDebitPerShare, Decimal.zero);
+      expect(closed.closeFee, isNull);
+      // The ledger strip and the month attribution read this same date.
+      final cycle = (await repo.getCycle(leg.cycleId))!;
+      expect(cycle.endedAt, DateTime(2026, 9, 25));
+      expect(premium.monthPeriodContaining(closed.closedAt!).start.month, 9);
+    });
+
+    test('a leg marked after its month ended still lands in its own month', () async {
+      final repo = InMemoryWheelRepository();
+      final leg = await open(
+        repo,
+        expiration: DateTime(2026, 9, 30),
+        openedAt: DateTime(2026, 9, 1),
+      );
+
+      await markExpired(repo, leg.legId, now: DateTime(2026, 10, 2));
+
+      final closed = (await repo.getLeg(leg.legId))!;
+      expect(closed.closedAt, DateTime(2026, 9, 30));
+      expect(premium.monthPeriodContaining(closed.closedAt!).start.month, 9);
+      expect(
+        premium.monthPeriodContaining(DateTime(2026, 10, 2)).start.month,
+        10,
+      );
+    });
+
+    test('a leg marked five days before its expiration keeps the tap time', () async {
+      final repo = InMemoryWheelRepository();
+      final leg = await open(
+        repo,
+        expiration: DateTime(2026, 10, 3),
+        openedAt: DateTime(2026, 9, 5),
+      );
+
+      await markExpired(repo, leg.legId, now: DateTime(2026, 9, 28));
+
+      expect((await repo.getLeg(leg.legId))!.closedAt, DateTime(2026, 9, 28));
+    });
+
+    test('a leg marked on its expiration date records that date', () async {
+      final repo = InMemoryWheelRepository();
+      final leg = await open(
+        repo,
+        expiration: DateTime(2026, 9, 28),
+        openedAt: DateTime(2026, 9, 5),
+      );
+
+      await markExpired(repo, leg.legId, now: DateTime(2026, 9, 28));
+
+      expect((await repo.getLeg(leg.legId))!.closedAt, DateTime(2026, 9, 28));
+    });
   });
 }

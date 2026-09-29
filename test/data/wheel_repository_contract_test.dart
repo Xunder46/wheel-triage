@@ -8,7 +8,8 @@
 // this point in the pipeline), S-020's persist-vs-not shape, S-024/S-025's
 // two-write atomicity, S-026/S-029's cycle transitions, S-030 (write-then-
 // read round trip), and S-031 (seeded rule profiles, parity of seeding
-// between both implementations).
+// between both implementations). Phase 3 added S-216 (`getAllLegs`'
+// ordering) and S-217 (`markExpired`'s atomicity).
 //
 // CR-7: the three export/import methods (`exportToJson`,
 // `countCyclesForReplace`, `restoreFromJson`) are intentionally NOT here —
@@ -336,6 +337,138 @@ void _runContractTests(WheelRepository Function() createRepository) {
 
       final chain = await repo.getLegsForCycle(assignment.cycle.id);
       expect(chain, [assignment.leg, callLeg]);
+    });
+  });
+
+  group('getAllLegs (S-216: every leg, deterministic order)', () {
+    // S-216's fixture: two cycles, four legs, one of them backdated a month
+    // earlier than the rest. The timestamps are chosen so that
+    // `(openedAt, sequence)` is a *total* order over the four legs, and so
+    // that insertion order contradicts it exactly once: `A0` (sequence 0) is
+    // written after `B1` (sequence 1) but shares its `openedAt`, so an
+    // implementation that sorted on `openedAt` alone — or trusted SQLite's
+    // rowid / the map's insertion order — returns them the other way round.
+    final reference = DateTime.utc(2026, 5, 4, 10, 0);
+    final backdated = reference.subtract(const Duration(days: 30));
+    final laterSameMinute = reference.add(const Duration(seconds: 30));
+
+    Future<
+        ({
+          Leg backdatedPut,
+          Leg call,
+          Leg put,
+          Leg rolledCall,
+          WheelCycle closedCycle,
+          WheelCycle openCycle,
+        })> seed() async {
+      // The closed cycle first, so its later leg (sequence 1) is written
+      // before the open cycle's first leg (sequence 0) at the same instant.
+      final closedUnderlying = await repo.getOrCreateUnderlying('BBB');
+      final created = await repo.createCycle(
+        underlyingId: closedUnderlying.id,
+        firstLeg: NewLegInput(
+          optionType: OptionType.put,
+          strike: Decimal.parse('45.00'),
+          expiration: DateTime.utc(2026, 4, 15),
+          contracts: 1,
+          openedAt: backdated,
+          openCreditPerShare: Decimal.parse('0.60'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+      final assigned = await repo.recordAssignment(
+        legId: created.leg.id,
+        shareLot: NewShareLotInput(
+          assignedAt: backdated.add(const Duration(days: 32)),
+          assignmentStrike: Decimal.parse('45.00'),
+          contracts: 1,
+        ),
+      );
+      final call = await repo.openNextLeg(
+        cycleId: assigned.cycle.id,
+        leg: NewLegInput(
+          optionType: OptionType.call,
+          strike: Decimal.parse('47.00'),
+          expiration: DateTime.utc(2026, 5, 15),
+          contracts: 1,
+          openedAt: reference,
+          openCreditPerShare: Decimal.parse('0.50'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+      final calledAway = await repo.recordCallAway(
+        legId: call.id,
+        closedAt: reference.add(const Duration(days: 12)),
+      );
+
+      final openUnderlying = await repo.getOrCreateUnderlying('AAA');
+      final rolled = await repo.createCycle(
+        underlyingId: openUnderlying.id,
+        firstLeg: NewLegInput(
+          optionType: OptionType.put,
+          strike: Decimal.parse('30.00'),
+          expiration: DateTime.utc(2026, 6, 19),
+          contracts: 1,
+          openedAt: reference,
+          openCreditPerShare: Decimal.parse('0.45'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+      final roll = await repo.recordRoll(
+        closingLegId: rolled.leg.id,
+        closeDebitPerShare: Decimal.parse('0.15'),
+        closedAt: reference.add(const Duration(seconds: 20)),
+        newLeg: NewLegInput(
+          optionType: OptionType.put,
+          strike: Decimal.parse('28.00'),
+          expiration: DateTime.utc(2026, 7, 17),
+          contracts: 1,
+          openedAt: laterSameMinute,
+          openCreditPerShare: Decimal.parse('0.40'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+
+      return (
+        backdatedPut: created.leg,
+        call: call,
+        put: roll.closedLeg,
+        rolledCall: roll.newLeg,
+        closedCycle: calledAway.cycle,
+        openCycle: rolled.cycle,
+      );
+    }
+
+    test('returns every leg, backdated first, sequence breaking same-instant ties', () async {
+      final fixture = await seed();
+
+      final legs = await repo.getAllLegs();
+
+      expect(
+        legs.map((l) => l.id).toList(),
+        [
+          fixture.backdatedPut.id,
+          fixture.put.id,
+          fixture.call.id,
+          fixture.rolledCall.id,
+        ],
+      );
+      expect(legs, hasLength(4));
+    });
+
+    test('includes open and closed legs alike, and does not disturb either cycle', () async {
+      final fixture = await seed();
+
+      final legs = await repo.getAllLegs();
+
+      expect(legs.where((l) => l.closedAt == null).map((l) => l.id), [fixture.rolledCall.id]);
+      expect(
+        legs.where((l) => l.closedAt != null).map((l) => l.id),
+        [fixture.backdatedPut.id, fixture.put.id, fixture.call.id],
+      );
+
+      expect((await repo.getCycle(fixture.openCycle.id))!.status, WheelCycleStatus.sellingPuts);
+      expect((await repo.getCycle(fixture.closedCycle.id))!.status, WheelCycleStatus.closed);
     });
   });
 
@@ -846,6 +979,225 @@ void _runContractTests(WheelRepository Function() createRepository) {
     });
   });
 
+  group('markExpired (S-217: the batch expire is atomic)', () {
+    // S-217's fixture: three open legs past expiration across two cycles —
+    // two puts, each on its own cycle, and one call on a `holdingShares`
+    // cycle — plus one open leg that is deliberately NOT in any batch, so
+    // "nothing else moved" is falsifiable.
+    final putExpiration = DateTime.utc(2026, 4, 15);
+    final callExpiration = DateTime.utc(2026, 4, 22);
+    final unselectedExpiration = DateTime.utc(2026, 4, 3);
+
+    Future<
+        ({
+          Leg holdingSharesCall,
+          Leg put,
+          Leg secondPut,
+          Leg unselectedPut,
+          WheelCycle holdingSharesCycle,
+          WheelCycle putCycle,
+          WheelCycle secondPutCycle,
+          WheelCycle unselectedCycle,
+        })> seed() async {
+      Future<({Leg leg, WheelCycle cycle})> openPut(
+        String ticker,
+        String strike,
+        DateTime expiration,
+      ) async {
+        final underlying = await repo.getOrCreateUnderlying(ticker);
+        return repo.createCycle(
+          underlyingId: underlying.id,
+          firstLeg: NewLegInput(
+            optionType: OptionType.put,
+            strike: Decimal.parse(strike),
+            expiration: expiration,
+            contracts: 1,
+            openedAt: DateTime.utc(2026, 3, 11),
+            openCreditPerShare: Decimal.parse('0.60'),
+            ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+          ),
+        );
+      }
+
+      final put = await openPut('AAA', '45.00', putExpiration);
+      final secondPut = await openPut('BBB', '20.00', putExpiration);
+      final unselected = await openPut('CCC', '25.00', unselectedExpiration);
+
+      // The `holdingShares` cycle: its put is already assigned (closed), its
+      // call is the open leg the batch targets.
+      final holdingShares = await openPut('DDD', '30.00', callExpiration);
+      final assigned = await repo.recordAssignment(
+        legId: holdingShares.leg.id,
+        shareLot: NewShareLotInput(
+          assignedAt: DateTime.utc(2026, 3, 20),
+          assignmentStrike: Decimal.parse('30.00'),
+          contracts: 1,
+        ),
+      );
+      final call = await repo.openNextLeg(
+        cycleId: assigned.cycle.id,
+        leg: NewLegInput(
+          optionType: OptionType.call,
+          strike: Decimal.parse('32.00'),
+          expiration: callExpiration,
+          contracts: 1,
+          openedAt: DateTime.utc(2026, 3, 21),
+          openCreditPerShare: Decimal.parse('0.50'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+
+      return (
+        holdingSharesCall: call,
+        put: put.leg,
+        secondPut: secondPut.leg,
+        unselectedPut: unselected.leg,
+        holdingSharesCycle: assigned.cycle,
+        putCycle: put.cycle,
+        secondPutCycle: secondPut.cycle,
+        unselectedCycle: unselected.cycle,
+      );
+    }
+
+    /// Every leg and every one of the fixture's cycles, as they stand right
+    /// now — the "nothing changed" baseline the failure cases compare
+    /// against.
+    Future<({List<Leg> legs, Map<String, WheelCycle?> cycles})> snapshot(
+      List<String> cycleIds,
+    ) async => (
+          legs: await repo.getAllLegs(),
+          cycles: {
+            for (final id in cycleIds) id: await repo.getCycle(id),
+          },
+        );
+
+    test('closes a batch of two, ending the put leg\'s cycle and leaving holdingShares alone',
+        () async {
+      final fixture = await seed();
+
+      final closed = await repo.markExpired(
+        legs: [
+          (legId: fixture.put.id, closedAt: putExpiration),
+          (legId: fixture.holdingSharesCall.id, closedAt: callExpiration),
+        ],
+      );
+
+      // The returned legs carry exactly what `closeLeg(reason:
+      // expiredWorthless, closeDebitPerShare: Decimal.zero, closeFee: null,
+      // closedAt: <supplied>)` records.
+      expect(closed.map((l) => l.id), [fixture.put.id, fixture.holdingSharesCall.id]);
+      for (final leg in closed) {
+        expect(leg.closeReason, CloseReason.expiredWorthless);
+        expect(leg.closeDebitPerShare, Decimal.zero);
+        expect(leg.closeFee, isNull);
+      }
+      expect(closed[0].closedAt, putExpiration);
+      expect(closed[1].closedAt, callExpiration);
+
+      // Re-read rather than trusting the return value: the write really
+      // landed, and it landed identically in both implementations.
+      final legs = await repo.getAllLegs();
+      final byId = {for (final leg in legs) leg.id: leg};
+      expect(byId[fixture.put.id]!.closedAt, putExpiration);
+      expect(byId[fixture.put.id]!.closeReason, CloseReason.expiredWorthless);
+      expect(byId[fixture.put.id]!.closeDebitPerShare, Decimal.zero);
+      expect(byId[fixture.put.id]!.closeFee, isNull);
+      expect(byId[fixture.holdingSharesCall.id]!.closedAt, callExpiration);
+      expect(byId[fixture.holdingSharesCall.id]!.closeReason, CloseReason.expiredWorthless);
+      expect(byId[fixture.holdingSharesCall.id]!.closeDebitPerShare, Decimal.zero);
+      expect(byId[fixture.holdingSharesCall.id]!.closeFee, isNull);
+
+      // The put leg's own cycle ended exactly as a direct close ends it.
+      final putCycle = await repo.getCycle(fixture.putCycle.id);
+      expect(putCycle!.status, WheelCycleStatus.closed);
+      expect(putCycle.outcome, WheelCycleOutcome.expiredWorthless);
+      expect(putCycle.endedAt, putExpiration);
+
+      // A call leg on a `holdingShares` cycle does not end that cycle.
+      final holdingSharesCycle = await repo.getCycle(fixture.holdingSharesCycle.id);
+      expect(holdingSharesCycle!.status, WheelCycleStatus.holdingShares);
+      expect(holdingSharesCycle.outcome, isNull);
+      expect(holdingSharesCycle.endedAt, isNull);
+      expect(await repo.getShareLotForCycle(fixture.holdingSharesCycle.id), isNotNull);
+
+      // The leg that was not in the batch, and its cycle, are untouched.
+      expect(byId[fixture.secondPut.id]!.closedAt, isNull);
+      expect(byId[fixture.unselectedPut.id]!.closedAt, isNull);
+      expect((await repo.getCycle(fixture.secondPutCycle.id))!.status, WheelCycleStatus.sellingPuts);
+      expect(
+        (await repo.getCycle(fixture.unselectedCycle.id))!.status,
+        WheelCycleStatus.sellingPuts,
+      );
+    });
+
+    test('an unknown id in the batch throws and changes nothing', () async {
+      final fixture = await seed();
+      final before = await snapshot([
+        fixture.putCycle.id,
+        fixture.secondPutCycle.id,
+        fixture.holdingSharesCycle.id,
+        fixture.unselectedCycle.id,
+      ]);
+
+      await expectLater(
+        () => repo.markExpired(
+          legs: [
+            (legId: fixture.put.id, closedAt: putExpiration),
+            (legId: 'no-such-leg', closedAt: putExpiration),
+          ],
+        ),
+        throwsArgumentError,
+      );
+
+      expect(await repo.getAllLegs(), before.legs);
+      for (final entry in before.cycles.entries) {
+        expect(await repo.getCycle(entry.key), entry.value);
+      }
+      expect(await repo.getShareLotForCycle(fixture.holdingSharesCycle.id), isNotNull);
+    });
+
+    test('an empty batch throws ArgumentError', () async {
+      final fixture = await seed();
+      final before = await snapshot([fixture.putCycle.id]);
+
+      await expectLater(() => repo.markExpired(legs: []), throwsArgumentError);
+
+      expect(await repo.getAllLegs(), before.legs);
+      expect(await repo.getCycle(fixture.putCycle.id), before.cycles[fixture.putCycle.id]);
+    });
+
+    test('an already-closed leg throws and changes nothing', () async {
+      final fixture = await seed();
+      await repo.closeLeg(
+        legId: fixture.secondPut.id,
+        reason: CloseReason.closedEarly,
+        closeDebitPerShare: Decimal.parse('0.10'),
+        closedAt: DateTime.utc(2026, 4, 1),
+      );
+      final before = await snapshot([
+        fixture.putCycle.id,
+        fixture.secondPutCycle.id,
+        fixture.holdingSharesCycle.id,
+        fixture.unselectedCycle.id,
+      ]);
+
+      await expectLater(
+        () => repo.markExpired(
+          legs: [
+            (legId: fixture.put.id, closedAt: putExpiration),
+            (legId: fixture.secondPut.id, closedAt: putExpiration),
+          ],
+        ),
+        throwsArgumentError,
+      );
+
+      expect(await repo.getAllLegs(), before.legs);
+      for (final entry in before.cycles.entries) {
+        expect(await repo.getCycle(entry.key), entry.value);
+      }
+    });
+  });
+
   group('recordAssignment (S-026: put-side assignment)', () {
     test('creates exactly one ShareLot, closes the leg, transitions to holdingShares', () async {
       final underlying = await repo.getOrCreateUnderlying('AAA');
@@ -1171,6 +1523,30 @@ void _runContractTests(WheelRepository Function() createRepository) {
       expect(reread.exportReminderDismissed, isTrue);
       expect(reread.lastExportAt, DateTime.utc(2026, 3, 1));
       expect(reread.notificationMilestones, [14, 3]);
+    });
+
+    test('S-215: wheelCapital and concentrationLimitPct round trip through both '
+        'implementations', () async {
+      final defaults = await repo.getPreferences();
+      expect(defaults.wheelCapital, isNull);
+      expect(defaults.concentrationLimitPct, 25.0);
+
+      await repo.updatePreferences(
+        defaults.copyWith(
+          wheelCapital: Decimal.parse('30000.00'),
+          concentrationLimitPct: 20.0,
+        ),
+      );
+
+      final reread = await repo.getPreferences();
+      expect(reread.wheelCapital, Decimal.parse('30000.00'));
+      expect(reread.concentrationLimitPct, 20.0);
+
+      // Clearing the capital is a real state, not a reset to zero.
+      await repo.updatePreferences(reread.copyWith(wheelCapital: null));
+      final cleared = await repo.getPreferences();
+      expect(cleared.wheelCapital, isNull);
+      expect(cleared.concentrationLimitPct, 20.0);
     });
   });
 }
