@@ -23,6 +23,7 @@ Feature request: $ARGUMENTS
 - Max plan revisions: 2
 - Max fix rounds (verify failures + review rejections combined): 3
 - Max total agent time for one run: 90 minutes
+- Check-in interval: start every agent with `WAIT_MINUTES=15` so the runner returns every 15 minutes
 
 Agent names are the file names in `.github/agents/` without `.agent.md`.
 
@@ -72,7 +73,10 @@ before development and validate its output the same way.
 
 ### 3. Implement
 Write `.work/<slug>/brief-dev.md`: path to the approved plan, "implement the plan exactly",
-"do not commit, push, or switch branches", "run flutter analyze and flutter test before finishing".
+"do not commit, push, or switch branches", "run flutter analyze and flutter test before finishing",
+"wrap any command that can run long (`dart run build_runner`, `flutter pub get`, `flutter test`) in
+`perl -e 'alarm 300; exec @ARGV' <cmd>` (900 for the full test suite; macOS has no `timeout`) and treat a timeout as a failure to
+diagnose, never wait on it".
 Run the developer.
 
 ### 4. Verify (you)
@@ -107,7 +111,14 @@ rounds used, anything left open.
 
 ## Running agents
 
-Start a run: `<runner> start <agent> .work/<slug>/<brief>.md`
+Start a run: `WAIT_MINUTES=15 <runner> start <agent> .work/<slug>/<brief>.md`
+
+Always run `start` and `wait` with the Bash tool's `run_in_background: true`. A foreground call
+blocks the whole session for up to 50 minutes, so the user cannot reach you, and stopping the
+call kills the agent. When the background command exits you are re-invoked with its output;
+until then, answer the user normally (for example "is it running?" → check `.work/runs/latest.txt`
+and `kill -0 $(cat .work/runs/<RUN_ID>/pid)`). Never stop a background run unless the user asks
+or the time cap is hit. Do not poll.
 
 The runner blocks until the agent finishes (up to 50 minutes), then prints a summary.
 Read STATUS:
@@ -118,6 +129,27 @@ Read STATUS:
 - If the Bash call itself times out, read `.work/runs/latest.txt` for the RUN_ID and use `wait`.
 - If ELAPSED_MIN exceeds the max total agent time, run `<runner> stop <RUN_ID>`, log friction,
   and ask the user.
+
+## Stalled runs
+
+Check on a run when the user asks, or when it has passed ~15 minutes with no new lines in
+`.work/runs/<RUN_ID>/output.log` (`stat` its mtime) or no change in `git status --porcelain`.
+Look for a hung child process: `ps -eo pid,etime,pcpu,command | grep -E "build_runner|flutter|dart"`.
+A child running 10+ minutes at ~0% CPU is hung. Kill that child process only (never the runner
+or the agent), log friction, and tell the user. If the same command hangs twice, stop the run
+and re-brief the developer with a `perl alarm` timeout wrapper and the fix for the cause.
+Known cause: `dart run build_runner` hangs while the unused code-gen packages
+(`riverpod_generator`, `riverpod_lint`, `custom_lint`) are still in `pubspec.yaml`; remove them first.
+
+Every time the runner returns `RUNNING` (each 15 minutes), do a health check before waiting again:
+`wc -l` and mtime of the log, `git status --porcelain | wc -l` versus last check, the last ~10 `^● `
+lines of the log, and `ps` for hung children. No change in files AND no new distinct commands →
+stop the run, log friction, re-brief. Two consecutive checks without file changes is the limit even
+if the log is busy.
+
+Loops: if the log shows the same command repeated 3+ times (`grep -c` a distinctive name), stop the
+run. In the fix brief, include the real failure output (never `head -12` of it) and say "if a
+fix fails twice, stop and report instead of re-running".
 
 ## Friction log
 
