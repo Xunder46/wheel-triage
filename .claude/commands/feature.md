@@ -54,7 +54,7 @@ Read only the parts of the repo this feature touches. Stop and ask the user, in 
 Otherwise continue without asking.
 
 ### 2. Plan
-Write `.work/<slug>/brief-plan.md` with: goal, acceptance criteria, relevant files and patterns you
+Write `.docs/plans/<slug>/{brief-plan-name}.md` with: goal, acceptance criteria, relevant files and patterns you
 found, constraints, answers to anything the user clarified, and this line:
 "List anything you are unsure about under an Open questions heading at the end of the plan."
 
