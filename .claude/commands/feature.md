@@ -151,6 +151,30 @@ Loops: if the log shows the same command repeated 3+ times (`grep -c` a distinct
 run. In the fix brief, include the real failure output (never `head -12` of it) and say "if a
 fix fails twice, stop and report instead of re-running".
 
+## Standard brief footer (paste into every developer / data-architect / reviewer brief)
+
+```
+Shell rules: macOS has no `timeout`; use `perl -e 'alarm N; exec @ARGV' <cmd>` (300 for build_runner,
+pub get, iOS build; 900 for the full `flutter test`). Never truncate test output (no head/sed -n on
+failures); use `--reporter expanded` when debugging. If a fix fails twice, stop and report; never
+re-run the same command a third time. Do not commit, push or switch branches; do not touch .claude/
+or .github/. Update the plan's Progress table and Assumption Log as phases complete.
+Before finishing: flutter analyze clean, full flutter test green, the CLAUDE.md tone grep empty,
+`grep -rl "package:flutter" lib/domain/rules/` empty, and the plan's own residue sweeps.
+```
+
+Multi-phase plans: run the data-architect for the data phases first, verify and commit them, then one
+developer run for the rest ("in ONE run, do not stop between phases; stop only when the last phase is
+done or you are blocked"). Verify yourself after every run (analyze, full test, build_runner
+regeneration leaves `git status` unchanged, iOS build when a native plugin is touched). A green developer
+report is not evidence of correctness: the reviewer has found a real major defect behind green tests, so
+never skip the review. Read the code of the one or two files where the plan's core invariant lives
+yourself. Re-review after a fix round when the first review had a major finding. Log which minor
+findings were left unfixed and why.
+
+Owner-prerequisite gaps: plan and build everything the agents can verify without them, mark the rest
+**(owner)**, and split out any stage that cannot be verified blind (e.g. one needing real fixtures).
+
 ## Friction log
 
 Append to `.work/friction.md` (create it if missing) whenever:
