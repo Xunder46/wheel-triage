@@ -147,6 +147,11 @@ lines of the log, and `ps` for hung children. No change in files AND no new dist
 stop the run, log friction, re-brief. Two consecutive checks without file changes is the limit even
 if the log is busy.
 
+Diff-size check: at every checkpoint compare `git diff --stat | tail -1` (file count) with the last one; a jump
+of dozens of files that no phase names is collateral damage (e.g. a tree-wide formatter): stop the run at once.
+Recover by restoring only files whose content equals `dart format` of their HEAD version (`git checkout HEAD --`),
+never files with real changes.
+
 Loops: if the log shows the same command repeated 3+ times (`grep -c` a distinctive name), stop the
 run. In the fix brief, include the real failure output (never `head -12` of it) and say "if a
 fix fails twice, stop and report instead of re-running".
@@ -158,7 +163,9 @@ Shell rules: macOS has no `timeout`; use `perl -e 'alarm N; exec @ARGV' <cmd>` (
 pub get, iOS build; 900 for the full `flutter test`). Never truncate test output (no head/sed -n on
 failures); use `--reporter expanded` when debugging. If a fix fails twice, stop and report; never
 re-run the same command a third time. Do not commit, push or switch branches; do not touch .claude/
-or .github/. Update the plan's Progress table and Assumption Log as phases complete.
+or .github/. NEVER run `dart format` on a directory or the tree (the repo is not format-clean; a run that did so
+reformatted ~180 files) — format only files you created, by explicit path. Update the plan's Progress table and
+Assumption Log as phases complete.
 Before finishing: flutter analyze clean, full flutter test green, the CLAUDE.md tone grep empty,
 `grep -rl "package:flutter" lib/domain/rules/` empty, and the plan's own residue sweeps.
 ```
