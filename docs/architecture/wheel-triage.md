@@ -3,15 +3,17 @@
 Consolidated reference for the shape of the codebase after Iterations 1–5
 (M1–M4 plus the brief-followup corrections, the help system, fees/
 `acceptsAssignment`, cycle P&L and the journal, snapshot staleness,
-export/import, expiration notifications, and rule versioning) and Pro Wave 1
-Stages 0–3 (the dependency cleanup, the D-4 theme, Record a trade, the
-snapshot preview sheet, and the Today screen). This is a map
+export/import, expiration notifications, and rule versioning) and Pro Waves 1–3
+(Stage 0's dependency cleanup, the D-4 theme, Record a trade, the snapshot
+preview sheet, the Today screen, Pro plans, the Portfolio view with its
+assignment calendar, and the share card). This is a map
 of *where things live and why*, not a walkthrough of what they do —
 `docs/brief.md` and `docs/brief-followup.md` are the spec of record;
 `docs/brief-ledger.md` wins over both where they disagree, and
 `docs/brief-pro.md` §2's decisions win over everything earlier;
-`docs/plans/pro-wave-1-plan.md` carries the phase-by-phase decisions and
-scenario register.
+`docs/plans/pro-wave-<n>-plan.md` carries each wave's phase-by-phase decisions
+and scenario register (`docs/plans/wheel-triage-plan.md` holds Iterations 1–4,
+`docs/plans/rule-versioning-plan.md` Iteration 5).
 
 ## Layering
 
@@ -21,8 +23,9 @@ lib/domain/rules/    pure logic — formulas, classify(), resolveIv,
                      Bucket, screener scoring, cycle P&L, journal aggregates,
                      snapshot freshness, the shared triageInputFor assembly,
                      capital committed/concentration, net premium, reading
-                     age, expiry and obligations. Zero Flutter imports
-                     (enforced by grep every phase).
+                     age, expiry, obligations, net position delta, list
+                     phrasing and the share card's figures. Zero Flutter
+                     imports (enforced by grep every phase).
 lib/domain/models/   plain persisted data classes (freezed). No business
                      logic beyond serialization.
 lib/data/            WheelRepository interface + DriftWheelRepository +
@@ -32,10 +35,12 @@ lib/data/            WheelRepository interface + DriftWheelRepository +
 lib/state/           Riverpod controllers/providers — orchestration between
                      domain/models and domain/rules, and the repository.
 lib/features/        Screens (screener, positions + Today, record, journal,
-                     settings, onboarding, export, paywall).
+                     portfolio, roll, assignment, settings, onboarding,
+                     export, paywall).
 lib/widgets/         Shared UI (BucketBadge, HelpChip, DeltaSparkline,
                      LegTitle, LabeledNumberField, AppBottomNav,
-                     CycleSummaryCard, JournalRow).
+                     CycleSummaryCard, JournalRow,
+                     EntitlementLifecycleScope).
 lib/core/            Cross-cutting, dependency-free utilities (date/money
                      helpers and `format.dart`'s display formatters, the app
                      router, the theme and its colour tokens, the help-topic
@@ -307,8 +312,9 @@ the bucket, the DTE, the reading age, D-11's `needsReading`/`olderThanAging`
 predicates and D-13's `batchEligible`. The screen renders counts, the aging
 line, the D-9 ledger strip, the two expiry cards and the list; it re-derives
 nothing, so a change to a predicate is a change in one file. The five count
-chips are built from one `_bucketOrder` list, so the row order and the sort
-order are stated once, and `bucketLabel` supplies the wording. Coming back to
+chips come from `kBucketOrder` and `bucketCountsFor` in
+`lib/domain/rules/bucket.dart`, so the row order, the sort order and the counts
+are stated once, and `bucketLabel` supplies the wording. Coming back to
 the route reloads explicitly through a router-delegate listener — the screen
 stays alive underneath every pushed route, so `autoRefresh` never fires
 (S-205).
@@ -467,6 +473,63 @@ See Pro plans as the state allows. It reads the count through
 `kFreeTierOpenCycles` itself so `paywall_copy.dart` stays out of the limit's
 business.
 
+## Portfolio (`lib/state/portfolio/`, `lib/features/portfolio/`)
+
+Stage 7's Portfolio surface is a **second view of the same calculations**, not
+a second implementation. `PortfolioController` assembles `PortfolioState` from
+the shipped rules functions — `currentCapitalCommitted` (which folds
+`capitalCommittedForCycle`), `capitalCommittedByUnderlying`,
+`concentrationFlags`, `concentrationBars`, `netPositionDelta`, `leftOutLine`,
+`agingLine`, `calendarMonth`, `expirationsInMonth` and `bucketCountsFor` — and
+`PortfolioScreen` derives nothing of its own. Every figure on the screen is a
+field of that state; the one call the screen makes itself is
+`obligationFor`, over the obligations the state already carries.
+
+The counts and the aging note are computed over the **same population Today
+uses** — open legs whose expiration has not passed (`expiry.isPastExpiration`)
+— and the DTE each leg is classified at comes from the shared
+`formulas.dte`, so neither an off-by-one day nor a past-expiration leg can
+make the two screens disagree (`test/state/portfolio/portfolio_controller_test.dart`).
+
+It is reached only through D-40's gate. Today's "Committed now" tile evaluates
+`proFeatureGateProvider` and either pushes `/portfolio` or opens the paywall;
+the screen itself never asks the store anything and never reads the
+entitlement, so "the entitlement is read in exactly one place" stays true by
+construction. `ProFeatureGate.evaluate` is the one decision, and it is a
+sealed `ProFeatureAccess` — `ProFeatureOpen` or `ProFeatureLocked` — so a
+caller cannot forget to handle the locked case.
+
+The controller is `autoDispose`, so it is rebuilt on every entry and the
+screen's post-frame callback is the one load. `PortfolioScreen` takes an
+optional `now` (and `buildAppRouter` an optional `portfolioNow`), which the
+calendar's "today" cell and every reload read, so a test can pin the clock
+(`test/features/portfolio/portfolio_screen_test.dart`); production passes
+nothing and gets `DateTime.now()`.
+
+`lib/state/book/book_reads.dart` holds the two reads both Today and Portfolio
+need — `capitalInputsFor` and `profileForLeg` — so the two screens cannot
+disagree about which profile a leg was classified under or which legs feed the
+capital calculation.
+
+## Share card (`lib/domain/rules/share_card.dart`, `lib/features/journal/`)
+
+The share card is an **exported image**, not a social feature (D-P7). Its
+figures come from `shareCardFigures` over the cycles in one month, and its
+month rule is `cyclesInCardMonth` — a cycle belongs to the month it *ended*
+in, so an open cycle is never on a card. `ShareCardScreen` renders
+`ShareCard` (a fixed 360 × 450 surface) and hands the bytes to the platform
+share sheet through `ExportController`, which re-exports `XFile` so the screen
+gets the type without importing `share_plus` itself.
+
+The card's capture contract is the same leg-level one the rest of the app
+uses: a single-leg cycle's capture is `netCredit / openCredit`, so a loss
+cycle can never report a positive capture. A `recordAssignment` leg's
+`closeDebitPerShare` stays null and its capture is always 100%; a loss is
+carried as a **close fee** on the leg that closed the cycle, which decouples
+`netResult` from capture. `recordAssignment` does not close a cycle — it sets
+`status: holdingShares`; a cycle becomes `closed` only through `closeLeg` on a
+put leg, `recordCallAway`, or `markExpired`.
+
 ### Drift-risk areas
 
 These are the places where the same fact is reachable from two directions,
@@ -487,6 +550,8 @@ rather than synchronized by discipline:
 | A threshold bound | `validateRuleProfile` | A widget re-implementing a range check |
 | An entitlement fact | `EntitlementController` | A screen caching `isActive` and keeping its own idea of Pro |
 | A Pro string | `lib/core/purchases/paywall_copy.dart` | The paywall and the Settings row wording the same state two ways |
+| A percentage string | `format.percentText` (`lib/core/format.dart`) | **Observation, not a work item.** Four sites predate the shared formatter and each formats a percentage by hand: `lib/widgets/journal_row.dart:47` (inline), `lib/widgets/cycle_summary_card.dart:136` (`_pct`), `lib/features/screener/screener_screen.dart:395` (`_pctText`) and `lib/features/roll/roll_planner_screen.dart:103` (inline). They agree today; a rounding change would have to land in five places. |
+| The bucket order and its counts | `lib/domain/rules/bucket.dart` | **Observation, not a work item.** `kBucketOrder` and `bucketCountsFor` are the one source; Today and Portfolio both read them, and a structural test asserts no file outside `bucket.dart` declares a bucket-order list. |
 
 ## Export/import (`lib/data/export/`, `lib/state/export/`)
 

@@ -239,19 +239,21 @@ void main() {
     });
   });
 
-  group('S-277: only the three entry points can open the paywall', () {
+  group('S-277: only the four entry points can open the paywall', () {
     test('context.push(\'/paywall\' occurs in exactly one file', () {
       expect(_filesMentioning(RegExp(r"context\.push\('/paywall'")), [
         'lib/features/paywall/paywall_route.dart',
       ]);
     });
 
-    test('showPaywall( is called from the route helper and the three entry points', () {
+    test('showPaywall( is called from the route helper and the four entry points', () {
       expect(_filesMentioning(RegExp(r'showPaywall\(')), [
         'lib/features/paywall/paywall_route.dart',
         'lib/features/record/record_trade_screen.dart',
         'lib/features/screener/screener_screen.dart',
         'lib/features/settings/pro_plan_section.dart',
+        // D-40: Today's "Committed now" tile is the Portfolio gate's door.
+        'lib/features/today/today_screen.dart',
       ]);
     });
 

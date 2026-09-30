@@ -9,6 +9,13 @@ import '../../data/wheel_repository.dart';
 import '../preferences/preferences_provider.dart';
 import '../repository_providers.dart';
 
+/// `share_plus` is the app's one share seam, and it stays behind this file:
+/// `lib/features/` builds its share payloads as [XFile]s and hands them to
+/// [ShareSheet], so no screen ever imports the plugin (S-309's structural
+/// half). Re-exported rather than re-declared so there is exactly one `XFile`
+/// type in the app.
+export 'package:share_plus/share_plus.dart' show XFile;
+
 /// Orchestrates Settings' export/import actions (`docs/brief-ledger.md` §5,
 /// Phase 20). The actual JSON/CSV generation and the replace-all restore
 /// already live on `WheelRepository`/`buildClosedCyclesCsv` (Phase 19) --

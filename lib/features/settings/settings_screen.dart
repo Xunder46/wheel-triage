@@ -13,6 +13,7 @@ import '../../domain/rules/capital_committed.dart';
 import '../../state/export/export_controller.dart';
 import '../../state/journal/journal_controller.dart';
 import '../../state/notifications/notification_providers.dart';
+import '../../state/portfolio/portfolio_controller.dart';
 import '../../state/today/today_controller.dart';
 import '../../state/preferences/preferences_provider.dart';
 import '../../state/rule_profiles/rule_profile_editor_controller.dart';
@@ -79,6 +80,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ref.invalidate(preferencesControllerProvider);
       ref.invalidate(todayControllerProvider);
       ref.invalidate(journalControllerProvider);
+      ref.invalidate(portfolioControllerProvider);
       ref.invalidate(ruleProfileEditorProvider);
       ref.invalidate(ruleProfileVersionsProvider(RuleProfileIds.standard));
       ref.invalidate(currentRuleProfileProvider);
@@ -359,6 +361,9 @@ class _YourBookSectionState extends ConsumerState<_YourBookSection> {
     if (bare.isEmpty) {
       setState(() => _capitalError = null);
       ref.read(preferencesControllerProvider.notifier).setWheelCapital(null);
+      // Portfolio divides by wheel capital, so a change here makes its
+      // already-loaded figures stale (D-45).
+      ref.invalidate(portfolioControllerProvider);
       return;
     }
 
@@ -374,6 +379,7 @@ class _YourBookSectionState extends ConsumerState<_YourBookSection> {
     }
     setState(() => _capitalError = null);
     ref.read(preferencesControllerProvider.notifier).setWheelCapital(value);
+    ref.invalidate(portfolioControllerProvider);
   }
 
   void _onLimitChanged(String text) {
@@ -384,6 +390,7 @@ class _YourBookSectionState extends ConsumerState<_YourBookSection> {
     }
     setState(() => _limitError = null);
     ref.read(preferencesControllerProvider.notifier).setConcentrationLimit(value);
+    ref.invalidate(portfolioControllerProvider);
   }
 
   @override

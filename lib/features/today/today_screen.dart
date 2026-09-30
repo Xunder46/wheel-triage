@@ -8,6 +8,10 @@ import '../../core/money/whole_dollars.dart';
 import '../../domain/rules/bucket.dart';
 import '../../domain/rules/capital_committed.dart';
 import '../../domain/rules/reading_age.dart';
+import '../../core/purchases/paywall_copy.dart';
+import '../../state/entitlements/entitlement_providers.dart';
+import '../../state/entitlements/pro_feature_gate.dart';
+import '../paywall/paywall_route.dart';
 import '../../state/preferences/preferences_provider.dart';
 import '../../state/today/today_controller.dart';
 import '../../widgets/app_bottom_nav.dart';
@@ -325,16 +329,16 @@ class _AgingLine extends StatelessWidget {
 /// D-8/D-9/D-15's ledger strip: three tiles, then the one paragraph that
 /// defines what they mean, then D-10's concentration lines.
 ///
-/// The strip is a statement of the book, not a filter, so nothing here is
-/// tappable — D-10 keeps concentration a neutral fact with no link to a
-/// portfolio view that does not exist yet.
-class _LedgerStrip extends StatelessWidget {
+/// The strip is a statement of the book, not a filter, so only "Committed
+/// now" is tappable — it is the one figure with a surface behind it (D-40's
+/// Portfolio). The other two tiles stay read-only.
+class _LedgerStrip extends ConsumerWidget {
   const _LedgerStrip({required this.state});
 
   final TodayState state;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final capital = state.wheelCapital;
@@ -358,6 +362,23 @@ class _LedgerStrip extends StatelessWidget {
               _LedgerTile(
                 label: 'Committed now',
                 value: wholeDollars(state.committedNow),
+                // D-40: the gate decides, and the screen only reads the
+                // verdict. Open pushes the route; locked opens the paywall
+                // with the gate's own finished line.
+                onTap: () {
+                  final access = ref
+                      .read(proFeatureGateProvider)
+                      .evaluate(kPortfolioFeatureName);
+                  switch (access) {
+                    case ProFeatureOpen():
+                      context.push('/portfolio');
+                    case ProFeatureLocked():
+                      showPaywall(
+                        context,
+                        trigger: ProFeaturePaywallTrigger(access.feature),
+                      );
+                  }
+                },
               ),
             ],
           ),
@@ -392,17 +413,20 @@ class _LedgerStrip extends StatelessWidget {
 /// thirds so the three read as one row. Deliberately smaller than a bucket
 /// count — the strip reports the book, it does not lead the screen.
 class _LedgerTile extends StatelessWidget {
-  const _LedgerTile({required this.label, required this.value});
+  const _LedgerTile({required this.label, required this.value, this.onTap});
 
   final String label;
   final String value;
+
+  /// Non-null only for "Committed now" (D-40). A tile with no destination
+  /// stays a plain statement.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    return Expanded(
-      child: Column(
+    final tile = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -423,6 +447,13 @@ class _LedgerTile extends StatelessWidget {
             ),
           ),
         ],
+    );
+    if (onTap == null) return Expanded(child: tile);
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: tile,
       ),
     );
   }

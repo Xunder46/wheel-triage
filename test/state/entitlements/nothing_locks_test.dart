@@ -13,7 +13,10 @@ import 'package:wheel_triage/domain/models/snapshot.dart';
 import 'package:wheel_triage/domain/models/wheel_cycle.dart';
 import 'package:wheel_triage/state/entitlements/entitlement_providers.dart';
 import 'package:wheel_triage/state/journal/journal_controller.dart';
+import 'package:wheel_triage/core/purchases/paywall_copy.dart';
+import 'package:wheel_triage/state/entitlements/pro_feature_gate.dart';
 import 'package:wheel_triage/state/notifications/notification_providers.dart';
+import 'package:wheel_triage/state/portfolio/portfolio_controller.dart';
 import 'package:wheel_triage/state/positions/position_detail_controller.dart';
 import 'package:wheel_triage/state/preferences/preferences_provider.dart';
 import 'package:wheel_triage/state/record/record_save_service.dart';
@@ -675,6 +678,137 @@ void main() {
       );
       expect(await repo.getOpenCycles(), hasLength(5));
       expect(await repo.exportToJson(), exportBefore);
+    });
+  });
+
+  group('S-292: a lapse from Pro leaves the book and Portfolio intact', () {
+    /// The `nothing_locks_test.dart` book, with wheel capital and the limit
+    /// set so Portfolio has percentages and a flag line to render.
+    Future<InMemoryWheelRepository> seeded() async {
+      final repo = InMemoryWheelRepository();
+      await _seed(repo);
+      await repo.updatePreferences(
+        (await repo.getPreferences()).copyWith(
+          wheelCapital: Decimal.parse('30000'),
+          concentrationLimitPct: 25,
+        ),
+      );
+      return repo;
+    }
+
+    /// Every read S-292 names, as comparable lines. Deliberately the *whole*
+    /// read rather than one field: a lapse that quietly dropped a row would
+    /// still pass a spot check.
+    Future<List<String>> fullRead(
+      ProviderContainer container,
+      InMemoryWheelRepository repo,
+    ) async {
+      final legs = await repo.getAllLegs();
+      final closed = await repo.getClosedCycles();
+      final snapshots = <String>[];
+      for (final leg in legs) {
+        snapshots.add('${leg.id}:${(await repo.getSnapshotsForLeg(leg.id)).length}');
+      }
+      await container.read(todayControllerProvider.notifier).load(now: _now);
+      final today = container.read(todayControllerProvider);
+      await container.read(portfolioControllerProvider.notifier).load(now: _now);
+      final portfolio = container.read(portfolioControllerProvider);
+      return [
+        'legs=${legs.map((l) => '${l.id}/${l.optionType}/${l.strike}/${l.closeReason}').toList()}',
+        'closed=${closed.map((c) => '${c.id}/${c.status}/${c.outcome}').toList()}',
+        'snapshots=$snapshots',
+        'today committed=${today.committedNow} capital=${today.wheelCapital} '
+            'flags=${today.concentrationFlags.length}',
+        'portfolio committed=${portfolio.committedNow} '
+            'percent=${portfolio.percentOfWheelCapital} '
+            'flags=${portfolio.flagLines} key=${portfolio.keyLine} '
+            'bars=${portfolio.bars.map((b) => '${b.ticker}:${b.percent}').toList()}',
+      ];
+    }
+
+    test('(a) the full read is identical across the lapse, and Today is '
+        'unchanged; (b) Portfolio comes back with the same figures', () async {
+      final repo = await seeded();
+      final store = FakePurchaseGateway()..snapshot = _active;
+      final container = ProviderContainer(
+        overrides: [
+          wheelRepositoryProvider.overrideWithValue(repo),
+          purchaseGatewayProvider.overrideWithValue(store),
+          notificationGatewayProvider.overrideWithValue(FakeNotificationGateway()),
+        ],
+      );
+      container.listen(entitlementControllerProvider, (previous, next) {});
+      container.listen(preferencesControllerProvider, (previous, next) {});
+      container.listen(todayControllerProvider, (previous, next) {});
+      container.listen(portfolioControllerProvider, (previous, next) {});
+      addTearDown(container.dispose);
+
+      await container.read(entitlementControllerProvider.notifier).initialize();
+      expect(container.read(entitlementControllerProvider).isActive, isTrue);
+
+      final before = await fullRead(container, repo);
+      expect(before.first, contains('legs=['));
+
+      // (a) The entitlement lapses. Portfolio is no longer reachable without
+      // the paywall -- the gate is the only thing that changed.
+      store.snapshot = const EntitlementSnapshot.inactive();
+      await container.read(entitlementControllerProvider.notifier).refresh();
+      expect(container.read(entitlementControllerProvider).isActive, isFalse);
+      expect(
+        container.read(proFeatureGateProvider).evaluate(kPortfolioFeatureName),
+        isA<ProFeatureLocked>(),
+      );
+
+      // The book itself is untouched: the same full read, line for line.
+      expect(await fullRead(container, repo), before);
+
+      // (b) It comes back with no reinstall, no reload call and no
+      // navigation -- only the store's answer changed.
+      store.snapshot = _active;
+      await container.read(entitlementControllerProvider.notifier).refresh();
+      expect(container.read(entitlementControllerProvider).isActive, isTrue);
+      expect(
+        container.read(proFeatureGateProvider).evaluate(kPortfolioFeatureName),
+        isA<ProFeatureOpen>(),
+      );
+      expect(await fullRead(container, repo), before);
+    });
+
+    test('(c) changing wheel capital in Settings invalidates Portfolio, so '
+        'the next build reflects it with no manual refresh', () async {
+      final repo = await seeded();
+      final store = FakePurchaseGateway()..snapshot = _active;
+      final container = ProviderContainer(
+        overrides: [
+          wheelRepositoryProvider.overrideWithValue(repo),
+          purchaseGatewayProvider.overrideWithValue(store),
+          notificationGatewayProvider.overrideWithValue(FakeNotificationGateway()),
+        ],
+      );
+      container.listen(entitlementControllerProvider, (previous, next) {});
+      container.listen(preferencesControllerProvider, (previous, next) {});
+      container.listen(portfolioControllerProvider, (previous, next) {});
+      addTearDown(container.dispose);
+
+      await container.read(entitlementControllerProvider.notifier).initialize();
+      // The controller reads preferences through the repository, so the
+      // fixture's own write is what the first load sees.
+      await container.read(portfolioControllerProvider.notifier).load(now: _now);
+      final atThirty = container.read(portfolioControllerProvider);
+      expect(atThirty.percentOfWheelCapital, isNotNull);
+      expect(atThirty.keyLine, isNotNull);
+
+      // The Settings save path: write the preference, then invalidate.
+      await container
+          .read(preferencesControllerProvider.notifier)
+          .setWheelCapital(Decimal.parse('40000'));
+      container.invalidate(portfolioControllerProvider);
+      await container.read(portfolioControllerProvider.notifier).load(now: _now);
+      final atForty = container.read(portfolioControllerProvider);
+
+      expect(atForty.committedNow, atThirty.committedNow);
+      expect(atForty.percentOfWheelCapital, lessThan(atThirty.percentOfWheelCapital!));
+      expect(atForty.bars, isNot(atThirty.bars));
     });
   });
 }

@@ -6,7 +6,6 @@ import '../../data/wheel_repository.dart';
 import '../../domain/models/leg.dart';
 import '../../domain/models/snapshot.dart' as models;
 import '../../domain/models/underlying.dart';
-import '../../domain/models/wheel_cycle.dart';
 import '../../domain/rules/bucket.dart';
 import '../../domain/rules/capital_committed.dart' as capital;
 import '../../domain/rules/classify.dart';
@@ -15,8 +14,8 @@ import '../../domain/rules/formulas.dart' as formulas;
 import '../../domain/rules/obligation.dart' as obligation;
 import '../../domain/rules/premium_collected.dart' as premium;
 import '../../domain/rules/reading_age.dart' as reading;
-import '../../domain/rules/rule_profile.dart';
 import '../../domain/rules/triage_input.dart';
+import '../book/book_reads.dart';
 import '../notifications/notification_providers.dart';
 import '../repository_providers.dart';
 
@@ -188,9 +187,10 @@ class TodayState {
       '${capital.committedNowDefinition(committedNow: committedNow, wheelCapital: wheelCapital)}';
 
   /// The five counts, in [kBucketOrder] (D-46). Computed from [items], so a
-  /// past-expiration leg is in none of them. The order, the zeros and the
-  /// counting itself are `bucketCountsFor`'s — Portfolio's tiles read the same
-  /// function, so the two screens cannot disagree about a count.
+  /// past-expiration leg is in none of them — the same population Portfolio's
+  /// tiles count, since `portfolio_controller.dart` skips past-expiration legs
+  /// before classifying too. The order, the zeros and the counting itself are
+  /// `bucketCountsFor`'s, so the two screens cannot disagree about a count.
   List<({Bucket bucket, int count})> get bucketCounts =>
       bucketCountsFor(items.map((item) => item.bucket));
 
@@ -300,18 +300,8 @@ class TodayController extends StateNotifier<TodayState> {
         // The leg's pinned threshold version — never the profile's current
         // one (Iteration 5 D-5): an edit must not reclassify what an open
         // position was opened under. A dangling pin degrades to the
-        // built-in defaults (D-7).
-        final versionData = await _repo.getRuleProfileVersion(leg.ruleProfileVersionId);
-        final RuleProfile profile;
-        if (versionData == null) {
-          profile = RuleProfile.standard;
-        } else {
-          final profileData = await _repo.getRuleProfile(versionData.profileId);
-          profile = RuleProfile.fromVersion(
-            versionData,
-            profileName: profileData?.name ?? 'Standard',
-          );
-        }
+        // built-in defaults (D-7). Shared with Portfolio (D-45).
+        final profile = await profileForLeg(_repo, leg.ruleProfileVersionId);
 
         final dteValue = formulas.dte(leg.expiration, effectiveNow);
         final input = triageInputFor(leg: leg, snapshot: snapshot, dte: dteValue);
@@ -373,7 +363,7 @@ class TodayController extends StateNotifier<TodayState> {
     // shares.
     final allLegs = await _repo.getAllLegs();
     final prefs = await _repo.getPreferences();
-    final inputs = await _capitalInputs(allLegs);
+    final inputs = await capitalInputsFor(_repo, allLegs);
     final month = premium.monthPeriodContaining(effectiveNow);
     final year = premium.yearToDatePeriod(effectiveNow);
 
@@ -397,39 +387,6 @@ class TodayController extends StateNotifier<TodayState> {
         concentrationLimitPct: prefs.concentrationLimitPct,
       ),
     );
-  }
-
-  /// One [capital.CycleCapitalInput] per cycle the book has legs for. The
-  /// cycle list is derived from the legs rather than read from the repository:
-  /// `WheelRepository` has no `getAllCycles` (Phase 9's Predicted Files keep
-  /// `lib/data/` out of this change), and a cycle with no legs at all commits
-  /// nothing anyway.
-  Future<List<capital.CycleCapitalInput>> _capitalInputs(List<Leg> allLegs) async {
-    final legsByCycle = <String, List<Leg>>{};
-    for (final leg in allLegs) {
-      legsByCycle.putIfAbsent(leg.cycleId, () => []).add(leg);
-    }
-
-    final inputs = <capital.CycleCapitalInput>[];
-    for (final entry in legsByCycle.entries) {
-      final cycle = await _repo.getCycle(entry.key);
-      if (cycle == null) continue;
-      final underlying = await _repo.getUnderlying(cycle.underlyingId);
-      if (underlying == null) continue;
-      inputs.add(
-        capital.CycleCapitalInput(
-          cycle: cycle,
-          ticker: underlying.ticker,
-          legs: entry.value,
-          // Only a `holdingShares` cycle has an active lot; reading it for any
-          // other status would be reading a lot that is no longer the book's.
-          shareLot: cycle.status == WheelCycleStatus.holdingShares
-              ? await _repo.getShareLotForCycle(cycle.id)
-              : null,
-        ),
-      );
-    }
-    return inputs;
   }
 
   /// D-10's "Expiring this week" groups. The seven-day window, the

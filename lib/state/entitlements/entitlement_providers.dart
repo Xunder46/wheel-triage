@@ -5,6 +5,7 @@ import '../../core/purchases/unconfigured_purchase_gateway.dart';
 import '../repository_providers.dart';
 import 'entitlement_controller.dart';
 import 'new_cycle_gate.dart';
+import 'pro_feature_gate.dart';
 
 /// The single source of a [PurchaseGateway] for the whole app (Pro Wave 2,
 /// D-27), mirroring `notificationGatewayProvider`.
@@ -61,3 +62,9 @@ final openCycleCountProvider = FutureProvider<int>((ref) async {
 /// the limit — is reachable from one import, and so a structural test can
 /// assert that exactly one non-test file reads this provider.
 final newCycleGateProvider = Provider(newCycleGate);
+
+/// D-40's one gate for a Pro *feature*, beside the free-tier limit's gate for
+/// the same reason: the whole entitlement story is reachable from one import,
+/// and a structural test can assert that no widget reads the gateway or
+/// `.isActive` to decide anything.
+final proFeatureGateProvider = Provider(proFeatureGate);

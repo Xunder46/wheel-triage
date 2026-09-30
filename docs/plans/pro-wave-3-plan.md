@@ -1,7 +1,7 @@
 # Feature: Pro Wave 3 — Portfolio and assignment calendar (Stage 7), and the share card (Stage 8)
 
-> Status: DRAFT — Iteration 1 active
-> Next handoff: @data-architect (Phase 1)
+> Status: **CLOSED** — all six phases complete
+> Next handoff: none (wave closed)
 > Binding conventions: `docs/conventions.md` (+ `docs/architecture/wheel-triage.md`, `docs/brief-pro.md` §2/§4)
 > Supersedes: nothing. Wave 2 (`docs/plans/pro-wave-2-plan.md`) is closed at D-38 / S-289; this
 > plan continues both registers from D-39 and S-290.
@@ -276,8 +276,10 @@ callers cannot format the same shape two ways.
 
 ### D-44 — The aging note on Portfolio is Today's own string
 
-Portfolio renders `reading_age.agingLine({legs: includedLegs, now: now})` **verbatim**:
-`1 reading older than 7 days · T, from Sep 17`.
+Portfolio renders `reading_age.agingLine({legs, now})` **verbatim** over the same population
+Today passes it — the live legs that have a snapshot — giving
+`1 reading older than 7 days · T, from Sep 17`; `test/features/portfolio/portfolio_screen_test.dart`'s
+S-302 case pins the two screens to that one string.
 
 The population is identical to Today's by construction — Today adds to its aging list exactly
 the live legs that have a snapshot (`today_controller.dart`'s `load`), and D-43's included set
@@ -542,7 +544,23 @@ still names the month it is about, so the user knows why it is empty.
 *(Vetoable: rendering the card with `--` figures and a working share button is the
 alternative. The plan takes the stronger reading — nothing misleading is shareable.)*
 
-### D-56 — Deliberately not in this wave
+### D-56 — The card's footer scales rather than overflows *(promoted from A-18)*
+
+The card is a fixed 360 × 450 surface (D-53) and its footer is `kAppDisclaimer` verbatim
+(D-54), which is ~300 characters. At the test environment's font — every glyph a square, so
+text is far wider than real — the disclaimer alone measures 260px tall and the definition
+line 140px, which overflows the fixed surface.
+
+- **The footer is a `Flexible` wrapping a `FittedBox(fit: BoxFit.scaleDown)`**, so the two
+  paragraphs shrink to fit rather than overflowing the surface or being clipped. It is a
+  no-op at real font sizes and degrades by shrinking at large text scales.
+- The alternatives are rejected: letting the card grow breaks the 1080 × 1350 export contract
+  (D-53), and clipping the footer loses the disclaimer (D-54).
+- A render-time transform in service of two rules is a decision, not an implementation
+  detail, which is why this is numbered rather than left in the Assumption Log (review
+  finding 14).
+
+### D-57 — Deliberately not in this wave
 
 Stage 6 (screenshot scan — no parser, no capture pipeline, no ML Kit, no abstraction for it),
 Stage 4B (accessibility audit, haptics, contrast pass), D-P9's Android build, the store
@@ -790,15 +808,20 @@ expected values.
 - **Fixture** (`bookExcluded`), today = `2026-09-28`: an open `PFE $25` put ×1 with **no
   snapshot**; an `AAL $15` put ×2 with expiration `2026-09-18` (past expiration) **with** a
   snapshot; a `WBD $9` put ×1 with expiration `2026-09-18` and **no** snapshot; and one
-  included `INTC $20` put ×4 with a snapshot at `+0.19`, `option` convention.
+  included `INTC $20` put ×4 with a snapshot at `+0.19`, **`position`** convention.
+  *(Corrected by A-22: this fixture originally said `option` convention, which records the
+  option's own delta — the negation for the short leg this app models — and would have made
+  INTC a long put yielding `−76`. The engine is right; the fixture was wrong.)*
 - **Trigger**: `netPositionDelta`.
 - **Flow**: inclusion is `closedAt == null` ∧ not past expiration ∧ a latest snapshot with a
   non-null delta; exclusion reasons are evaluated past-expiration first.
 - **Expected outcome**: the total is `+76` (`0.19 × 100 × 4`) — AAL, WBD and PFE contribute
   nothing; the "Left out" line reads exactly
-  `Left out: PFE (no reading); WBD, AAL (past expiration)` — **WBD appears once**, under past
-  expiration, not under both; AAL's snapshot is not counted anywhere. A second fixture with
-  only an included leg renders **no** "Left out" line at all.
+  `Left out: PFE (no reading); AAL, WBD (past expiration)` — **WBD appears once**, under past
+  expiration, not under both; AAL's snapshot is not counted anywhere. *(Corrected by A-23:
+  this line originally read `WBD, AAL`, transposing two tickers; `leftOutLine`'s own doc
+  comment and `_sorted` pin **A–Z within a clause**.)* A second fixture with only an included
+  leg renders **no** "Left out" line at all.
 - **Edge case of**: S-296
 
 ### S-298: The aging label
@@ -1145,23 +1168,23 @@ compile before `share_card.dart` existed.
 
 ### Phase 3: The share card screen, the capture and the share (@developer)
 
-1. [ ] Add `lib/features/journal/share_card_screen.dart` with the app bar
+1. [x] Add `lib/features/journal/share_card_screen.dart` with the app bar
        (`Journal` + back arrow), the title `Share September` and the sub
        `An image of this month's closed cycles`, the card, the two toggles and the
        `Share image` button, per D-52, D-54 and D-55.
-2. [ ] Add the card widget (fixed logical **360 × 450**) drawing only from
+2. [x] Add the card widget (fixed logical **360 × 450**) drawing only from
        `Theme.of(context)` / `AppTokens`, with no colour literal (D-53, Invariant 11).
-3. [ ] Wrap the card in a `RepaintBoundary` and capture it at `pixelRatio: 3`, producing
+3. [x] Wrap the card in a `RepaintBoundary` and capture it at `pixelRatio: 3`, producing
        exactly **1080 × 1350**; render the preview from the **same widget tree**, not a second
        painter (D-53).
-4. [ ] Send the bytes to `ShareSheet.shareFiles` through `shareSheetProvider` as
+4. [x] Send the bytes to `ShareSheet.shareFiles` through `shareSheetProvider` as
        `XFile.fromData(bytes, mimeType: 'image/png', path: 'wheel-triage-<yyyy-MM>-ledger.png')`
        with the subject from D-53. **Do not add a second share seam and do not import
        `share_plus` in `lib/features/`.**
-5. [ ] Render the footer as `kAppDisclaimer` verbatim — import it, do not restate it (D-54).
-6. [ ] Add the `GoRoute(path: 'share')` child under `/journal` and an app-bar share action on
-       `JournalScreen` (D-53, D-56).
-7. [ ] Widget tests for S-308, S-309, S-311 and the two goldens for S-310, plus a test that
+5. [x] Render the footer as `kAppDisclaimer` verbatim — import it, do not restate it (D-54).
+6. [x] Add the `GoRoute(path: 'share')` child under `/journal` and an app-bar share action on
+       `JournalScreen` (D-53, D-57).
+7. [x] Widget tests for S-308, S-309, S-311 and the two goldens for S-310, plus a test that
        the produced PNG decodes to 1080 × 1350 and that two captures are byte-identical.
 
 **Done Criteria**: `flutter analyze`;
@@ -1180,24 +1203,24 @@ returns nothing.
 
 ### Phase 4: The book reads, Portfolio's state, and the Pro gate (@developer)
 
-1. [ ] Add `lib/state/book/book_reads.dart` with `capitalInputsFor(WheelRepository, List<Leg>)`
+1. [x] Add `lib/state/book/book_reads.dart` with `capitalInputsFor(WheelRepository, List<Leg>)`
        and `profileForLeg(WheelRepository, String)`, lifted **verbatim** out of
        `TodayController._capitalInputs`, including the `holdingShares`-only share-lot read
        (D-45's shared-read decision). `TodayController` calls them; its behaviour does not
        change.
-2. [ ] Add `lib/state/portfolio/portfolio_controller.dart` and its providers, assembling
+2. [x] Add `lib/state/portfolio/portfolio_controller.dart` and its providers, assembling
        capital inputs, the concentration figures, the delta (D-43) and the bucket counts
        (D-46) through the shared helpers. Hand-written `StateNotifier`, matching the existing
        pattern (no `@riverpod`).
-3. [ ] Add `lib/state/entitlements/pro_feature_gate.dart` with the sealed
+3. [x] Add `lib/state/entitlements/pro_feature_gate.dart` with the sealed
        `ProFeatureAccess` and `ProFeatureGate` exactly as D-40 specifies, and
        `proFeatureGateProvider` in `lib/state/entitlements/entitlement_providers.dart`.
-4. [ ] Add `kPortfolioFeatureName` to `lib/core/purchases/paywall_copy.dart`. **Change nothing
+4. [x] Add `kPortfolioFeatureName` to `lib/core/purchases/paywall_copy.dart`. **Change nothing
        in `kPaywallFeatures`** — it already promises Portfolio.
-5. [ ] In `lib/features/settings/settings_screen.dart`'s wheel-capital and concentration-limit
+5. [x] In `lib/features/settings/settings_screen.dart`'s wheel-capital and concentration-limit
        save path, add `ref.invalidate(portfolioControllerProvider)` beside the two existing
        invalidations.
-6. [ ] Tests for S-290 (all three entitlement states, plus the structural assertion that no
+6. [x] Tests for S-290 (all three entitlement states, plus the structural assertion that no
        file under `lib/features/` reads the gateway or `.isActive`), S-292 (the full-read
        before/after comparison and the Settings invalidation) and S-302's state half.
 
@@ -1219,17 +1242,17 @@ returns nothing.
 
 ### Phase 5: The Portfolio screen, Today's entry point and the routes (@developer)
 
-1. [ ] Add `lib/features/portfolio/portfolio_screen.dart` with the app bar (`Portfolio`, sub
+1. [x] Add `lib/features/portfolio/portfolio_screen.dart` with the app bar (`Portfolio`, sub
        `Pro · as of Mon, Sep 28`), the concentration card, the delta card, the calendar card
        and the five count tiles, per D-42, D-43, D-44, D-45 and D-46.
-2. [ ] Make the "Committed now" tile in `lib/features/today/today_screen.dart`'s `_LedgerStrip`
+2. [x] Make the "Committed now" tile in `lib/features/today/today_screen.dart`'s `_LedgerStrip`
        tappable: evaluate `proFeatureGateProvider`; open → `context.push('/portfolio')`;
        locked → `showPaywall(context, trigger: ProFeaturePaywallTrigger(access.feature))`
        (D-40). **Change nothing else about the strip.**
-3. [ ] Add `GoRoute(path: '/portfolio')` to `lib/core/app_router.dart`, pushed (D-40).
-4. [ ] Update `test/features/paywall/paywall_entry_points_test.dart`'s pinned file list to five
+3. [x] Add `GoRoute(path: '/portfolio')` to `lib/core/app_router.dart`, pushed (D-40).
+4. [x] Update `test/features/paywall/paywall_entry_points_test.dart`'s pinned file list to five
        files and keep the `context.push('/paywall'` single-file assertion.
-5. [ ] Widget tests for S-291, S-293, S-294, S-295, S-296, S-297, S-298, S-299, S-300, S-301,
+5. [x] Widget tests for S-291, S-293, S-294, S-295, S-296, S-297, S-298, S-299, S-300, S-301,
        S-302 (the cross-screen half), S-303 and S-304, plus a structural assertion that no
        bucket-order list exists outside `lib/domain/rules/bucket.dart`.
 
@@ -1246,16 +1269,16 @@ the colour-literal grep returns nothing.
 
 ### Phase 6: Closeout — docs, the residue sweep, the consolidated doc (@developer)
 
-1. [ ] Extend `docs/architecture/wheel-triage.md`: the Portfolio surface (its reuse of Stage
+1. [x] Extend `docs/architecture/wheel-triage.md`: the Portfolio surface (its reuse of Stage
        3's calculations, its one gate), the share-card surface (its month rule, its capture
        contract, its share seam) and two drift-risk rows: the `_pct`/`_pctText`/`percentText`
        duplication (`lib/widgets/journal_row.dart:47`, `lib/widgets/cycle_summary_card.dart`,
        `lib/features/screener/screener_screen.dart:395` versus the new shared
        `format.percentText`) and the bucket-order/counting pair now shared through
        `bucket.dart`. Mark both as observations with their readers, not as work items.
-2. [ ] Update `docs/plans/pro-wave-3-plan.md`'s Progress table and Assumption Log, and mark
+2. [x] Update `docs/plans/pro-wave-3-plan.md`'s Progress table and Assumption Log, and mark
        Status CLOSED.
-3. [ ] Residue sweep — each command must return **nothing** (or exactly the named file):
+3. [x] Residue sweep — each command must return **nothing** (or exactly the named file):
        - `grep -rn "_bucketOrder\|_bucketIndex" lib/` → nothing
        - `grep -rn "_inPeriod" lib/` → nothing
        - `grep -rn "share_plus" lib/features/` → nothing
@@ -1265,7 +1288,7 @@ the colour-literal grep returns nothing.
        - `grep -rn "context.push('/paywall'" lib/` → exactly one file
        - `grep -rn "showPaywall(" lib/` → exactly five files
        - `ls lib/data/db/schema/` → v1 … v6, no v7
-4. [ ] `flutter analyze` and the **full** `flutter test` suite, with the pass/fail counts
+4. [x] `flutter analyze` and the **full** `flutter test` suite, with the pass/fail counts
        pasted into the Progress table. Baseline for this wave: **925 passed, 0 failed**.
 
 **Done Criteria**: `flutter analyze` clean; `flutter test` fully green with counts recorded;
@@ -1310,11 +1333,18 @@ every residue command above returning its expected result.
 - `lib/features/journal/journal_screen.dart` (one app-bar action)
 - `lib/features/settings/settings_screen.dart` (one more `ref.invalidate`)
 - `test/features/paywall/paywall_entry_points_test.dart` (the pinned list grows to five)
-- `test/features/today/today_screen_test.dart`, `test/features/settings/settings_screen_test.dart`,
-  `test/state/today/today_controller_test.dart`,
+- `test/features/settings/settings_screen_test.dart`,
   `test/state/entitlements/nothing_locks_test.dart`,
   `test/domain/rules/{capital_committed,obligation,premium_collected,bucket}_test.dart`,
   `test/core/format_test.dart`
+- `test/features/today/today_screen_test.dart` — **listed but not modified.** Phase 5's
+  Predicted Files named it because the "Committed now" tile gains an `onTap`; the tile's
+  existing assertions already cover the figure, the definition line and the flag lines, and
+  S-291's push-versus-paywall behaviour is asserted in
+  `test/features/paywall/paywall_entry_points_test.dart` (the pinned call-site list) and
+  `test/features/portfolio/portfolio_screen_test.dart`. No assertion in the Today screen suite
+  needed to move, so the file is untouched and the entry is recorded here rather than left as
+  an unexplained gap (review finding 14).
 - `docs/architecture/wheel-triage.md`
 - `docs/plans/pro-wave-3-plan.md` (this file: Progress, Assumption Log, Status)
 
@@ -1407,13 +1437,23 @@ against a literal: a literal would let both drift together.
 |---|---|---|---|
 | 1 — Rules and formatters | @data-architect | **Complete** | `flutter analyze` clean; `flutter test test/domain/rules test/core/format_test.dart test/state/today/today_controller_test.dart` → 382 passed, 0 failed; purity + colour greps empty |
 | 2 — Card month and figures | @data-architect | **Complete** | `flutter test test/domain/rules/share_card_test.dart test/domain/rules/cycle_pnl_test.dart test/domain/rules/journal_aggregates_test.dart` → 50 passed, 0 failed |
-| 3 — Card screen, capture, share | @developer | not started | — |
-| 4 — Book reads, Portfolio state, Pro gate | @developer | not started | — |
-| 5 — Portfolio screen, Today entry, routes | @developer | not started | — |
-| 6 — Closeout | @developer | not started | — |
+| 3 — Card screen, capture, share | @developer | **Complete** | `flutter analyze` clean; `flutter test test/features/journal test/features/goldens test/features/settings` → 54 passed, 0 failed; `share_plus`-in-`lib/features/`, tone and rules-purity greps empty |
+| 4 — Book reads, Portfolio state, Pro gate | @developer | **Complete** | `flutter analyze` clean; `flutter test test/state test/features/settings test/features/today` → 291 passed, 0 failed |
+| 5 — Portfolio screen, Today entry, routes | @developer | **Complete** | `flutter analyze` clean; `flutter test test/features/portfolio test/features/today test/features/paywall test/state` → 315 passed, 0 failed; colour-literal grep empty |
+| 6 — Closeout | @developer | **Complete** | `flutter analyze` clean; full `flutter test` → **1070 passed, 0 failed**; every residue command returned its expected result |
+| Review fix round 1 | @developer | **Complete** | `flutter analyze` clean; full `flutter test` → **1076 passed, 0 failed**; tone, rules-purity, colour-literal, `share_plus`-in-`lib/features/` and `\.shareFiles(`-call-site greps all as expected. All 14 review findings closed: 1 Blocker, 6 Major, 7 Minor. Red-first evidence for findings 1–4 and 7: `+19 -6` with the four `lib/` fixes reverted, `+25` with them restored. See `## Feedback` for the per-finding guards. |
 
 Full suite after Phases 1–2: **1027 passed, 0 failed**; `flutter analyze` clean; the tone,
 rules-purity and colour-literal greps all empty.
+
+Full suite at closeout: **1070 passed, 0 failed**; `flutter analyze` clean; the tone,
+rules-purity, colour-literal, `share_plus`-in-`lib/features/`, `_bucketOrder`/`_bucketIndex`
+and `_inPeriod` greps all empty; `context.push('/paywall'` in exactly one file;
+`showPaywall(` in exactly five; `lib/data/db/schema/` holds v1–v6 with no v7.
+
+Full suite after review fix round 1: **1076 passed, 0 failed**; `flutter analyze` clean; the
+tone, rules-purity, colour-literal, `share_plus`-in-`lib/features/` and `\.shareFiles(`
+call-site greps all as expected. The two S-310 goldens were regenerated (A-27).
 
 Baseline at planning time: `flutter analyze` clean; `flutter test` **925 passed, 0 failed**;
 `AppDatabase.schemaVersion == 6`; schema artifacts v1–v6 present; the tone, rules-purity and
@@ -1519,9 +1559,159 @@ D-43 states `A, B (reason)` explicitly, so `listPhraseWithReason(['WBD','AAL'], 
 expiration')` renders `AAL, WBD (past expiration)` rather than `AAL and WBD (past
 expiration)`. The two functions therefore share no join helper.
 
+_(Phase 3, @developer. Each entry awaits **RATIFIED** / **REVERT**.)_
+
+**A-14 — the share screen's app bar reads `Share September`, and `monthName` was added to
+`lib/core/format.dart` to produce it.** D-53 pins the title as `Share <month>` and S-311 pins
+the literal `Share September`, but the only month formatter that existed was
+`monthAbbreviation` (`Sep`). Options: use the abbreviation and fail S-311, or add a full-name
+formatter. Chose the formatter, since S-311's literal is the more specific statement and the
+abbreviation would also read oddly in an app bar. `monthName` sits beside `monthAbbreviation`
+and shares its `_monthsFull` table, so the two cannot drift. This is one line outside Phase
+3's Predicted Files.
+
+**A-15 — `XFile` is re-exported from `lib/state/export/export_controller.dart`.** D-53 requires
+`XFile.fromData` in the screen, but S-309's structural test forbids `share_plus` under
+`lib/features/`. Options: import `share_plus` in the screen (fails the structural test),
+import `cross_file` directly (a new direct dependency, and the working agreement says ask
+first), or re-export `XFile` from the file that already owns the share seam. Chose the
+re-export: `share_plus` already does `export ... show XFile`, so the screen gets the same type
+the seam takes, from the same import, with no new dependency and no second seam. One line
+outside Phase 3's Predicted Files.
+
+**A-16 — the two toggles are local `State` on a `ConsumerStatefulWidget`, not a controller.**
+D-52 says the toggles are session state that resets on open and are never persisted. Options:
+a `StateNotifier` (a controller for two booleans, and one more thing to dispose), or local
+`State`. Chose local `State`, which makes "resets on open" true by construction rather than by
+a reset call someone can forget, and which S-308 pins by asserting a re-push starts both off
+and that `updatePreferences` is never called.
+
+**A-17 — S-306's month is built through the repository, and its loss cycle carries the loss as
+a close *fee*.** The reference card's five figures are not reproducible from a plain
+`closeLeg` book: a single-leg cycle's capture is `netCredit / openCredit`, so a close debit
+large enough to make the cycle a loss also drives its capture negative, and the reference's
+loss cycle reports 100%. Options: change the fixture's capture (fails S-306's median of 82%),
+or route the loss through a fee. Chose the fee: KO is assigned and then called away, its put
+leg carries `closeFee: Decimal.zero` (so it is not a fourth fee gap) and its call leg carries
+`closeFee: 62.00`, giving `0.32 x 100 + 0.00 x 100 - 62 = -30` with a 100% capture. This also
+exercises the assignment → call-away path, which is the only way a cycle reaches `closed` on
+the call side. The fixture lives in `test/support/share_card_fixtures.dart` so the screen test
+and the golden test cannot drift onto different months.
+
+**A-18 — the card's footer is a `Flexible` + `FittedBox(scaleDown)`.** *(Promoted to **D-56**
+by review finding 14; the entry is kept so the log's numbering stays stable.)* The card is a
+fixed 360 × 450 surface (D-53) and the footer is `kAppDisclaimer` verbatim (D-54), which is
+~300 characters. At the test environment's font — every glyph a square, so text is far wider
+than real — the disclaimer alone measures 260px tall and the definition line 140px, which
+overflows the fixed surface. Options: let the card grow (breaks the 1080 × 1350 contract),
+clip the footer (loses the disclaimer), or scale the footer down. Chose
+`FittedBox(scaleDown)` inside a `Flexible`, which is a no-op at real font sizes and degrades
+by shrinking rather than by overflowing at large text scales.
+
+**A-19 — S-308 asserts A-8's duplicated string.** The rendered net-result line is
+`Net result $357.00 before fees Before fees: 3 closed legs have no fee recorded.` — the
+duplication A-8 already logs. Phase 2 shipped it literally and S-307 pins the no-gap half, so
+the screen test asserts what the engine produces rather than a string the engine does not.
+Fixing the duplication is A-8's open question, not this phase's.
+
+**A-20 — `PortfolioScreen` takes an optional `now`.** The screen's clock was `DateTime.now()`
+inside `load()`, which made every date-bearing assertion (the aging note, the calendar's month,
+the "as of" sub-line) drift with the day the suite ran. Options: leave the clock real and date
+the fixtures relative to `DateTime.now()`, or add a seam. Chose the seam — `PortfolioScreen({this.now})`
+and `buildAppRouter({DateTime? portfolioNow})` — matching `ShareCardScreen`'s existing pattern.
+Production passes nothing. See Open questions.
+
+**A-21 — the calendar's obligation rows use `shortWeekdayDateText`, not `weekdayDateText`.**
+S-300 pins `Fri Oct 2` (D-13's expiry-card form, no comma); `weekdayDateText` is Today's own
+comma-bearing header form. Chose the D-13 formatter, which already existed.
+
+**A-22 — S-297's fixture is corrected to the `position` convention.** The plan's S-297 fixture
+says INTC is `option` convention with `deltaAsEntered: +0.19` and expects `+76`. S-296's own
+table pins `option` convention as recording the option's own delta, which for the short leg
+this app models is the negation — so `+0.19` under `option` is a *long* put and yields `−76`.
+The engine is right and the fixture was wrong; the test uses `position` convention to reach the
+pinned `+76`. Flagged rather than "fixed" in the engine.
+
+**A-23 — S-297's "Left out" example string transposes two tickers.** The plan's S-297 expected
+outcome reads `Left out: PFE (no reading); WBD, AAL (past expiration)`, but `leftOutLine`'s own
+doc comment (and `_sorted`) pin **A–Z within a clause**. The engine renders `AAL, WBD`; the test
+asserts the engine's documented order.
+
+**A-24 — the calendar grid's rows carry `ValueKey('portfolio-calendar-row-<n>')`.** S-303 pins
+the leading-pad count, which is only observable from the grid's own cells. The pad cells carry
+the previous month's day numbers, so the count is the index of the cell reading `1`. The key is
+the seam the test reads; it is not a visual change.
+
+_(Review fix round 1, @developer. Each entry awaits **RATIFIED** / **REVERT**.)_
+
+**A-25 — the duplicate "before fees" wording is left exactly as written.** Review finding 13
+raises that the card renders `Net result $357.00 before fees` and the definition paragraph ends
+`Before fees: 3 closed legs have no fee recorded.`, so the phrase appears twice on one image.
+Both strings are pinned by two decisions (D-50 appends the clause to the net-result line; D-52
+pins the line's own trailing `before fees`) and by S-306/S-307/S-308, and A-8/A-19 already log
+the duplication. Options: change one of the two strings (contradicts a pinned fixture and one
+of the two decisions), or leave it and escalate. Chose to **leave it and escalate** — the
+brief's finding 13 says explicitly not to change it, and giving the clause one home is a
+plan-level decision the owner has to make, not a developer edit. Recorded here as an
+owner-decision item; see Open questions.
+
+**A-26 — `signedSharesText` now rounds through `Decimal.parse(value.toString()).round()`.**
+Review finding 11: the function used `value.round()` where D-43 pins the `Decimal` form, which
+is a second rounding code path in a rule whose stated purpose is that the app have one.
+Verified empirically that `Decimal.round()` is half-away-from-zero (`2.5 → 3`, `−2.5 → −3`,
+`0.5 → 1`, `−0.5 → −1`), so the two forms agree on every value in play and the change is
+behaviour-preserving; `_grouped` now takes a `BigInt` because `Decimal.round()` returns a
+`Decimal`. The existing `format_test.dart` cases (including the half-away-from-zero and
+four-figure-grouping ones) pass unchanged.
+
+**A-27 — the card's toggle lines moved into the footer's inner `Column`, and the goldens were
+regenerated.** Review finding 10: D-52 says the dollars and tickers lines sit "one line under
+the definition paragraph", but they rendered above the footer that holds it. Options: move the
+lines (changes the rendered tree) or correct D-52 (contradicts the decision's own wording).
+Chose to move them, which is what the decision says. The lines now render in the order
+definition → dollars → tickers → disclaimer, and they inherit the footer's `labelSmall` style
+so the footer reads as one block. **The two S-310 goldens were regenerated** — the lines are
+visible in the golden fixture (`showDollars: true, showTickers: true`), so the images
+genuinely changed; the goldens are untracked files from this wave, so regenerating them is the
+correct action rather than a baseline edit. The card's fixed 360 × 450 surface and the
+1080 × 1350 export contract are unaffected (S-309 still passes).
+
+**A-28 — the S-309 call-site count greps `lib/` for `\.shareFiles(` and expects exactly two
+hits.** Review finding 9: the plan pins a call-site count for `ShareSheet.shareFiles`, and the
+structural test only asserted the `share_plus` import ban. The two call sites are
+`lib/features/journal/share_card_screen.dart:69` and
+`lib/features/settings/settings_screen.dart:50`; the declaration and the implementation in
+`lib/state/export/export_controller.dart` do not match the leading dot. The test asserts the
+count and names both files, so a third caller fails with a message that says why.
+
 ## Feedback
 
-_(empty — fold into a new Iteration block when non-empty, then clear)_
+### Review fix round 1 — remediation guards
+
+The Pro Wave 3 review (`.work/runs/20260929-200036-code-reviewer/output.log`, verdict
+CHANGES_REQUESTED: 1 Blocker / 6 Major / 7 Minor) is closed by
+`.work/pro-wave-3/brief-fix-1.md`. Each finding that could regress carries a guard, so the
+next agent reads the guard rather than re-deriving it:
+
+| Finding | Guard |
+|---|---|
+| 1 (Blocker) — Portfolio's DTE was a raw instant difference | `test/state/portfolio/portfolio_controller_test.dart`, group *"the DTE gate reads the same calendar difference Today does"*: a leg whose raw `difference().inDays` and calendar DTE disagree must classify the same on both screens. `_dte` is deleted; `formulas.dte` is the only DTE in the app. |
+| 2 (Major) — the count population could drift from Today's | The same file's S-302 tests: a past-expiration open leg is in **neither** the five counts nor the aging note, and both screens' counts are asserted equal. `today_controller.dart`'s `bucketCounts` doc comment names the shared population. |
+| 3 (Major) — the calendar read the wall clock | `test/features/portfolio/portfolio_screen_test.dart`, S-299's *"today is outlined even as a leading cell"*: the outline is asserted on a pinned clock, so a `DateTime.now()` regression fails on any day but the fixture's. |
+| 4 (Major) — a refresh dropped the injected clock | The same file's *"a reload reads the screen's own clock, not the wall clock"*: the rendered text is asserted byte-identical across a `RefreshIndicator` refresh. |
+| 7 (Major) — S-302's screen half did not test the scenario | The same file's S-302 test: the enumerated 7-leg fixture, a profile edit, a pinned `standard-v1` leg, and counts + order + pin asserted on both screens. |
+| 8 (Minor) — S-304 asserted 3 of 5 label families | The same file's S-304 test asserts all five: the committed total, the bar's ticker + dollars + percent, the delta's shares, the count tiles and the obligation rows. |
+| 9 (Minor) — S-309's structural half was incomplete | `test/features/journal/share_card_screen_test.dart` asserts `\.shareFiles(` has exactly two call sites in `lib/` and names both files. |
+| 11 (Minor) — a second rounding path | `lib/core/format.dart`'s `signedSharesText` uses D-43's pinned `Decimal` form; `test/core/format_test.dart` pins the half-away-from-zero and grouping cases. |
+
+Findings 5, 6 and 14 are documentation corrections with no runtime guard; 10 and 12 are
+cosmetic/dead-code fixes; 13 is escalated to the owner (A-25).
+
+**Red-first evidence.** Findings 1–4 and 7 were written as tests before the fix and confirmed
+red: with the four `lib/` fixes temporarily reverted, the two portfolio suites ran
+`+19 -6` with exactly the six intended failures (past-expiration counts, past-expiration aging,
+the DTE gate, the calendar's today outline, the refresh clock, and S-302's counts/order/pin).
+Restoring the fixes gave `+25` all green.
 
 ## Open questions
 
@@ -1552,6 +1742,16 @@ assumption that the owner may veto before the phase that depends on it.
 6. **The paywall's "Screenshot scan" promise.** `kPaywallFeatures` currently lists it, and
    after this wave it is the only listed feature that is not built. This plan leaves it
    unchanged (D-39). Say if you would rather it be removed until Stage 6 ships.
+7. **"Before fees" appears twice on one shared image.** The card renders
+   `Net result $357.00 before fees` and the definition paragraph ends
+   `Before fees: 3 closed legs have no fee recorded.` Both strings are pinned by two decisions
+   (D-50 appends the clause to the net-result line; D-52 pins the line's own trailing
+   `before fees`) and by S-306/S-307/S-308. Review finding 13 asks for the clause to have one
+   home; the fix round left both strings exactly as written (A-25) because changing either
+   contradicts a pinned fixture and one of the two decisions. **This is the one review finding
+   that needs an owner call:** drop the trailing `before fees` from the net-result line when
+   the gap sentence follows, or drop the clause from the definition paragraph, or accept the
+   duplication as written.
 
 ### Resolved with a logged assumption — vetoable
 
@@ -1595,3 +1795,11 @@ assumption that the owner may veto before the phase that depends on it.
 20. **The reference's shorter obligation line for calls** (`100 shares delivered at $28`,
     without `if assigned`) is superseded by the shipped `obligationFor` text. Assumed the app
     should keep the sentence the Today card already renders. (D-45)
+21. **The card's toggle lines moved into the footer's inner `Column`**, so they render under
+    the definition paragraph and above the disclaimer, and the two S-310 goldens were
+    regenerated. Assumed D-52's "one line under the definition paragraph" is the binding
+    statement and that a golden regenerated for a deliberate layout change is correct rather
+    than a baseline edit. (A-27)
+22. **`signedSharesText` rounds through `Decimal.parse(value.toString()).round()`**, D-43's
+    pinned form, rather than `double.round()`. Assumed the rule's stated purpose — one rounding
+    rule in the app — outweighs the two forms' agreement on every value in play. (A-26)

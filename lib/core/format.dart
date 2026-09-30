@@ -64,6 +64,12 @@ String monthAbbreviation(DateTime date) => _months[date.month - 1];
 /// is fixed and locale-independent like every other date in this file.
 String monthYearText(DateTime date) => '${_monthsFull[date.month - 1]} ${date.year}';
 
+/// The month spelled out alone — `September` — for a title that names the
+/// month without its year, where the year is already unambiguous from
+/// context (the share screen's `Share September`). [monthAbbreviation] is the
+/// column-heading form and cannot carry a title.
+String monthName(DateTime date) => _monthsFull[date.month - 1];
+
 /// A net position delta in shares — `+360 shares`, `−30 shares`, `0 shares`
 /// (D-43). [value] is `null` when nothing in the book could be read, which
 /// renders `--` rather than a zero that would read as a flat book.
@@ -74,12 +80,18 @@ String monthYearText(DateTime date) => '${_monthsFull[date.month - 1]} ${date.ye
 /// are whole, rounded away from zero on a half, and grouped by thousands; the
 /// delta is a dimensionless `double`, so rounding here cannot reach a gate
 /// (`docs/conventions.md` §2).
+///
+/// The rounding goes through `Decimal.parse(value.toString()).round()`, which
+/// is D-43's pinned half-away-from-zero form and the same one
+/// `whole_dollars.dart` uses — `Decimal`'s default rounding is half-away-from-
+/// zero, so this matches `double.round()` while keeping the app's one rounding
+/// rule in one place.
 String signedSharesText(double? value) {
   if (value == null) return '--';
-  final shares = value.round();
-  if (shares == 0) return '0 shares';
-  final sign = shares > 0 ? '+' : '\u2212';
-  return '$sign${_grouped(shares.abs())} shares';
+  final shares = Decimal.parse(value.toString()).round();
+  if (shares == Decimal.zero) return '0 shares';
+  final sign = shares < Decimal.zero ? '\u2212' : '+';
+  return '$sign${_grouped(shares.abs().toBigInt())} shares';
 }
 
 /// A ratio rendered as a percentage — `1.6%` by default, `82%` at
@@ -95,7 +107,7 @@ String percentText(double? value, {int decimals = 1}) =>
 
 /// `1,234` — thousands separators, hand-rolled for the same
 /// locale-independence reason the dates are.
-String _grouped(int value) {
+String _grouped(BigInt value) {
   final digits = value.toString();
   final buffer = StringBuffer();
   for (var i = 0; i < digits.length; i++) {

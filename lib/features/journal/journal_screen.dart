@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../../widgets/app_bottom_nav.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -19,7 +20,18 @@ class JournalScreen extends ConsumerWidget {
     final controller = ref.read(journalControllerProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Journal')),
+      appBar: AppBar(
+        title: const Text('Journal'),
+        actions: [
+          // D-53/D-56: the card is the Journal's own month, so the entry
+          // point lives on the Journal rather than in the nav bar.
+          IconButton(
+            icon: const Icon(Icons.ios_share),
+            tooltip: 'Share this month',
+            onPressed: () => context.push('/journal/share'),
+          ),
+        ],
+      ),
       body: RefreshIndicator(onRefresh: controller.load, child: _Body(state: state)),
       bottomNavigationBar: const AppBottomNav(currentPath: '/journal'),
     );

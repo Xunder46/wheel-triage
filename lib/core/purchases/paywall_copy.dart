@@ -189,6 +189,11 @@ String newCyclePastLimitLine({required int count, required int limit}) =>
 String newCycleRefusalLine({required int count, required int limit}) =>
     count <= limit ? newCycleAtLimitLine(count) : newCyclePastLimitLine(count: count, limit: limit);
 
+/// The name of the Portfolio surface, as the paywall and the gate both spell
+/// it (D-40). One constant, so the trigger's sentence and the gate's line
+/// cannot name the same feature two ways.
+const String kPortfolioFeatureName = 'Portfolio';
+
 /// The line for a Pro feature reached on the free tier (D-30's second entry
 /// point, wired in Wave 3). [feature] names the feature; the second sentence
 /// is the same promise every refusal makes.
