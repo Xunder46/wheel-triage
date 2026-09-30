@@ -77,6 +77,13 @@ class PositionDetailState {
   /// save (Feature Invariant 20's soft-warn tier) — distinct from
   /// [snapshotError], which is reserved for the hard-reject block.
   final String? snapshotWarning;
+
+  /// D-66: whether the snapshot just saved moved this leg into a different
+  /// bucket. `null` until a save has happened since the last [load] -- which
+  /// is what stops a reload, a reopen or a second identical save from
+  /// replaying the haptic (S-335). It is a **state fact**, not a comparison
+  /// a screen performs: no screen reads [Bucket]'s `runtimeType` (S-327).
+  final bool? lastSnapshotChangedBucket;
   final bool actionSubmitting;
   final String? actionError;
 
@@ -103,6 +110,7 @@ class PositionDetailState {
     this.snapshotSubmitting = false,
     this.snapshotError,
     this.snapshotWarning,
+    this.lastSnapshotChangedBucket,
     this.actionSubmitting = false,
     this.actionError,
   });
@@ -115,8 +123,9 @@ class PositionDetailState {
 
   /// The full Feature Invariant 18 label, or `null` before the first load
   /// settles (no [rollBand]/[resolvedIv] computed yet).
-  String? get rollBandLabelText =>
-      (rollBand == null || resolvedIv == null) ? null : rollBandLabel(band: rollBand!, resolvedIv: resolvedIv!);
+  String? get rollBandLabelText => (rollBand == null || resolvedIv == null)
+      ? null
+      : rollBandLabel(band: rollBand!, resolvedIv: resolvedIv!);
 
   PositionDetailState copyWith({
     bool? isLoading,
@@ -147,6 +156,8 @@ class PositionDetailState {
     bool? actionSubmitting,
     String? actionError,
     bool clearActionError = false,
+    bool? lastSnapshotChangedBucket,
+    bool clearLastSnapshotChangedBucket = false,
   }) => PositionDetailState(
     isLoading: isLoading ?? this.isLoading,
     error: clearError ? null : (error ?? this.error),
@@ -168,16 +179,28 @@ class PositionDetailState {
     shareLot: shareLot ?? this.shareLot,
     cyclePnl: cyclePnl ?? this.cyclePnl,
     snapshotSubmitting: snapshotSubmitting ?? this.snapshotSubmitting,
-    snapshotError: clearSnapshotError ? null : (snapshotError ?? this.snapshotError),
-    snapshotWarning: clearSnapshotWarning ? null : (snapshotWarning ?? this.snapshotWarning),
+    snapshotError: clearSnapshotError
+        ? null
+        : (snapshotError ?? this.snapshotError),
+    snapshotWarning: clearSnapshotWarning
+        ? null
+        : (snapshotWarning ?? this.snapshotWarning),
     actionSubmitting: actionSubmitting ?? this.actionSubmitting,
     actionError: clearActionError ? null : (actionError ?? this.actionError),
+    lastSnapshotChangedBucket: clearLastSnapshotChangedBucket
+        ? null
+        : (lastSnapshotChangedBucket ?? this.lastSnapshotChangedBucket),
   );
 }
 
 class PositionDetailController extends StateNotifier<PositionDetailState> {
   PositionDetailController(this._ref, this._repo, this._legId)
-    : super(PositionDetailState(profile: RuleProfile.standard, cycleCumulativeCredit: Decimal.zero)) {
+    : super(
+        PositionDetailState(
+          profile: RuleProfile.standard,
+          cycleCumulativeCredit: Decimal.zero,
+        ),
+      ) {
     load();
   }
 
@@ -186,15 +209,26 @@ class PositionDetailController extends StateNotifier<PositionDetailState> {
   final String _legId;
 
   Future<void> load({DateTime? now}) async {
-    state = state.copyWith(isLoading: true, clearError: true);
+    // D-66: a reload retires the last save's verdict, so the flag cannot
+    // outlive the save that set it (S-335).
+    state = state.copyWith(
+      isLoading: true,
+      clearError: true,
+      clearLastSnapshotChangedBucket: true,
+    );
     try {
       final leg = await _repo.getLeg(_legId);
       if (leg == null) {
-        state = state.copyWith(isLoading: false, error: 'This position no longer exists.');
+        state = state.copyWith(
+          isLoading: false,
+          error: 'This position no longer exists.',
+        );
         return;
       }
       final cycle = await _repo.getCycle(leg.cycleId);
-      final underlying = cycle == null ? null : await _repo.getUnderlying(cycle.underlyingId);
+      final underlying = cycle == null
+          ? null
+          : await _repo.getUnderlying(cycle.underlyingId);
       final cycleLegs = await _repo.getLegsForCycle(leg.cycleId);
       final snapshots = await _repo.getSnapshotsForLeg(_legId);
 
@@ -202,13 +236,18 @@ class PositionDetailController extends StateNotifier<PositionDetailState> {
       // one (Iteration 5 D-5): an edit must not reclassify an open
       // position or its rolled successors. A dangling pin degrades to the
       // built-in defaults (D-7).
-      final versionData = await _repo.getRuleProfileVersion(leg.ruleProfileVersionId);
+      final versionData = await _repo.getRuleProfileVersion(
+        leg.ruleProfileVersionId,
+      );
       final RuleProfile profile;
       if (versionData == null) {
         profile = RuleProfile.standard;
       } else {
         final profileData = await _repo.getRuleProfile(versionData.profileId);
-        profile = RuleProfile.fromVersion(versionData, profileName: profileData?.name ?? 'Standard');
+        profile = RuleProfile.fromVersion(
+          versionData,
+          profileName: profileData?.name ?? 'Standard',
+        );
       }
 
       // Feature Invariant 7 / S-140: two distinct reference dates through one
@@ -229,21 +268,31 @@ class PositionDetailController extends StateNotifier<PositionDetailState> {
       Decimal? oneSigma;
       double? cushion;
       if (snapshot != null) {
-        captured = formulas.capturedPct(openCredit: leg.openCreditPerShare, currentMark: snapshot.optionMark);
+        captured = formulas.capturedPct(
+          openCredit: leg.openCreditPerShare,
+          currentMark: snapshot.optionMark,
+        );
         deltaMag = formulas.deltaMagnitude(snapshot.deltaAsEntered);
         final intrinsicValue = formulas.intrinsic(
           optionType: leg.optionType,
           strike: leg.strike,
           spot: snapshot.underlyingPrice,
         );
-        extrinsicValue = formulas.extrinsic(currentMark: snapshot.optionMark, intrinsic: intrinsicValue);
+        extrinsicValue = formulas.extrinsic(
+          currentMark: snapshot.optionMark,
+          intrinsic: intrinsicValue,
+        );
         // oneSigmaMove's IV source is unchanged by A3/Feature Invariant 18 --
         // it still reads `snapshot.iv` only, never the resolution order
         // below (which is scoped to Gate 3's roll band exclusively). Its
         // `dte` is this snapshot's own historical DTE (Feature Invariant 7),
         // not the live classification `dteValue` above.
         final snapshotDte = formulas.dte(leg.expiration, snapshot.takenAt);
-        oneSigma = formulas.oneSigmaMove(spot: snapshot.underlyingPrice, iv: snapshot.iv, dte: snapshotDte);
+        oneSigma = formulas.oneSigmaMove(
+          spot: snapshot.underlyingPrice,
+          iv: snapshot.iv,
+          dte: snapshotDte,
+        );
         cushion = formulas.cushionSigmas(
           strike: leg.strike,
           spot: snapshot.underlyingPrice,
@@ -275,10 +324,13 @@ class PositionDetailController extends StateNotifier<PositionDetailState> {
       // (Feature Invariant 36, Phase 23.4 ruling 2b) -- the assigned put
       // leg's own strike is only a legacy fallback for a cycle closed before
       // that record was retained.
-      final shareLot = cycle == null ? null : await _repo.getShareLotForCycle(cycle.id);
+      final shareLot = cycle == null
+          ? null
+          : await _repo.getShareLotForCycle(cycle.id);
       final pnlShareLot = cycle == null
           ? null
-          : (await _repo.getAssignmentForCycle(cycle.id)) ?? _reconstructShareLot(cycleLegs);
+          : (await _repo.getAssignmentForCycle(cycle.id)) ??
+                _reconstructShareLot(cycleLegs);
       final cyclePnl = cycle == null
           ? null
           : computeCyclePnl(
@@ -310,7 +362,10 @@ class PositionDetailController extends StateNotifier<PositionDetailState> {
         cyclePnl: cyclePnl,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: 'Could not load this position: $e');
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Could not load this position: $e',
+      );
     }
   }
 
@@ -338,18 +393,38 @@ class PositionDetailController extends StateNotifier<PositionDetailState> {
   }) async {
     final leg = state.leg;
     if (leg == null) return false;
-    state = state.copyWith(snapshotSubmitting: true, clearSnapshotError: true, clearSnapshotWarning: true);
+    // Both captured before `load()` overwrites them (D-66).
+    final hadPreviousReading = state.snapshots.isNotEmpty;
+    final previousBucket = state.bucket;
+    state = state.copyWith(
+      snapshotSubmitting: true,
+      clearSnapshotError: true,
+      clearSnapshotWarning: true,
+    );
     try {
       final effectiveTakenAt = takenAt ?? DateTime.now();
-      final rangeError = _validateTakenAtRange(takenAt: effectiveTakenAt, leg: leg);
+      final rangeError = _validateTakenAtRange(
+        takenAt: effectiveTakenAt,
+        leg: leg,
+      );
       if (rangeError != null) {
-        state = state.copyWith(snapshotSubmitting: false, snapshotError: rangeError);
+        state = state.copyWith(
+          snapshotSubmitting: false,
+          snapshotError: rangeError,
+        );
         return false;
       }
 
       final totalPerContract =
-          _ref.read(preferencesControllerProvider).valueOrNull?.totalPerContractToggle ?? false;
-      final perShareMark = perShareValue(optionMark, totalPerContract: totalPerContract);
+          _ref
+              .read(preferencesControllerProvider)
+              .valueOrNull
+              ?.totalPerContractToggle ??
+          false;
+      final perShareMark = perShareValue(
+        optionMark,
+        totalPerContract: totalPerContract,
+      );
 
       final bound = checkCreditBound(
         value: perShareMark,
@@ -358,7 +433,10 @@ class PositionDetailController extends StateNotifier<PositionDetailState> {
         strike: leg.strike,
       );
       if (bound.blocks) {
-        state = state.copyWith(snapshotSubmitting: false, snapshotError: bound.message);
+        state = state.copyWith(
+          snapshotSubmitting: false,
+          snapshotError: bound.message,
+        );
         return false;
       }
 
@@ -387,12 +465,28 @@ class PositionDetailController extends StateNotifier<PositionDetailState> {
       await load();
       state = state.copyWith(
         snapshotSubmitting: false,
-        snapshotWarning: bound.level == CreditBoundLevel.softWarn ? bound.message : null,
+        snapshotWarning: bound.level == CreditBoundLevel.softWarn
+            ? bound.message
+            : null,
         clearSnapshotWarning: bound.level != CreditBoundLevel.softWarn,
+        // D-66/D-67: the comparison happens here, where both readings are in
+        // hand -- the bucket as it stood before the save, and the bucket
+        // `load()` just computed from it. A first reading has nothing to
+        // compare against, so it reports `false` rather than a change
+        // (S-325). `runtimeType`, never `==`: two `BucketAssign` instances
+        // carrying different reasons are the same bucket for this purpose.
+        lastSnapshotChangedBucket:
+            hadPreviousReading &&
+            previousBucket != null &&
+            state.bucket != null &&
+            previousBucket.runtimeType != state.bucket!.runtimeType,
       );
       return true;
     } catch (e) {
-      state = state.copyWith(snapshotSubmitting: false, snapshotError: 'Could not save snapshot: $e');
+      state = state.copyWith(
+        snapshotSubmitting: false,
+        snapshotError: 'Could not save snapshot: $e',
+      );
       return false;
     }
   }
@@ -437,7 +531,10 @@ class PositionDetailController extends StateNotifier<PositionDetailState> {
       state = state.copyWith(actionSubmitting: false);
       return true;
     } catch (e) {
-      state = state.copyWith(actionSubmitting: false, actionError: 'Could not close this leg: $e');
+      state = state.copyWith(
+        actionSubmitting: false,
+        actionError: 'Could not close this leg: $e',
+      );
       return false;
     }
   }
@@ -476,7 +573,10 @@ class PositionDetailController extends StateNotifier<PositionDetailState> {
       state = state.copyWith(actionSubmitting: false);
       return true;
     } catch (e) {
-      state = state.copyWith(actionSubmitting: false, actionError: 'Could not update this leg: $e');
+      state = state.copyWith(
+        actionSubmitting: false,
+        actionError: 'Could not update this leg: $e',
+      );
       return false;
     }
   }
@@ -488,23 +588,34 @@ class PositionDetailController extends StateNotifier<PositionDetailState> {
   /// back to unknown — clearing isn't part of this affordance. Returns
   /// `false` without calling the repository when both are `null` (avoids
   /// `updateLegMetadata`'s "nothing would change" `ArgumentError`).
-  Future<bool> updateLegFees({required String legId, Decimal? openFee, Decimal? closeFee}) async {
+  Future<bool> updateLegFees({
+    required String legId,
+    Decimal? openFee,
+    Decimal? closeFee,
+  }) async {
     if (openFee == null && closeFee == null) return false;
     state = state.copyWith(actionSubmitting: true, clearActionError: true);
     try {
-      await _repo.updateLegMetadata(legId: legId, openFee: openFee, closeFee: closeFee);
+      await _repo.updateLegMetadata(
+        legId: legId,
+        openFee: openFee,
+        closeFee: closeFee,
+      );
       await load();
       state = state.copyWith(actionSubmitting: false);
       return true;
     } catch (e) {
-      state = state.copyWith(actionSubmitting: false, actionError: 'Could not update fees: $e');
+      state = state.copyWith(
+        actionSubmitting: false,
+        actionError: 'Could not update fees: $e',
+      );
       return false;
     }
   }
 }
 
-final positionDetailControllerProvider =
-    StateNotifierProvider.family.autoDispose<PositionDetailController, PositionDetailState, String>((
+final positionDetailControllerProvider = StateNotifierProvider.family
+    .autoDispose<PositionDetailController, PositionDetailState, String>((
       ref,
       legId,
     ) {

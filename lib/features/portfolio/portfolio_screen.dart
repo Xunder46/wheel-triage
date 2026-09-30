@@ -59,7 +59,9 @@ class _PortfolioScreenState extends ConsumerState<PortfolioScreen> {
           children: [
             Text(
               'Pro · as of ${_asOf(widget.now ?? DateTime.now())}',
-              style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
             Text('Portfolio', style: textTheme.titleLarge),
           ],
@@ -72,7 +74,8 @@ class _PortfolioScreenState extends ConsumerState<PortfolioScreen> {
 
 /// `Mon, Sep 28` — the sub-line's own casing (D-42). Built from the shipped
 /// formatters rather than a new one.
-String _asOf(DateTime now) => '${shortWeekdayDateText(now)}, ${monthAbbreviation(now)} ${now.day}';
+String _asOf(DateTime now) =>
+    '${shortWeekdayDateText(now)}, ${monthAbbreviation(now)} ${now.day}';
 
 class _Body extends ConsumerWidget {
   const _Body({required this.state, required this.now});
@@ -105,7 +108,8 @@ class _Body extends ConsumerWidget {
     }
 
     return RefreshIndicator(
-      onRefresh: () => ref.read(portfolioControllerProvider.notifier).load(now: now),
+      onRefresh: () =>
+          ref.read(portfolioControllerProvider.notifier).load(now: now),
       child: ListView(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
         children: [
@@ -157,7 +161,9 @@ class _ConcentrationCard extends StatelessWidget {
                 Text(
                   'committed now · ${state.percentOfWheelCapital}% of '
                   '${wholeDollars(capital)} wheel capital',
-                  style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  style: textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
             ],
           ),
@@ -176,7 +182,9 @@ class _ConcentrationCard extends StatelessWidget {
                   ),
                   Text(
                     wholeDollars(bar.committed),
-                    style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ],
               ),
@@ -189,9 +197,13 @@ class _ConcentrationCard extends StatelessWidget {
               children: [
                 Container(width: 2, height: 12, color: scheme.onSurface),
                 const SizedBox(width: 6),
-                Text(
-                  state.keyLine!,
-                  style: textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+                Flexible(
+                  child: Text(
+                    state.keyLine!,
+                    style: textTheme.labelSmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -206,7 +218,9 @@ class _ConcentrationCard extends StatelessWidget {
             padding: const EdgeInsets.only(top: 2),
             child: Text(
               line,
-              style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
           ),
         if (state.inviteLine != null)
@@ -214,7 +228,9 @@ class _ConcentrationCard extends StatelessWidget {
             padding: const EdgeInsets.only(top: 2),
             child: Text(
               state.inviteLine!,
-              style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
           ),
       ],
@@ -243,14 +259,18 @@ class _BarRow extends StatelessWidget {
       capital: bar.committed,
       wheelCapital: state.wheelCapital,
     );
-    final fill = ratio == null ? 0.0 : (ratio.toDouble() / trackMax).clamp(0.0, 1.0);
+    final fill = ratio == null
+        ? 0.0
+        : (ratio.toDouble() / trackMax).clamp(0.0, 1.0);
     final mark = state.concentrationLimitPct / trackMax;
-    final over = ratio != null && ratio.toDouble() > state.concentrationLimitPct;
+    final over =
+        ratio != null && ratio.toDouble() > state.concentrationLimitPct;
 
     return KeyedSubtree(
       key: ValueKey('portfolio-bar-${bar.ticker}'),
       child: Semantics(
-        label: '${bar.ticker} ${wholeDollars(bar.committed)} committed, '
+        label:
+            '${bar.ticker} ${wholeDollars(bar.committed)} committed, '
             '${bar.percent}% of wheel capital',
         child: Padding(
           padding: const EdgeInsets.only(top: 6),
@@ -286,7 +306,10 @@ class _BarRow extends StatelessWidget {
                         ),
                       ),
                       Positioned(
-                        left: (constraints.maxWidth * mark).clamp(0.0, constraints.maxWidth - 2),
+                        left: (constraints.maxWidth * mark).clamp(
+                          0.0,
+                          constraints.maxWidth - 2,
+                        ),
                         top: -4,
                         bottom: -4,
                         child: Container(width: 2, color: scheme.onSurface),
@@ -333,11 +356,14 @@ class _DeltaCard extends StatelessWidget {
             Expanded(
               child: Text(
                 'Net position delta',
-                style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                style: textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             Semantics(
-              label: 'Net position delta ${signedSharesText(state.deltaShares)}',
+              label:
+                  'Net position delta ${signedSharesText(state.deltaShares)}',
               child: Text(
                 signedSharesText(state.deltaShares),
                 style: textTheme.titleMedium?.copyWith(
@@ -358,7 +384,9 @@ class _DeltaCard extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4),
             child: Text(
               state.agingLine!,
-              style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
           ),
         if (state.leftOutLine != null)
@@ -366,7 +394,9 @@ class _DeltaCard extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4),
             child: Text(
               state.leftOutLine!,
-              style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
           ),
       ],
@@ -399,7 +429,8 @@ class _CalendarCard extends StatelessWidget {
     final leading = first.weekday % 7;
     final cells = <DateTime>[
       for (var i = leading; i > 0; i--) first.subtract(Duration(days: i)),
-      for (var day = 1; day <= daysInMonth; day++) DateTime(month.year, month.month, day),
+      for (var day = 1; day <= daysInMonth; day++)
+        DateTime(month.year, month.month, day),
     ];
     while (cells.length % 7 != 0) {
       cells.add(cells.last.add(const Duration(days: 1)));
@@ -407,7 +438,11 @@ class _CalendarCard extends StatelessWidget {
 
     final marked = {
       for (final obligation in state.obligations)
-        DateTime(obligation.date.year, obligation.date.month, obligation.date.day),
+        DateTime(
+          obligation.date.year,
+          obligation.date.month,
+          obligation.date.day,
+        ),
     };
 
     // One row per date, ascending -- the obligations arrive already grouped
@@ -425,12 +460,16 @@ class _CalendarCard extends StatelessWidget {
             Expanded(
               child: Text(
                 monthYearText(month),
-                style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
             Text(
               'Expirations',
-              style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -442,7 +481,9 @@ class _CalendarCard extends StatelessWidget {
                 child: Text(
                   label,
                   textAlign: TextAlign.center,
-                  style: textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+                  style: textTheme.labelSmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
           ],
@@ -452,7 +493,14 @@ class _CalendarCard extends StatelessWidget {
             key: ValueKey('portfolio-calendar-row-$row'),
             children: [
               for (var column = 0; column < 7; column++)
-                Expanded(child: _DayCell(date: cells[row * 7 + column], month: month, today: today, marked: marked)),
+                Expanded(
+                  child: _DayCell(
+                    date: cells[row * 7 + column],
+                    month: month,
+                    today: today,
+                    marked: marked,
+                  ),
+                ),
             ],
           ),
         for (final date in dates) ...[
@@ -467,14 +515,17 @@ class _CalendarCard extends StatelessWidget {
           ),
           for (final obligation in byDate[date]!)
             Semantics(
-              label: '${obligation.ticker} ${legContractText(obligation.leg)} '
+              label:
+                  '${obligation.ticker} ${legContractText(obligation.leg)} '
                   '${obligationFor(obligation.leg)?.text ?? ''}',
               child: Padding(
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   '${obligation.ticker} ${legContractText(obligation.leg)} · '
                   '${obligationFor(obligation.leg)?.text ?? ''}',
-                  style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  style: textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ),
@@ -506,7 +557,9 @@ class _DayCell extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final inMonth = date.month == month.month && date.year == month.year;
     final isToday =
-        date.year == today.year && date.month == today.month && date.day == today.day;
+        date.year == today.year &&
+        date.month == today.month &&
+        date.day == today.day;
     final isMarked = inMonth && marked.contains(date);
 
     return Container(
@@ -561,9 +614,10 @@ class _CountsRow extends StatelessWidget {
                     ),
                     Text(
                       bucketLabel(entry.bucket),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+                      textAlign: TextAlign.center,
+                      style: textTheme.labelSmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -593,7 +647,10 @@ class _Card extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: scheme.outlineVariant),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: children),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
     );
   }
 }

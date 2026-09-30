@@ -85,13 +85,17 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
         children: [
           Text(
             kPaywallTitle,
-            style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+            style: textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
           const SizedBox(height: 12),
           Text(
             widget.trigger.line,
             key: const ValueKey('paywall-trigger-line'),
-            style: textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
+            style: textTheme.bodyMedium?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 20),
           for (final feature in kPaywallFeatures) _featureRow(context, feature),
@@ -120,8 +124,12 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
             const SizedBox(height: 8),
             FilledButton(
               key: const ValueKey('paywall-purchase-button'),
-              onPressed: state.isBusy || selected == null ? null : controller.purchase,
-              child: Text(selected == null ? kContinueLabel : selected.buttonLabel),
+              onPressed: state.isBusy || selected == null
+                  ? null
+                  : controller.purchase,
+              child: Text(
+                selected == null ? kContinueLabel : selected.buttonLabel,
+              ),
             ),
             if (selected != null) ...[
               const SizedBox(height: 12),
@@ -133,7 +141,9 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                 child: Text(
                   selected.finePrint,
                   key: const ValueKey('paywall-fine-print'),
-                  style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                  style: textTheme.bodySmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
             ],
@@ -169,7 +179,11 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
           // is hidden rather than shown as a link that goes nowhere.
           if (kPrivacyPolicyUrl.isNotEmpty) ...[
             const SizedBox(height: 8),
-            _policyText(context, label: kPrivacyPolicyLabel, url: kPrivacyPolicyUrl),
+            _policyText(
+              context,
+              label: kPrivacyPolicyLabel,
+              url: kPrivacyPolicyUrl,
+            ),
           ],
         ],
       ),
@@ -177,7 +191,10 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   }
 
   /// One launch feature (OC-9): the bolded phrase, then the plain clause.
-  Widget _featureRow(BuildContext context, ({String lead, String? detail}) feature) {
+  Widget _featureRow(
+    BuildContext context,
+    ({String lead, String? detail}) feature,
+  ) {
     final theme = Theme.of(context);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -194,7 +211,8 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
                     text: feature.lead,
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
-                  if (feature.detail != null) TextSpan(text: ' · ${feature.detail}'),
+                  if (feature.detail != null)
+                    TextSpan(text: ' · ${feature.detail}'),
                 ],
               ),
               style: theme.textTheme.bodyMedium,
@@ -212,7 +230,11 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.lock_outline, size: 18, color: theme.colorScheme.onSurfaceVariant),
+        Icon(
+          Icons.lock_outline,
+          size: 18,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
         const SizedBox(width: 10),
         Expanded(
           child: Text(
@@ -310,9 +332,16 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(
-                selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                selected
+                    ? Icons.radio_button_checked
+                    : Icons.radio_button_unchecked,
                 size: 20,
-                color: selected ? scheme.primary : scheme.outline,
+                // D-68: the unselected indicator is the one non-text component
+                // that conveys state, so it must clear 3:1 against the surface
+                // it sits on. `outline` is a hairline colour (1.93:1 dark,
+                // 2.15:1 light) and fails that bar; `onSurfaceVariant` is the
+                // theme's muted-but-legible role and clears it in both.
+                color: selected ? scheme.primary : scheme.onSurfaceVariant,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -340,7 +369,11 @@ class _PaywallScreenState extends ConsumerState<PaywallScreen> {
   /// D-37: the policy entries render as selectable text, not as tappable
   /// links, because opening a URL would need a launcher dependency this wave
   /// deliberately does not add.
-  Widget _policyText(BuildContext context, {required String label, required String url}) {
+  Widget _policyText(
+    BuildContext context, {
+    required String label,
+    required String url,
+  }) {
     final theme = Theme.of(context);
     return Semantics(
       label: '$label: $url',

@@ -12,7 +12,7 @@ import '../../state/preferences/preferences_provider.dart';
 import '../../widgets/bucket_badge.dart';
 import '../../widgets/cycle_summary_card.dart';
 import '../../widgets/delta_sparkline.dart';
-import '../../widgets/help_chip.dart';
+import '../../widgets/label_value_row.dart';
 import 'snapshot_sheet.dart';
 
 /// §5.2's position detail: current verdict + the arithmetic shown openly,
@@ -27,7 +27,9 @@ class PositionDetailSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(positionDetailControllerProvider(legId));
-    final controller = ref.read(positionDetailControllerProvider(legId).notifier);
+    final controller = ref.read(
+      positionDetailControllerProvider(legId).notifier,
+    );
 
     return Scaffold(
       appBar: AppBar(title: Text(state.underlying?.ticker ?? 'Position')),
@@ -39,7 +41,8 @@ class PositionDetailSheet extends ConsumerWidget {
       floatingActionButton: state.leg == null
           ? null
           : FloatingActionButton.extended(
-              onPressed: () => showSnapshotSheet(context: context, legId: legId),
+              onPressed: () =>
+                  showSnapshotSheet(context: context, legId: legId),
               icon: const Icon(Icons.edit_note),
               label: const Text('Update snapshot'),
             ),
@@ -48,7 +51,11 @@ class PositionDetailSheet extends ConsumerWidget {
 }
 
 class _DetailBody extends ConsumerWidget {
-  const _DetailBody({required this.legId, required this.state, required this.controller});
+  const _DetailBody({
+    required this.legId,
+    required this.state,
+    required this.controller,
+  });
 
   final String legId;
   final PositionDetailState state;
@@ -95,7 +102,9 @@ class _DetailBody extends ConsumerWidget {
                   TextButton(
                     onPressed: () => ref
                         .read(preferencesControllerProvider.notifier)
-                        .update((p) => p.copyWith(ivResolutionNoticeDismissed: true)),
+                        .update(
+                          (p) => p.copyWith(ivResolutionNoticeDismissed: true),
+                        ),
                     child: const Text('Got it'),
                   ),
                 ],
@@ -138,7 +147,9 @@ class _DetailBody extends ConsumerWidget {
               padding: const EdgeInsets.only(top: 4),
               child: Text(
                 'Computed from the snapshot taken on ${dateText(latestSnapshot.takenAt)}.',
-                style: textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic),
+                style: textTheme.bodySmall?.copyWith(
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ),
           const SizedBox(height: 8),
@@ -164,26 +175,56 @@ class _DetailBody extends ConsumerWidget {
                   children: [
                     Text('Arithmetic', style: textTheme.titleSmall),
                     if (freshness != null)
-                      Text(_freshnessLabel(freshness), style: textTheme.bodySmall),
+                      Text(
+                        _freshnessLabel(freshness),
+                        style: textTheme.bodySmall,
+                      ),
                   ],
                 ),
                 const SizedBox(height: 8),
-                _Row('Captured', pctText(state.capturedPct), helpTopicId: 'captured'),
-                _Row(
-                  'Delta magnitude',
-                  state.deltaMagnitude == null ? '--' : state.deltaMagnitude!.toStringAsFixed(4),
+                LabelValueRow(
+                  label: 'Captured',
+                  value: pctText(state.capturedPct),
+                  spokenValue: state.capturedPct == null
+                      ? 'not available'
+                      : null,
+                  helpTopicId: 'captured',
+                ),
+                LabelValueRow(
+                  label: 'Delta magnitude',
+                  value: state.deltaMagnitude == null
+                      ? '--'
+                      : state.deltaMagnitude!.toStringAsFixed(4),
+                  spokenValue: state.deltaMagnitude == null
+                      ? 'not available'
+                      : null,
                 ),
                 // S-144: this label + value pairing is long enough at a
                 // realistic phone width to squeeze the label to nothing when
                 // shared on one line -- stacked instead of truncating.
-                _Row(
-                  'Roll band in use',
-                  state.rollBandLabelText ?? '--',
+                LabelValueRow(
+                  label: 'Roll band in use',
+                  value: state.rollBandLabelText ?? '--',
+                  spokenValue: state.rollBandLabelText == null
+                      ? 'not available'
+                      : null,
                   helpTopicId: 'roll_band',
                   stacked: true,
                 ),
-                _Row('One-sigma move', moneyText(state.oneSigmaMove), helpTopicId: 'one_sigma'),
-                _Row('Extrinsic remaining', moneyText(state.extrinsic), helpTopicId: 'extrinsic'),
+                LabelValueRow(
+                  label: 'One-sigma move',
+                  value: moneyText(state.oneSigmaMove),
+                  spokenValue: state.oneSigmaMove == null
+                      ? 'not available'
+                      : null,
+                  helpTopicId: 'one_sigma',
+                ),
+                LabelValueRow(
+                  label: 'Extrinsic remaining',
+                  value: moneyText(state.extrinsic),
+                  spokenValue: state.extrinsic == null ? 'not available' : null,
+                  helpTopicId: 'extrinsic',
+                ),
               ],
             ),
           ),
@@ -201,19 +242,25 @@ class _DetailBody extends ConsumerWidget {
                     padding: const EdgeInsets.only(top: 4),
                     child: Text(
                       'This leg came from a roll. The credit above is this leg only.',
-                      style: textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic),
+                      style: textTheme.bodySmall?.copyWith(
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
                   ),
                 const SizedBox(height: 8),
                 for (final chainLeg in state.cycleLegs)
-                  _Row(
-                    'Leg ${chainLeg.sequence} (\$${chainLeg.strike} ${chainLeg.optionType.name})',
-                    moneyText(chainLeg.openCreditPerShare - (chainLeg.closeDebitPerShare ?? Decimal.zero)),
+                  LabelValueRow(
+                    label:
+                        'Leg ${chainLeg.sequence} (\$${chainLeg.strike} ${chainLeg.optionType.name})',
+                    value: moneyText(
+                      chainLeg.openCreditPerShare -
+                          (chainLeg.closeDebitPerShare ?? Decimal.zero),
+                    ),
                   ),
                 const Divider(),
-                _Row(
-                  'Cycle cumulative credit',
-                  moneyText(state.cycleCumulativeCredit),
+                LabelValueRow(
+                  label: 'Cycle cumulative credit',
+                  value: moneyText(state.cycleCumulativeCredit),
                   emphasize: true,
                   helpTopicId: 'cumulative_credit',
                 ),
@@ -240,7 +287,9 @@ class _DetailBody extends ConsumerWidget {
               children: [
                 Text('Delta history', style: textTheme.titleSmall),
                 const SizedBox(height: 8),
-                DeltaSparkline(values: state.snapshots.map((s) => s.deltaAsEntered).toList()),
+                DeltaSparkline(
+                  values: state.snapshots.map((s) => s.deltaAsEntered).toList(),
+                ),
               ],
             ),
           ),
@@ -281,67 +330,6 @@ class _DetailBody extends ConsumerWidget {
   }
 }
 
-class _Row extends StatelessWidget {
-  const _Row(this.label, this.value, {this.emphasize = false, this.helpTopicId, this.stacked = false});
-
-  final String label;
-  final String value;
-  final bool emphasize;
-  final String? helpTopicId;
-
-  /// S-144: when the value string is long enough to otherwise squeeze the
-  /// label to nothing (e.g. the roll-band row's source-aware label), the
-  /// label and value stack on separate lines instead of sharing one.
-  final bool stacked;
-
-  @override
-  Widget build(BuildContext context) {
-    final valueText = Text(
-      value,
-      style: TextStyle(fontWeight: emphasize ? FontWeight.bold : FontWeight.w600),
-    );
-
-    if (stacked) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(label),
-                if (helpTopicId != null) HelpChip(topicId: helpTopicId!),
-              ],
-            ),
-            const SizedBox(height: 2),
-            valueText,
-          ],
-        ),
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Flexible(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
-                if (helpTopicId != null) HelpChip(topicId: helpTopicId!),
-              ],
-            ),
-          ),
-          valueText,
-        ],
-      ),
-    );
-  }
-}
-
 String _freshnessLabel(Freshness f) => switch (f) {
   Freshness.fresh => 'Fresh',
   Freshness.recent => 'Recent',
@@ -360,7 +348,9 @@ Future<void> _openEditFeesSheet(
   List<Leg> cycleLegs,
 ) async {
   var remaining = cycleLegs
-      .where((l) => l.closedAt != null && (l.openFee == null || l.closeFee == null))
+      .where(
+        (l) => l.closedAt != null && (l.openFee == null || l.closeFee == null),
+      )
       .toList();
   if (remaining.isEmpty) return;
 
@@ -382,7 +372,10 @@ Future<void> _openEditFeesSheet(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Add fees', style: Theme.of(context).textTheme.titleMedium),
+                  Text(
+                    'Add fees',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     '${remaining.length} leg${remaining.length == 1 ? '' : 's'} missing fee data',
@@ -400,7 +393,11 @@ Future<void> _openEditFeesSheet(
                           closeFee: closeFee,
                         );
                         if (ok) {
-                          setSheetState(() => remaining = remaining.where((l) => l.id != leg.id).toList());
+                          setSheetState(
+                            () => remaining = remaining
+                                .where((l) => l.id != leg.id)
+                                .toList(),
+                          );
                           if (remaining.isEmpty && sheetContext.mounted) {
                             Navigator.of(sheetContext).pop();
                           }
@@ -448,21 +445,29 @@ class _EditFeesRowState extends State<_EditFeesRow> {
           if (needsOpenFee)
             TextField(
               controller: _openFeeController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: const InputDecoration(labelText: 'Open fee (\$)'),
             ),
           if (needsCloseFee)
             TextField(
               controller: _closeFeeController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: const InputDecoration(labelText: 'Close fee (\$)'),
             ),
           Align(
             alignment: Alignment.centerRight,
             child: TextButton(
               onPressed: () {
-                final openFee = needsOpenFee ? Decimal.tryParse(_openFeeController.text.trim()) : null;
-                final closeFee = needsCloseFee ? Decimal.tryParse(_closeFeeController.text.trim()) : null;
+                final openFee = needsOpenFee
+                    ? Decimal.tryParse(_openFeeController.text.trim())
+                    : null;
+                final closeFee = needsCloseFee
+                    ? Decimal.tryParse(_closeFeeController.text.trim())
+                    : null;
                 if (openFee == null && closeFee == null) return;
                 widget.onSave(openFee, closeFee);
               },
@@ -476,7 +481,10 @@ class _EditFeesRowState extends State<_EditFeesRow> {
   }
 }
 
-Future<void> _confirmMarkExpired(BuildContext context, PositionDetailController controller) async {
+Future<void> _confirmMarkExpired(
+  BuildContext context,
+  PositionDetailController controller,
+) async {
   final feeController = TextEditingController();
   final confirmed = await showDialog<bool>(
     context: context,
@@ -486,17 +494,24 @@ Future<void> _confirmMarkExpired(BuildContext context, PositionDetailController 
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('This records the leg as expired worthless with no close debit.'),
+          const Text(
+            'This records the leg as expired worthless with no close debit.',
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: feeController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Close fee (\$, optional)'),
+            decoration: const InputDecoration(
+              labelText: 'Close fee (\$, optional)',
+            ),
           ),
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
         FilledButton(
           onPressed: () => Navigator.of(context).pop(true),
           child: const Text('Mark expired'),
@@ -505,11 +520,16 @@ Future<void> _confirmMarkExpired(BuildContext context, PositionDetailController 
     ),
   );
   if (confirmed == true) {
-    await controller.markExpired(closeFee: Decimal.tryParse(feeController.text.trim()));
+    await controller.markExpired(
+      closeFee: Decimal.tryParse(feeController.text.trim()),
+    );
   }
 }
 
-Future<void> _confirmClose(BuildContext context, PositionDetailController controller) async {
+Future<void> _confirmClose(
+  BuildContext context,
+  PositionDetailController controller,
+) async {
   final debitController = TextEditingController(text: '0.00');
   final feeController = TextEditingController();
   final confirmed = await showDialog<bool>(
@@ -522,18 +542,28 @@ Future<void> _confirmClose(BuildContext context, PositionDetailController contro
           TextField(
             controller: debitController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Close debit (\$ per share)'),
+            decoration: const InputDecoration(
+              labelText: 'Close debit (\$ per share)',
+            ),
           ),
           TextField(
             controller: feeController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Close fee (\$, optional)'),
+            decoration: const InputDecoration(
+              labelText: 'Close fee (\$, optional)',
+            ),
           ),
         ],
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Close')),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Close'),
+        ),
       ],
     ),
   );

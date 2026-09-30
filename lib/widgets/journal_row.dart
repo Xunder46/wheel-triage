@@ -28,26 +28,80 @@ class JournalRowTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final beforeFees = pnl.hasFeeGap;
-    return ListTile(
-      onTap: onTap,
-      title: Text('$ticker · ${pnl.daysHeld}d · $legCount leg${legCount == 1 ? '' : 's'}'),
-      subtitle: Text(
-        'Total premium ${_money(pnl.totalPremium)} · ${_outcomeLabel(outcome)}',
-        style: textTheme.bodySmall,
-      ),
-      trailing: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Text(
-            beforeFees ? 'Before fees' : _money(pnl.netResult),
-            style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+    // Not a `ListTile`: its `trailing` slot is given a fixed height, and the
+    // two figures below overflow it by 59px at the largest text size
+    // (S-313). An `InkWell` over an intrinsic-height `Row` lets the row grow
+    // instead of clipping (D-63's remedy). The metrics are `ListTile`'s M3
+    // ones -- `contentPadding` start 16 / end 24 and a `bodyLarge` title -- so
+    // removing the tile is not also a restyle. The goldens move by a hairline:
+    // the title is identical, the subtitle by 1px and the two trailing figures
+    // by 2px in opposite directions -- the 4px gap that replaced the tile's
+    // centred trailing alignment; see the plan's Assumption Log.
+    // `InkWell` sets the tap *action* but no `button` flag, so the row is
+    // wrapped to keep the role `ListTile` used to set from `onTap` alone.
+    return Semantics(
+      button: onTap != null,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsetsDirectional.only(
+            start: 16,
+            end: 24,
+            top: 16,
+            bottom: 16,
           ),
-          Text(
-            beforeFees ? '--' : '${pnl.returnOnCapitalPct.toStringAsFixed(1)}%',
-            style: textTheme.bodySmall,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$ticker · ${pnl.daysHeld}d · $legCount leg${legCount == 1 ? '' : 's'}',
+                      style: textTheme.bodyLarge,
+                    ),
+                    Text(
+                      'Total premium ${_money(pnl.totalPremium)} · ${_outcomeLabel(outcome)}',
+                      style: textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              // D-62: the trailing column is the smallest widget holding the
+              // net result and the return on capital, so neither figure is read
+              // out without its quantity. The two figures are one above the
+              // other, so each gets its own node rather than sharing a line.
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Semantics(
+                    label:
+                        'Net result ${beforeFees ? 'not available' : _money(pnl.netResult)}',
+                    child: Text(
+                      beforeFees ? 'Before fees' : _money(pnl.netResult),
+                      style: textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Semantics(
+                    label:
+                        'Return on capital ${beforeFees ? 'not available' : '${pnl.returnOnCapitalPct.toStringAsFixed(1)}%'}',
+                    child: Text(
+                      beforeFees
+                          ? '--'
+                          : '${pnl.returnOnCapitalPct.toStringAsFixed(1)}%',
+                      style: textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

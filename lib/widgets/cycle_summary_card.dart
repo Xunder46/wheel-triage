@@ -2,6 +2,7 @@ import 'package:decimal/decimal.dart';
 import 'package:flutter/material.dart';
 
 import '../domain/rules/cycle_pnl.dart';
+import 'label_value_row.dart';
 
 /// The §4.1/§4.2 cycle-P&L card, in its two variants: a **closed** cycle
 /// shows a real net result (or "Before fees" when [CyclePnl.hasFeeGap],
@@ -69,7 +70,10 @@ class CycleSummaryCard extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   'Unrealised, excludes closing costs',
-                  style: textTheme.bodySmall?.copyWith(color: scheme.tertiary, fontStyle: FontStyle.italic),
+                  style: textTheme.bodySmall?.copyWith(
+                    color: scheme.tertiary,
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
               ),
             if (beforeFees)
@@ -80,52 +84,54 @@ class CycleSummaryCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         'Before fees -- ${pnl.feeGapCount} leg${pnl.feeGapCount == 1 ? '' : 's'} missing fee data',
-                        style: textTheme.bodySmall?.copyWith(color: scheme.error),
+                        style: textTheme.bodySmall?.copyWith(
+                          color: scheme.error,
+                        ),
                       ),
                     ),
                     if (onEditFees != null)
-                      TextButton(onPressed: onEditFees, child: const Text('Add fees')),
+                      TextButton(
+                        onPressed: onEditFees,
+                        child: const Text('Add fees'),
+                      ),
                   ],
                 ),
               ),
             const SizedBox(height: 8),
-            _row(context, 'Total premium', _money(pnl.totalPremium)),
-            _row(context, 'Total fees', _money(pnl.totalFees)),
-            _row(context, 'Stock P&L', _money(pnl.stockPnL)),
-            _row(context, 'Net result', beforeFees ? 'Before fees' : _money(pnl.netResult), emphasize: true),
+            LabelValueRow(
+              label: 'Total premium',
+              value: _money(pnl.totalPremium),
+            ),
+            LabelValueRow(label: 'Total fees', value: _money(pnl.totalFees)),
+            LabelValueRow(label: 'Stock P&L', value: _money(pnl.stockPnL)),
+            LabelValueRow(
+              label: 'Net result',
+              value: beforeFees ? 'Before fees' : _money(pnl.netResult),
+              emphasize: true,
+            ),
             const Divider(),
             // S-129: the on-screen label is always "Peak capital committed",
             // never a bare "Capital committed" (Feature Invariant 27).
-            _row(context, 'Peak capital committed', _money(pnl.peakCapitalCommitted)),
-            _row(
-              context,
-              'Return on capital',
-              beforeFees ? 'Before fees' : _pct(pnl.returnOnCapitalPct),
+            LabelValueRow(
+              label: 'Peak capital committed',
+              value: _money(pnl.peakCapitalCommitted),
             ),
-            _row(
-              context,
-              'Annualised return',
-              beforeFees
+            LabelValueRow(
+              label: 'Return on capital',
+              value: beforeFees ? 'Before fees' : _pct(pnl.returnOnCapitalPct),
+            ),
+            LabelValueRow(
+              label: 'Annualised return',
+              value: beforeFees
                   ? 'Before fees'
-                  : (pnl.annualisedReturnPct != null ? _pct(pnl.annualisedReturnPct!) : (pnl.annualisedReturnNote ?? '--')),
+                  : (pnl.annualisedReturnPct != null
+                        ? _pct(pnl.annualisedReturnPct!)
+                        : (pnl.annualisedReturnNote ?? '--')),
             ),
-            _row(context, 'Days held', '${pnl.daysHeld}'),
-            _row(context, 'Roll count', '${pnl.rollCount}'),
+            LabelValueRow(label: 'Days held', value: '${pnl.daysHeld}'),
+            LabelValueRow(label: 'Roll count', value: '${pnl.rollCount}'),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _row(BuildContext context, String label, String value, {bool emphasize = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
-          Text(value, style: TextStyle(fontWeight: emphasize ? FontWeight.bold : FontWeight.w600)),
-        ],
       ),
     );
   }

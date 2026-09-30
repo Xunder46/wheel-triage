@@ -69,7 +69,11 @@ class _RecordTradeScreenState extends ConsumerState<RecordTradeScreen> {
       return;
     }
     messenger.showSnackBar(
-      SnackBar(content: Text(ref.read(recordControllerProvider).confirmation ?? 'Recorded.')),
+      SnackBar(
+        content: Text(
+          ref.read(recordControllerProvider).confirmation ?? 'Recorded.',
+        ),
+      ),
     );
     context.go('/positions');
   }
@@ -79,7 +83,11 @@ class _RecordTradeScreenState extends ConsumerState<RecordTradeScreen> {
     final form = ref.watch(recordControllerProvider);
     final controller = ref.read(recordControllerProvider.notifier);
     final totalPerContract =
-        ref.watch(preferencesControllerProvider).valueOrNull?.totalPerContractToggle ?? false;
+        ref
+            .watch(preferencesControllerProvider)
+            .valueOrNull
+            ?.totalPerContractToggle ??
+        false;
     final scheme = Theme.of(context).colorScheme;
 
     // The chips write through the provider, so the field has to follow them
@@ -101,7 +109,10 @@ class _RecordTradeScreenState extends ConsumerState<RecordTradeScreen> {
             controller: _tickerController,
             decoration: const InputDecoration(
               labelText: 'Ticker',
-              suffixIcon: Padding(padding: EdgeInsets.all(8), child: HelpChip(topicId: 'ticker')),
+              suffixIcon: Padding(
+                padding: EdgeInsets.all(8),
+                child: HelpChip(topicId: 'ticker'),
+              ),
             ),
             textCapitalization: TextCapitalization.characters,
             onChanged: controller.setTicker,
@@ -131,13 +142,15 @@ class _RecordTradeScreenState extends ConsumerState<RecordTradeScreen> {
                     ButtonSegment(value: OptionType.call, label: Text('Call')),
                   ],
                   selected: {form.side},
-                  onSelectionChanged: (selection) => controller.setSide(selection.first),
+                  onSelectionChanged: (selection) =>
+                      controller.setSide(selection.first),
                 ),
               ),
               const HelpChip(topicId: 'side'),
             ],
           ),
-          if (form.side == OptionType.call) _CallHostLine(host: ref.watch(callHostProvider)),
+          if (form.side == OptionType.call)
+            _CallHostLine(host: ref.watch(callHostProvider)),
           const SizedBox(height: 12),
           LabeledNumberField(
             label: 'Strike (\$)',
@@ -187,7 +200,9 @@ class _RecordTradeScreenState extends ConsumerState<RecordTradeScreen> {
               child: Text(
                 controller.creditBound!.message!,
                 style: TextStyle(
-                  color: controller.creditBound!.blocks ? scheme.error : scheme.tertiary,
+                  color: controller.creditBound!.blocks
+                      ? scheme.error
+                      : scheme.tertiary,
                 ),
               ),
             ),
@@ -201,7 +216,9 @@ class _RecordTradeScreenState extends ConsumerState<RecordTradeScreen> {
           TextButton(
             onPressed: () => controller.setShowOptional(!form.showOptional),
             child: Text(
-              form.showOptional ? 'Hide optional fields' : 'Add optional fields',
+              form.showOptional
+                  ? 'Hide optional fields'
+                  : 'Add optional fields',
             ),
           ),
           if (form.showOptional) ...[
@@ -238,7 +255,10 @@ class _RecordTradeScreenState extends ConsumerState<RecordTradeScreen> {
             dte: form.dte,
           ),
           const SizedBox(height: 8),
-          Text(controller.reminderLine, style: Theme.of(context).textTheme.bodySmall),
+          Text(
+            controller.reminderLine,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
           const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerLeft,
@@ -322,7 +342,9 @@ class _ExpirationSection extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text('Expiration: ${selected == null ? '--' : dateText(selected)}'),
+                child: Text(
+                  'Expiration: ${selected == null ? '--' : dateText(selected)}',
+                ),
               ),
               const HelpChip(topicId: 'expiration'),
             ],
@@ -356,7 +378,7 @@ class _ExpirationSection extends StatelessWidget {
                 child: const Text('Other date…'),
               ),
               const SizedBox(width: 8),
-              Text(dte == null ? 'DTE: --' : 'DTE: $dte days'),
+              Flexible(child: Text(dte == null ? 'DTE: --' : 'DTE: $dte days')),
             ],
           ),
           if (nonFridayWarning)
@@ -378,8 +400,18 @@ class _ExpirationSection extends StatelessWidget {
   static String _chipLabel(DateTime d) => '${_months[d.month - 1]} ${d.day}';
 
   static const _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 }
 
@@ -414,10 +446,13 @@ class _PreviewCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Semantics(
-              label: 'Annualised yield ${annualisedYield == null ? 'not available' : '${annualisedYield!.round()} percent'}',
+              label:
+                  'Annualised yield ${annualisedYield == null ? 'not available' : '${annualisedYield!.round()} percent'}',
               child: _PreviewRow(
                 label: 'Annualised yield',
-                value: annualisedYield == null ? '--' : '${annualisedYield!.round()}%',
+                value: annualisedYield == null
+                    ? '--'
+                    : '${annualisedYield!.round()}%',
                 definition: 'credit ÷ strike × 365 ÷ DTE',
               ),
             ),
@@ -426,7 +461,9 @@ class _PreviewCard extends StatelessWidget {
                   'Capital committed ${capitalCommitted == null ? 'not available' : '${wholeDollars(capitalCommitted!)} dollars'}',
               child: _PreviewRow(
                 label: 'Capital committed',
-                value: capitalCommitted == null ? '--' : wholeDollars(capitalCommitted!),
+                value: capitalCommitted == null
+                    ? '--'
+                    : wholeDollars(capitalCommitted!),
                 definition: 'strike × 100 × contracts',
               ),
             ),
@@ -443,7 +480,11 @@ class _PreviewCard extends StatelessWidget {
 }
 
 class _PreviewRow extends StatelessWidget {
-  const _PreviewRow({required this.label, required this.value, required this.definition});
+  const _PreviewRow({
+    required this.label,
+    required this.value,
+    required this.definition,
+  });
 
   final String label;
   final String value;

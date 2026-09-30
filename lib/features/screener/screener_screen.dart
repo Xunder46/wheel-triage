@@ -8,6 +8,7 @@ import '../../domain/rules/credit_bound.dart';
 import '../../state/preferences/preferences_provider.dart';
 import '../../state/screener/screener_controller.dart';
 import '../../widgets/help_chip.dart';
+import '../../widgets/label_value_row.dart';
 import '../../widgets/labeled_number_field.dart';
 import '../paywall/paywall_route.dart';
 
@@ -22,10 +23,12 @@ class ScreenerScreen extends ConsumerWidget {
     final form = ref.watch(screenerControllerProvider);
     final controller = ref.read(screenerControllerProvider.notifier);
     final outputs = ref.watch(screenerOutputsProvider);
-    final totalPerContract = ref
-        .watch(preferencesControllerProvider)
-        .valueOrNull
-        ?.totalPerContractToggle ?? false;
+    final totalPerContract =
+        ref
+            .watch(preferencesControllerProvider)
+            .valueOrNull
+            ?.totalPerContractToggle ??
+        false;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Screener')),
@@ -36,7 +39,10 @@ class ScreenerScreen extends ConsumerWidget {
           TextFormField(
             decoration: const InputDecoration(
               labelText: 'Ticker',
-              suffixIcon: Padding(padding: EdgeInsets.all(8), child: HelpChip(topicId: 'ticker')),
+              suffixIcon: Padding(
+                padding: EdgeInsets.all(8),
+                child: HelpChip(topicId: 'ticker'),
+              ),
             ),
             textCapitalization: TextCapitalization.characters,
             onChanged: controller.setTicker,
@@ -51,7 +57,8 @@ class ScreenerScreen extends ConsumerWidget {
                     ButtonSegment(value: OptionType.call, label: Text('Call')),
                   ],
                   selected: {form.side},
-                  onSelectionChanged: (selection) => controller.setSide(selection.first),
+                  onSelectionChanged: (selection) =>
+                      controller.setSide(selection.first),
                 ),
               ),
               const HelpChip(topicId: 'side'),
@@ -73,7 +80,9 @@ class ScreenerScreen extends ConsumerWidget {
             children: [
               Expanded(
                 child: LabeledNumberField(
-                  label: totalPerContract ? 'Credit (\$ total for contract)' : 'Credit (\$ per share)',
+                  label: totalPerContract
+                      ? 'Credit (\$ total for contract)'
+                      : 'Credit (\$ per share)',
                   helpTopicId: 'credit',
                   onChangedDecimal: controller.setCredit,
                 ),
@@ -86,12 +95,17 @@ class ScreenerScreen extends ConsumerWidget {
                         .read(preferencesControllerProvider.notifier)
                         .update((p) => p.copyWith(totalPerContractToggle: v)),
                   ),
-                  const Text('Total per\ncontract', textAlign: TextAlign.center, style: TextStyle(fontSize: 11)),
+                  const Text(
+                    'Total per\ncontract',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 11),
+                  ),
                 ],
               ),
             ],
           ),
-          if (outputs.creditBound != null && outputs.creditBound!.level != CreditBoundLevel.ok)
+          if (outputs.creditBound != null &&
+              outputs.creditBound!.level != CreditBoundLevel.ok)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
@@ -144,7 +158,10 @@ class ScreenerScreen extends ConsumerWidget {
           if (form.error != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Text(form.error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              child: Text(
+                form.error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
             ),
           Row(
             children: [
@@ -180,9 +197,9 @@ class ScreenerScreen extends ConsumerWidget {
                             }
                             return;
                           }
-                          ScaffoldMessenger.of(
-                            context,
-                          ).showSnackBar(const SnackBar(content: Text('Position tracked.')));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Position tracked.')),
+                          );
                           controller.reset();
                         },
                   child: form.isSaving
@@ -224,7 +241,11 @@ class _ExpirationPicker extends StatelessWidget {
         children: [
           Row(
             children: [
-              Expanded(child: Text('Expiration: ${expiration == null ? '--' : _dateText(expiration!)}')),
+              Expanded(
+                child: Text(
+                  'Expiration: ${expiration == null ? '--' : _dateText(expiration!)}',
+                ),
+              ),
               const HelpChip(topicId: 'expiration'),
               TextButton(
                 onPressed: () async {
@@ -278,7 +299,9 @@ class _OutputsSection extends StatelessWidget {
               Text(
                 'Fix the credit above to see the outputs -- an impossible credit '
                 'produces no yield, one-sigma move, or sorting score.',
-                style: textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.error),
+                style: textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                ),
               ),
             ],
           ),
@@ -293,31 +316,61 @@ class _OutputsSection extends StatelessWidget {
           children: [
             Text('Outputs', style: textTheme.titleMedium),
             const SizedBox(height: 8),
-            _OutputRow('Annualised yield', _pctText(outputs.annualisedYield), helpTopicId: 'annualised_yield'),
-            _OutputRow('One-sigma move', _moneyText(outputs.oneSigmaMove), helpTopicId: 'one_sigma'),
-            _OutputRow(
-              'Strike distance (\$)',
-              _moneyText(outputs.strikeDistanceDollars),
+            LabelValueRow(
+              label: 'Annualised yield',
+              value: _pctText(outputs.annualisedYield),
+              spokenValue: outputs.annualisedYield == null
+                  ? 'not available'
+                  : null,
+              helpTopicId: 'annualised_yield',
+            ),
+            LabelValueRow(
+              label: 'One-sigma move',
+              value: _moneyText(outputs.oneSigmaMove),
+              spokenValue: outputs.oneSigmaMove == null
+                  ? 'not available'
+                  : null,
+              helpTopicId: 'one_sigma',
+            ),
+            LabelValueRow(
+              label: 'Strike distance (\$)',
+              value: _moneyText(outputs.strikeDistanceDollars),
+              spokenValue: outputs.strikeDistanceDollars == null
+                  ? 'not available'
+                  : null,
               helpTopicId: 'strike_distance',
             ),
-            _OutputRow(
-              'Strike distance (sigmas)',
-              _numText(outputs.cushionSigmas),
+            LabelValueRow(
+              label: 'Strike distance (sigmas)',
+              value: _numText(outputs.cushionSigmas),
+              spokenValue: outputs.cushionSigmas == null
+                  ? 'not available'
+                  : null,
               helpTopicId: 'strike_distance',
             ),
             const SizedBox(height: 12),
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Hard gates', style: textTheme.titleSmall),
+                Flexible(
+                  child: Text('Hard gates', style: textTheme.titleSmall),
+                ),
                 const HelpChip(topicId: 'hard_gates'),
               ],
             ),
             const SizedBox(height: 4),
-            Row(
+            // S-313: two gate chips side by side stop fitting at the largest
+            // text size, so they wrap to a second line rather than shrink or
+            // clip (D-63's remedy).
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 _GateChip(label: 'IV rank', pass: outputs.gates?.ivRankPasses),
-                const SizedBox(width: 8),
-                _GateChip(label: 'Annualised yield', pass: outputs.gates?.annualisedYieldPasses),
+                _GateChip(
+                  label: 'Annualised yield',
+                  pass: outputs.gates?.annualisedYieldPasses,
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -325,51 +378,32 @@ class _OutputsSection extends StatelessWidget {
             // is a sorting aid, never the largest element on this screen
             // (docs/conventions.md §4).
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Sorting score', style: textTheme.labelLarge),
+                Flexible(
+                  child: Text('Sorting score', style: textTheme.labelLarge),
+                ),
                 const HelpChip(topicId: 'sorting_score'),
               ],
             ),
-            Text(
-              outputs.sortingScore == null ? '--' : '${outputs.sortingScore} / 9',
-              style: textTheme.bodyMedium,
+            Semantics(
+              label:
+                  'Sorting score ${outputs.sortingScore == null ? 'not available' : '${outputs.sortingScore} of 9'}',
+              child: Text(
+                outputs.sortingScore == null
+                    ? '--'
+                    : '${outputs.sortingScore} / 9',
+                style: textTheme.bodyMedium,
+              ),
             ),
             Text(
               'These bands are yours to edit — they are not established doctrine.',
-              style: textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              style: textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _OutputRow extends StatelessWidget {
-  const _OutputRow(this.label, this.value, {this.helpTopicId});
-
-  final String label;
-  final String value;
-  final String? helpTopicId;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Flexible(
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
-                if (helpTopicId != null) HelpChip(topicId: helpTopicId!),
-              ],
-            ),
-          ),
-          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
       ),
     );
   }

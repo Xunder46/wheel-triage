@@ -3,10 +3,12 @@
 Consolidated reference for the shape of the codebase after Iterations 1–5
 (M1–M4 plus the brief-followup corrections, the help system, fees/
 `acceptsAssignment`, cycle P&L and the journal, snapshot staleness,
-export/import, expiration notifications, and rule versioning) and Pro Waves 1–3
+export/import, expiration notifications, and rule versioning) and Pro Waves 1–4a
 (Stage 0's dependency cleanup, the D-4 theme, Record a trade, the snapshot
 preview sheet, the Today screen, Pro plans, the Portfolio view with its
-assignment calendar, and the share card). This is a map
+assignment calendar, the share card, and Wave 4a's accessibility and polish
+pass — the shared label/value row, the screen harness, the haptics seam and the
+contrast audit). This is a map
 of *where things live and why*, not a walkthrough of what they do —
 `docs/brief.md` and `docs/brief-followup.md` are the spec of record;
 `docs/brief-ledger.md` wins over both where they disagree, and
@@ -552,6 +554,67 @@ rather than synchronized by discipline:
 | A Pro string | `lib/core/purchases/paywall_copy.dart` | The paywall and the Settings row wording the same state two ways |
 | A percentage string | `format.percentText` (`lib/core/format.dart`) | **Observation, not a work item.** Four sites predate the shared formatter and each formats a percentage by hand: `lib/widgets/journal_row.dart:47` (inline), `lib/widgets/cycle_summary_card.dart:136` (`_pct`), `lib/features/screener/screener_screen.dart:395` (`_pctText`) and `lib/features/roll/roll_planner_screen.dart:103` (inline). They agree today; a rounding change would have to land in five places. |
 | The bucket order and its counts | `lib/domain/rules/bucket.dart` | **Observation, not a work item.** `kBucketOrder` and `bucketCountsFor` are the one source; Today and Portfolio both read them, and a structural test asserts no file outside `bucket.dart` declares a bucket-order list. |
+| The label/value row | `lib/widgets/label_value_row.dart` | A screen growing its own private `_Row`/`_OutputRow`/`_stat` copy, so a large-text or spoken-label fix lands in one place and misses five |
+| The audit's enumeration | `auditedSurfaces` (`test/support/screen_a11y_harness.dart`) | A new route shipping unaudited because its row was never added — the route-coverage test is what makes that visible |
+
+## Accessibility and large text (Pro Wave 4a, Stage 4B)
+
+Three standing obligations are mechanised here rather than reviewed by hand:
+every number's spoken label names its quantity, large text wraps instead of
+truncating, and every painted text pair clears 4.5:1 in both themes.
+`docs/conventions.md` §9 is the policy; this is the machinery.
+
+**The audit harness** is `test/support/screen_a11y_harness.dart`. It pumps each
+audited surface at `kMaxTextScale` (3.2, declared once, there) on a viewport
+tall enough that a long list builds every tile, and fails on a thrown layout
+exception before it looks at labels. An `AuditedSurface` names the route, the
+fixture, how to open it, and the `(quantity, value)` label pairs that must
+appear **on one line** — one node's label carrying the name and the value
+together, which is why a `Semantics` wrapper and a sibling `Text` do not count.
+The list is `auditedSurfaces` plus `auditedEmptySurfaces` (each surface's empty
+rendering). The route-coverage guard compares it against
+`lib/core/app_router.dart`: **a new screen is audited by adding a row to
+`auditedSurfaces`; the route-coverage test fails until it has one.** SnackBars
+are exempt — they are transient and carry no figure that is not also on the
+surface behind them.
+
+**The one label/value row** is `lib/widgets/label_value_row.dart`. It renders a
+quantity name beside its value, speaks them as one label, and stacks into a
+column once the text scale reaches `stackAtScale` — the remedy for a number that
+would otherwise be clipped is stacking or wrapping, never shrinking. The
+screener, the journal, the cycle summary, the detail sheet and the snapshot sheet's preview
+(`snapshot_sheet._PreviewRow`) each had a private copy before this; a new screen reuses the row.
+
+**The one haptic seam** is `lib/core/haptics/haptics.dart`. `Haptics` is an
+interface so a test can record calls; `package:flutter/services.dart` is
+imported there and nowhere else in `lib/`. The single firing site is the
+snapshot sheet, and it plays only when a save succeeded, a previous reading
+existed, and the bucket actually changed — the comparison is
+`PositionDetailState.lastSnapshotChangedBucket`, a state fact the sheet reads
+rather than recomputes.
+
+**The pair table** is `test/core/theme/app_theme_contrast_test.dart`. It asserts
+each documented foreground/background pair in both themes, in both directions,
+and `_auditedRoles` names every `ColorScheme` role the design table defines a
+ratio for, so adding a role without measuring it fails there. Non-text pairs are
+held to 3:1, dividers and `outlineVariant` are exempt, and a pair the design
+documents but nothing paints is recorded as such instead of asserted.
+
+**The structural guards** are in `test/features/a11y/a11y_structure_test.dart`,
+each a source scan, with a negative fixture where one can be written — and where
+there is one it is a real-file fixture, not a hand-written string that only
+proves the pattern matches: `kMaxTextScale` is
+the only text ceiling the suite declares, no `Text` under `lib/features/` or
+`lib/widgets/` sets `TextOverflow.ellipsis` or `clip` (empty allow-list — the
+remedy is wrapping or stacking), no colour literal (`Colors.*` or `Color(0x…)`)
+appears under `lib/features/` or `lib/widgets/` — colours come from the theme
+roles, which is what makes the contrast audit mean anything — every
+`scheme.<role>` read under `lib/` has an
+`_auditedRoles` entry, `HapticFeedback` is in one file and
+`hapticsProvider.bucketChanged` has one call site, `pubspec.yaml` is unchanged
+from the baseline, and every `GoRoute` fragment has an audited row. The
+no-`double`-reaches-a-gate and rules-purity guards live beside their own
+subjects (`lib/domain/rules/` stays Flutter-free, asserted per phase).
 
 ## Export/import (`lib/data/export/`, `lib/state/export/`)
 

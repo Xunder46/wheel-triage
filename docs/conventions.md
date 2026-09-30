@@ -276,3 +276,21 @@ against these before the beta.
   the permanent guard: a palette edit that drops below the bar fails there
   rather than in review. A container role the design table does not define is
   derived from the table's own tokens, never invented.
+
+The mechanism each rule above is checked by, from Wave 4a on:
+
+- The audit harness is `test/support/screen_a11y_harness.dart`. `kMaxTextScale`
+  (3.2) is declared there and nowhere else; every audited surface is pumped at
+  it, and **a new screen is audited by adding a row to `auditedSurfaces`; the
+  route-coverage test fails until it has one.**
+- `lib/widgets/label_value_row.dart` is the one label/value row — a screen
+  grows no private copy of it.
+- The truncation ban is enforced by
+  `test/features/a11y/a11y_structure_test.dart`, which scans `lib/features/`
+  and `lib/widgets/` for `TextOverflow.ellipsis` and `clip` with an empty
+  allow-list.
+- `lib/core/haptics/haptics.dart` is the one haptic seam; every other file
+  reaches haptics through it, and `package:flutter/services.dart` stays out of
+  the rest of `lib/`.
+
+`docs/architecture/wheel-triage.md` carries the reasoning and the drift risks.

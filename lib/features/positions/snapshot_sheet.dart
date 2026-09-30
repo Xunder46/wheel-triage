@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/format.dart';
+import '../../core/haptics/haptics.dart';
 import '../../core/money/total_per_contract.dart';
 import '../../domain/models/snapshot.dart';
 import '../../domain/rules/snapshot_preview.dart';
@@ -10,6 +11,7 @@ import '../../state/positions/position_detail_controller.dart';
 import '../../state/preferences/preferences_provider.dart';
 import '../../widgets/bucket_badge.dart';
 import '../../widgets/help_chip.dart';
+import '../../widgets/label_value_row.dart';
 
 /// Opens D-17's "Update snapshot" sheet: the existing C4 fields, plus the
 /// preview of the bucket the entered numbers *would* produce.
@@ -77,15 +79,24 @@ class _SnapshotSheetState extends ConsumerState<SnapshotSheet> {
     _spotController = TextEditingController(
       text: previous?.underlyingPrice.toString() ?? '',
     );
-    _ivController = TextEditingController(text: trimTrailingZeros(previous?.iv));
+    _ivController = TextEditingController(
+      text: trimTrailingZeros(previous?.iv),
+    );
     _spotCarried = previous != null;
     _ivCarried = previous?.iv != null;
     _takenAt = widget.now ?? DateTime.now();
     _convention =
-        ref.read(preferencesControllerProvider).valueOrNull?.deltaConventionDefault ??
+        ref
+            .read(preferencesControllerProvider)
+            .valueOrNull
+            ?.deltaConventionDefault ??
         DeltaConvention.position;
     _totalPerContract =
-        ref.read(preferencesControllerProvider).valueOrNull?.totalPerContractToggle ?? false;
+        ref
+            .read(preferencesControllerProvider)
+            .valueOrNull
+            ?.totalPerContractToggle ??
+        false;
   }
 
   @override
@@ -119,7 +130,9 @@ class _SnapshotSheetState extends ConsumerState<SnapshotSheet> {
     }
     if (!_adopted) _adopt(state);
 
-    final controller = ref.read(positionDetailControllerProvider(widget.legId).notifier);
+    final controller = ref.read(
+      positionDetailControllerProvider(widget.legId).notifier,
+    );
     final now = widget.now ?? DateTime.now();
     final mark = Decimal.tryParse(_markController.text.trim());
     final spot = Decimal.tryParse(_spotController.text.trim());
@@ -153,7 +166,10 @@ class _SnapshotSheetState extends ConsumerState<SnapshotSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Update snapshot', style: Theme.of(context).textTheme.titleMedium),
+            Text(
+              'Update snapshot',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
             const SizedBox(height: 12),
             // S-142: backdating -- defaults to now; the calendar itself is
             // bounded to `[leg.openedAt, leg.expiration]`, and the
@@ -165,7 +181,9 @@ class _SnapshotSheetState extends ConsumerState<SnapshotSheet> {
                   onPressed: () async {
                     final clampedInitial = _takenAt.isBefore(leg.openedAt)
                         ? leg.openedAt
-                        : (_takenAt.isAfter(leg.expiration) ? leg.expiration : _takenAt);
+                        : (_takenAt.isAfter(leg.expiration)
+                              ? leg.expiration
+                              : _takenAt);
                     final picked = await showDatePicker(
                       context: context,
                       initialDate: clampedInitial,
@@ -184,7 +202,9 @@ class _SnapshotSheetState extends ConsumerState<SnapshotSheet> {
                 Expanded(
                   child: TextField(
                     controller: _markController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     onChanged: (_) => setState(() {}),
                     decoration: InputDecoration(
                       labelText: _totalPerContract
@@ -206,17 +226,24 @@ class _SnapshotSheetState extends ConsumerState<SnapshotSheet> {
                         setState(() => _totalPerContract = v);
                         ref
                             .read(preferencesControllerProvider.notifier)
-                            .update((p) => p.copyWith(totalPerContractToggle: v));
+                            .update(
+                              (p) => p.copyWith(totalPerContractToggle: v),
+                            );
                       },
                     ),
-                    const Text('Total/contract', style: TextStyle(fontSize: 10)),
+                    const Text(
+                      'Total/contract',
+                      style: TextStyle(fontSize: 10),
+                    ),
                   ],
                 ),
               ],
             ),
             TextField(
               controller: _spotController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               onChanged: (_) => setState(() => _spotCarried = false),
               decoration: InputDecoration(
                 labelText: 'Stock price (\$)',
@@ -224,15 +251,21 @@ class _SnapshotSheetState extends ConsumerState<SnapshotSheet> {
                   padding: EdgeInsets.all(8),
                   child: HelpChip(topicId: 'stock_price'),
                 ),
-                helperText: _spotCarried ? 'Carried forward from last snapshot' : null,
+                helperText: _spotCarried
+                    ? 'Carried forward from last snapshot'
+                    : null,
               ),
             ),
             TextField(
               controller: _deltaController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+                signed: true,
+              ),
               decoration: InputDecoration(
                 labelText: 'Delta, as shown on your broker screen',
-                helperText: 'Enter it exactly as your broker shows it, minus sign included.',
+                helperText:
+                    'Enter it exactly as your broker shows it, minus sign included.',
                 helperMaxLines: 2,
                 suffixIcon: const Padding(
                   padding: EdgeInsets.all(8),
@@ -251,17 +284,28 @@ class _SnapshotSheetState extends ConsumerState<SnapshotSheet> {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
-            Row(
+            // S-313: the label, the dropdown and the chip stop fitting on one
+            // line at the largest text size, so they wrap (D-63's remedy).
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
                 const Text('Convention:'),
-                const SizedBox(width: 8),
                 DropdownButton<DeltaConvention>(
                   value: _convention,
                   items: const [
-                    DropdownMenuItem(value: DeltaConvention.position, child: Text('Position')),
-                    DropdownMenuItem(value: DeltaConvention.option, child: Text('Option')),
+                    DropdownMenuItem(
+                      value: DeltaConvention.position,
+                      child: Text('Position'),
+                    ),
+                    DropdownMenuItem(
+                      value: DeltaConvention.option,
+                      child: Text('Option'),
+                    ),
                   ],
-                  onChanged: (v) => setState(() => _convention = v ?? _convention),
+                  onChanged: (v) =>
+                      setState(() => _convention = v ?? _convention),
                 ),
                 const HelpChip(topicId: 'delta_convention'),
               ],
@@ -272,11 +316,15 @@ class _SnapshotSheetState extends ConsumerState<SnapshotSheet> {
                   padding: EdgeInsets.all(8),
                   child: HelpChip(topicId: 'iv'),
                 ),
-                helperText: _ivCarried ? 'Carried forward from last snapshot' : null,
+                helperText: _ivCarried
+                    ? 'Carried forward from last snapshot'
+                    : null,
                 labelText: 'IV (%, optional)',
               ),
               controller: _ivController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               onChanged: (_) => setState(() => _ivCarried = false),
             ),
             const SizedBox(height: 16),
@@ -305,10 +353,20 @@ class _SnapshotSheetState extends ConsumerState<SnapshotSheet> {
                 // Read the fields at press time rather than reusing the
                 // build-time values: a `setState` from the last keystroke may
                 // not have been pumped yet when the button is pressed.
-                final enteredMark = Decimal.tryParse(_markController.text.trim());
-                final enteredSpot = Decimal.tryParse(_spotController.text.trim());
-                final enteredDelta = double.tryParse(_deltaController.text.trim());
-                if (enteredMark == null || enteredSpot == null || enteredDelta == null) return;
+                final enteredMark = Decimal.tryParse(
+                  _markController.text.trim(),
+                );
+                final enteredSpot = Decimal.tryParse(
+                  _spotController.text.trim(),
+                );
+                final enteredDelta = double.tryParse(
+                  _deltaController.text.trim(),
+                );
+                if (enteredMark == null ||
+                    enteredSpot == null ||
+                    enteredDelta == null) {
+                  return;
+                }
                 final messenger = ScaffoldMessenger.of(context);
                 final navigator = Navigator.of(context);
                 final ok = await controller.updateSnapshot(
@@ -324,12 +382,23 @@ class _SnapshotSheetState extends ConsumerState<SnapshotSheet> {
                   // Read via the provider, not the protected `.state`
                   // getter -- state is already updated synchronously by
                   // `updateSnapshot` before it returns.
-                  final warning = ref
-                      .read(positionDetailControllerProvider(widget.legId))
-                      .snapshotWarning;
+                  final saved = ref.read(
+                    positionDetailControllerProvider(widget.legId),
+                  );
                   navigator.pop(true);
-                  if (warning != null) {
-                    messenger.showSnackBar(SnackBar(content: Text(warning)));
+                  // D-67: the wave's one haptic, at the one place a save
+                  // succeeds. It reads the flag the controller set rather
+                  // than re-classifying here: no screen holds a rule
+                  // (S-327). A save that did not move the bucket, a first
+                  // reading, and a failed save all leave the flag false or
+                  // null, so none of them buzzes.
+                  if (saved.lastSnapshotChangedBucket ?? false) {
+                    ref.read(hapticsProvider).bucketChanged();
+                  }
+                  if (saved.snapshotWarning != null) {
+                    messenger.showSnackBar(
+                      SnackBar(content: Text(saved.snapshotWarning!)),
+                    );
                   }
                 } else {
                   setState(
@@ -371,7 +440,12 @@ class _PreviewCard extends StatelessWidget {
               children: [
                 BucketBadge(bucket: preview.bucket),
                 const SizedBox(width: 8),
-                Expanded(child: Text(preview.bucket.reason, style: textTheme.bodyMedium)),
+                Expanded(
+                  child: Text(
+                    preview.bucket.reason,
+                    style: textTheme.bodyMedium,
+                  ),
+                ),
               ],
             ),
             if (preview.changeLine != null)
@@ -379,59 +453,30 @@ class _PreviewCard extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   preview.changeLine!,
-                  style: textTheme.bodySmall?.copyWith(fontStyle: FontStyle.italic),
+                  style: textTheme.bodySmall?.copyWith(
+                    fontStyle: FontStyle.italic,
+                  ),
                 ),
               ),
             const SizedBox(height: 8),
-            _PreviewRow('Captured', pctText(preview.capturedPct)),
-            _PreviewRow(
-              'Roll band in use',
-              preview.rollBandLabelText,
+            LabelValueRow(
+              label: 'Captured',
+              value: pctText(preview.capturedPct),
+            ),
+            LabelValueRow(
+              label: 'Roll band in use',
+              value: preview.rollBandLabelText,
               helpTopicId: 'roll_band',
               stacked: true,
             ),
-            _PreviewRow('Extrinsic remaining', moneyText(preview.extrinsic), helpTopicId: 'extrinsic'),
+            LabelValueRow(
+              label: 'Extrinsic remaining',
+              value: moneyText(preview.extrinsic),
+              helpTopicId: 'extrinsic',
+            ),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _PreviewRow extends StatelessWidget {
-  const _PreviewRow(this.label, this.value, {this.helpTopicId, this.stacked = false});
-
-  final String label;
-  final String value;
-  final String? helpTopicId;
-  final bool stacked;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final labelRow = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Flexible(child: Text(label, style: textTheme.bodyMedium)),
-        if (helpTopicId != null) HelpChip(topicId: helpTopicId!),
-      ],
-    );
-    final valueText = Text(value, style: textTheme.bodyMedium);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: stacked
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [labelRow, valueText],
-            )
-          : Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Flexible(child: labelRow),
-                const SizedBox(width: 8),
-                Flexible(child: valueText),
-              ],
-            ),
     );
   }
 }

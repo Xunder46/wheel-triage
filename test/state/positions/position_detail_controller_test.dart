@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:decimal/decimal.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,7 +22,11 @@ void main() {
     late InMemoryWheelRepository repo;
     late ProviderContainer container;
     late String legId;
-    final openedAt = DateTime(2025, 12, 12); // "opened 20 days ago" relative to `today` below
+    final openedAt = DateTime(
+      2025,
+      12,
+      12,
+    ); // "opened 20 days ago" relative to `today` below
     final today = DateTime(2026, 1, 1);
 
     setUp(() async {
@@ -40,9 +46,16 @@ void main() {
       );
       legId = result.leg.id;
 
-      container = ProviderContainer(overrides: [wheelRepositoryProvider.overrideWithValue(repo)]);
-      container.listen(positionDetailControllerProvider(legId), (previous, next) {});
-      await container.read(positionDetailControllerProvider(legId).notifier).load(now: today);
+      container = ProviderContainer(
+        overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+      );
+      container.listen(
+        positionDetailControllerProvider(legId),
+        (previous, next) {},
+      );
+      await container
+          .read(positionDetailControllerProvider(legId).notifier)
+          .load(now: today);
     });
 
     tearDown(() => container.dispose());
@@ -62,7 +75,9 @@ void main() {
       'submitting a snapshot appends exactly one row, stores deltaConvention, and '
       're-triages to close at exactly 50% captured',
       () async {
-        final controller = container.read(positionDetailControllerProvider(legId).notifier);
+        final controller = container.read(
+          positionDetailControllerProvider(legId).notifier,
+        );
 
         final ok = await controller.updateSnapshot(
           optionMark: Decimal.parse('0.30'),
@@ -117,7 +132,9 @@ void main() {
           NewSnapshotInput(
             legId: result.leg.id,
             takenAt: today,
-            optionMark: Decimal.parse('0.80'), // capturedPct 20%, below 50% target
+            optionMark: Decimal.parse(
+              '0.80',
+            ), // capturedPct 20%, below 50% target
             underlyingPrice: Decimal.parse('10'),
             deltaAsEntered: -0.35,
             deltaConvention: DeltaConvention.position,
@@ -125,12 +142,21 @@ void main() {
           ),
         );
 
-        final container = ProviderContainer(overrides: [wheelRepositoryProvider.overrideWithValue(repo)]);
+        final container = ProviderContainer(
+          overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+        );
         addTearDown(container.dispose);
-        container.listen(positionDetailControllerProvider(result.leg.id), (previous, next) {});
-        await container.read(positionDetailControllerProvider(result.leg.id).notifier).load(now: today);
+        container.listen(
+          positionDetailControllerProvider(result.leg.id),
+          (previous, next) {},
+        );
+        await container
+            .read(positionDetailControllerProvider(result.leg.id).notifier)
+            .load(now: today);
 
-        final state = container.read(positionDetailControllerProvider(result.leg.id));
+        final state = container.read(
+          positionDetailControllerProvider(result.leg.id),
+        );
         expect(state.resolvedIv?.source, IvSource.legIvAtOpen);
         expect(state.rollBand, 0.40);
         expect(state.rollBandLabelText, '0.40 — from IV at open (83%)');
@@ -142,111 +168,150 @@ void main() {
     );
   });
 
-  group('S-050/S-051: no-arbitrage bound wired into the snapshot-sheet option mark', () {
-    late InMemoryWheelRepository repo;
-    late ProviderContainer container;
-    late String legId;
-    final today = DateTime(2026, 1, 1);
-
-    setUp(() async {
-      repo = InMemoryWheelRepository();
-      final underlying = await repo.getOrCreateUnderlying('BND');
-      final result = await repo.createCycle(
-        underlyingId: underlying.id,
-        firstLeg: NewLegInput(
-          optionType: OptionType.put,
-          strike: Decimal.parse('40'),
-          expiration: today.add(const Duration(days: 30)),
-          contracts: 1,
-          openedAt: today,
-          openCreditPerShare: Decimal.parse('1.00'),
-          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
-        ),
-      );
-      legId = result.leg.id;
-
-      container = ProviderContainer(overrides: [wheelRepositoryProvider.overrideWithValue(repo)]);
-      container.listen(positionDetailControllerProvider(legId), (previous, next) {});
-      await container.read(positionDetailControllerProvider(legId).notifier).load(now: today);
-    });
-
-    tearDown(() => container.dispose());
-
-    test('S-050 row 2: mark \$41 > strike \$40 (put) -- hard-rejects, no row persisted', () async {
-      final controller = container.read(positionDetailControllerProvider(legId).notifier);
-      final ok = await controller.updateSnapshot(
-        optionMark: Decimal.parse('41'),
-        underlyingPrice: Decimal.parse('39'),
-        deltaAsEntered: -0.30,
-        deltaConvention: DeltaConvention.position,
-        takenAt: today,
-      );
-      expect(ok, isFalse);
-
-      final state = container.read(positionDetailControllerProvider(legId));
-      expect(state.snapshotError, contains("can't exceed the strike price"));
-      expect(await repo.getSnapshotsForLeg(legId), isEmpty);
-    });
-
-    test('S-051 row 2: mark \$22 (between 0.5x and 1x strike) -- soft-warns, still persists', () async {
-      final controller = container.read(positionDetailControllerProvider(legId).notifier);
-      final ok = await controller.updateSnapshot(
-        optionMark: Decimal.parse('22'),
-        underlyingPrice: Decimal.parse('39'),
-        deltaAsEntered: -0.30,
-        deltaConvention: DeltaConvention.position,
-        takenAt: today,
-      );
-      expect(ok, isTrue);
-
-      final state = container.read(positionDetailControllerProvider(legId));
-      expect(state.snapshotWarning, isNotNull);
-      expect(state.snapshotError, isNull);
-      expect(await repo.getSnapshotsForLeg(legId), hasLength(1));
-    });
-  });
-
-  group('S-052: "total per contract" applies to the snapshot option-mark field too', () {
-    test('toggle on -> typing 31 persists optionMark 0.31', () async {
-      final repo = InMemoryWheelRepository();
+  group(
+    'S-050/S-051: no-arbitrage bound wired into the snapshot-sheet option mark',
+    () {
+      late InMemoryWheelRepository repo;
+      late ProviderContainer container;
+      late String legId;
       final today = DateTime(2026, 1, 1);
-      final underlying = await repo.getOrCreateUnderlying('TPC');
-      final result = await repo.createCycle(
-        underlyingId: underlying.id,
-        firstLeg: NewLegInput(
-          optionType: OptionType.put,
-          strike: Decimal.parse('45'),
-          expiration: today.add(const Duration(days: 30)),
-          contracts: 1,
-          openedAt: today,
-          openCreditPerShare: Decimal.parse('1.00'),
-          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
-        ),
+
+      setUp(() async {
+        repo = InMemoryWheelRepository();
+        final underlying = await repo.getOrCreateUnderlying('BND');
+        final result = await repo.createCycle(
+          underlyingId: underlying.id,
+          firstLeg: NewLegInput(
+            optionType: OptionType.put,
+            strike: Decimal.parse('40'),
+            expiration: today.add(const Duration(days: 30)),
+            contracts: 1,
+            openedAt: today,
+            openCreditPerShare: Decimal.parse('1.00'),
+            ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+          ),
+        );
+        legId = result.leg.id;
+
+        container = ProviderContainer(
+          overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+        );
+        container.listen(
+          positionDetailControllerProvider(legId),
+          (previous, next) {},
+        );
+        await container
+            .read(positionDetailControllerProvider(legId).notifier)
+            .load(now: today);
+      });
+
+      tearDown(() => container.dispose());
+
+      test(
+        'S-050 row 2: mark \$41 > strike \$40 (put) -- hard-rejects, no row persisted',
+        () async {
+          final controller = container.read(
+            positionDetailControllerProvider(legId).notifier,
+          );
+          final ok = await controller.updateSnapshot(
+            optionMark: Decimal.parse('41'),
+            underlyingPrice: Decimal.parse('39'),
+            deltaAsEntered: -0.30,
+            deltaConvention: DeltaConvention.position,
+            takenAt: today,
+          );
+          expect(ok, isFalse);
+
+          final state = container.read(positionDetailControllerProvider(legId));
+          expect(
+            state.snapshotError,
+            contains("can't exceed the strike price"),
+          );
+          expect(await repo.getSnapshotsForLeg(legId), isEmpty);
+        },
       );
 
-      final container = ProviderContainer(overrides: [wheelRepositoryProvider.overrideWithValue(repo)]);
-      addTearDown(container.dispose);
-      container.listen(positionDetailControllerProvider(result.leg.id), (previous, next) {});
-      await container.read(positionDetailControllerProvider(result.leg.id).notifier).load(now: today);
+      test(
+        'S-051 row 2: mark \$22 (between 0.5x and 1x strike) -- soft-warns, still persists',
+        () async {
+          final controller = container.read(
+            positionDetailControllerProvider(legId).notifier,
+          );
+          final ok = await controller.updateSnapshot(
+            optionMark: Decimal.parse('22'),
+            underlyingPrice: Decimal.parse('39'),
+            deltaAsEntered: -0.30,
+            deltaConvention: DeltaConvention.position,
+            takenAt: today,
+          );
+          expect(ok, isTrue);
 
-      final prefsController = container.read(preferencesControllerProvider.notifier);
-      await prefsController.ready;
-      await prefsController.update((p) => p.copyWith(totalPerContractToggle: true));
-
-      final controller = container.read(positionDetailControllerProvider(result.leg.id).notifier);
-      final ok = await controller.updateSnapshot(
-        optionMark: Decimal.parse('31'),
-        underlyingPrice: Decimal.parse('44'),
-        deltaAsEntered: -0.20,
-        deltaConvention: DeltaConvention.position,
-        takenAt: today,
+          final state = container.read(positionDetailControllerProvider(legId));
+          expect(state.snapshotWarning, isNotNull);
+          expect(state.snapshotError, isNull);
+          expect(await repo.getSnapshotsForLeg(legId), hasLength(1));
+        },
       );
-      expect(ok, isTrue);
+    },
+  );
 
-      final snapshots = await repo.getSnapshotsForLeg(result.leg.id);
-      expect(snapshots.single.optionMark, Decimal.parse('0.31'));
-    });
-  });
+  group(
+    'S-052: "total per contract" applies to the snapshot option-mark field too',
+    () {
+      test('toggle on -> typing 31 persists optionMark 0.31', () async {
+        final repo = InMemoryWheelRepository();
+        final today = DateTime(2026, 1, 1);
+        final underlying = await repo.getOrCreateUnderlying('TPC');
+        final result = await repo.createCycle(
+          underlyingId: underlying.id,
+          firstLeg: NewLegInput(
+            optionType: OptionType.put,
+            strike: Decimal.parse('45'),
+            expiration: today.add(const Duration(days: 30)),
+            contracts: 1,
+            openedAt: today,
+            openCreditPerShare: Decimal.parse('1.00'),
+            ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+          ),
+        );
+
+        final container = ProviderContainer(
+          overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+        );
+        addTearDown(container.dispose);
+        container.listen(
+          positionDetailControllerProvider(result.leg.id),
+          (previous, next) {},
+        );
+        await container
+            .read(positionDetailControllerProvider(result.leg.id).notifier)
+            .load(now: today);
+
+        final prefsController = container.read(
+          preferencesControllerProvider.notifier,
+        );
+        await prefsController.ready;
+        await prefsController.update(
+          (p) => p.copyWith(totalPerContractToggle: true),
+        );
+
+        final controller = container.read(
+          positionDetailControllerProvider(result.leg.id).notifier,
+        );
+        final ok = await controller.updateSnapshot(
+          optionMark: Decimal.parse('31'),
+          underlyingPrice: Decimal.parse('44'),
+          deltaAsEntered: -0.20,
+          deltaConvention: DeltaConvention.position,
+          takenAt: today,
+        );
+        expect(ok, isTrue);
+
+        final snapshots = await repo.getSnapshotsForLeg(result.leg.id);
+        expect(snapshots.single.optionMark, Decimal.parse('0.31'));
+      });
+    },
+  );
 
   test(
     'S-126: an open holdingShares cycle computes a live cyclePnl, with no fee gap from its '
@@ -269,8 +334,13 @@ void main() {
       );
       await repo.recordAssignment(
         legId: putResult.leg.id,
-        closeFee: Decimal.zero, // the put itself is fee-complete -- isolates the open call leg's case
-        shareLot: NewShareLotInput(assignedAt: today, assignmentStrike: Decimal.parse('50'), contracts: 1),
+        closeFee: Decimal
+            .zero, // the put itself is fee-complete -- isolates the open call leg's case
+        shareLot: NewShareLotInput(
+          assignedAt: today,
+          assignmentStrike: Decimal.parse('50'),
+          contracts: 1,
+        ),
       );
       // The covered call is still open -- its own null closeFee is expected,
       // never a gap on its own (Feature Invariant 28) -- but it DOES have a
@@ -289,51 +359,75 @@ void main() {
         ),
       );
 
-      final container = ProviderContainer(overrides: [wheelRepositoryProvider.overrideWithValue(repo)]);
+      final container = ProviderContainer(
+        overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+      );
       addTearDown(container.dispose);
-      container.listen(positionDetailControllerProvider(callLeg.id), (previous, next) {});
-      await container.read(positionDetailControllerProvider(callLeg.id).notifier).load(now: today);
+      container.listen(
+        positionDetailControllerProvider(callLeg.id),
+        (previous, next) {},
+      );
+      await container
+          .read(positionDetailControllerProvider(callLeg.id).notifier)
+          .load(now: today);
 
-      final state = container.read(positionDetailControllerProvider(callLeg.id));
+      final state = container.read(
+        positionDetailControllerProvider(callLeg.id),
+      );
       expect(state.cyclePnl, isNotNull);
-      expect(state.cyclePnl!.hasFeeGap, isFalse); // the open call leg's null closeFee is not a gap
+      expect(
+        state.cyclePnl!.hasFeeGap,
+        isFalse,
+      ); // the open call leg's null closeFee is not a gap
       expect(state.shareLot, isNotNull);
     },
   );
 
-  test('S-120: direct Close/Mark-expired -- closeFee persists on the closed leg', () async {
-    final repo = InMemoryWheelRepository();
-    final today = DateTime(2026, 1, 1);
-    final underlying = await repo.getOrCreateUnderlying('DIRECT');
-    final result = await repo.createCycle(
-      underlyingId: underlying.id,
-      firstLeg: NewLegInput(
-        optionType: OptionType.put,
-        strike: Decimal.parse('45'),
-        expiration: today.add(const Duration(days: 30)),
-        contracts: 1,
-        openedAt: today,
-        openCreditPerShare: Decimal.parse('0.60'),
-        ruleProfileVersionId: RuleProfileVersionIds.standardV1,
-      ),
-    );
+  test(
+    'S-120: direct Close/Mark-expired -- closeFee persists on the closed leg',
+    () async {
+      final repo = InMemoryWheelRepository();
+      final today = DateTime(2026, 1, 1);
+      final underlying = await repo.getOrCreateUnderlying('DIRECT');
+      final result = await repo.createCycle(
+        underlyingId: underlying.id,
+        firstLeg: NewLegInput(
+          optionType: OptionType.put,
+          strike: Decimal.parse('45'),
+          expiration: today.add(const Duration(days: 30)),
+          contracts: 1,
+          openedAt: today,
+          openCreditPerShare: Decimal.parse('0.60'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
 
-    final container = ProviderContainer(overrides: [wheelRepositoryProvider.overrideWithValue(repo)]);
-    addTearDown(container.dispose);
-    container.listen(positionDetailControllerProvider(result.leg.id), (previous, next) {});
-    await container.read(positionDetailControllerProvider(result.leg.id).notifier).load(now: today);
+      final container = ProviderContainer(
+        overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+      );
+      addTearDown(container.dispose);
+      container.listen(
+        positionDetailControllerProvider(result.leg.id),
+        (previous, next) {},
+      );
+      await container
+          .read(positionDetailControllerProvider(result.leg.id).notifier)
+          .load(now: today);
 
-    final controller = container.read(positionDetailControllerProvider(result.leg.id).notifier);
-    await controller.closeDirect(
-      reason: CloseReason.closedEarly,
-      closeDebitPerShare: Decimal.parse('0.20'),
-      closeFee: Decimal.parse('1.30'),
-      closedAt: today,
-    );
+      final controller = container.read(
+        positionDetailControllerProvider(result.leg.id).notifier,
+      );
+      await controller.closeDirect(
+        reason: CloseReason.closedEarly,
+        closeDebitPerShare: Decimal.parse('0.20'),
+        closeFee: Decimal.parse('1.30'),
+        closedAt: today,
+      );
 
-    final closedLeg = (await repo.getLeg(result.leg.id))!;
-    expect(closedLeg.closeFee, Decimal.parse('1.30'));
-  });
+      final closedLeg = (await repo.getLeg(result.leg.id))!;
+      expect(closedLeg.closeFee, Decimal.parse('1.30'));
+    },
+  );
 
   test(
     'S-210: closed cycle sources cyclePnl\'s shareLot from the retained assignment '
@@ -378,18 +472,28 @@ void main() {
           ruleProfileVersionId: RuleProfileVersionIds.standardV1,
         ),
       );
-      await repo.recordCallAway(legId: callLeg.id, closedAt: DateTime.utc(2026, 4, 17));
+      await repo.recordCallAway(
+        legId: callLeg.id,
+        closedAt: DateTime.utc(2026, 4, 17),
+      );
 
       // Load the closed cycle directly by the call leg's id, bypassing
       // navigation (the same direct-load pattern S-120 above uses).
-      final container = ProviderContainer(overrides: [wheelRepositoryProvider.overrideWithValue(repo)]);
+      final container = ProviderContainer(
+        overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+      );
       addTearDown(container.dispose);
-      container.listen(positionDetailControllerProvider(callLeg.id), (previous, next) {});
+      container.listen(
+        positionDetailControllerProvider(callLeg.id),
+        (previous, next) {},
+      );
       await container
           .read(positionDetailControllerProvider(callLeg.id).notifier)
           .load(now: DateTime.utc(2026, 4, 17));
 
-      final state = container.read(positionDetailControllerProvider(callLeg.id));
+      final state = container.read(
+        positionDetailControllerProvider(callLeg.id),
+      );
       expect(state.cyclePnl, isNotNull);
       // Same figures the Journal computes for this exact fixture (S-207) --
       // stockPnL sourced from the retained assignment record (49.50), not
@@ -430,26 +534,40 @@ void main() {
         ),
       );
 
-      final container = ProviderContainer(overrides: [wheelRepositoryProvider.overrideWithValue(repo)]);
+      final container = ProviderContainer(
+        overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+      );
       addTearDown(container.dispose);
-      container.listen(positionDetailControllerProvider(result.leg.id), (previous, next) {});
-      await container.read(positionDetailControllerProvider(result.leg.id).notifier).load(now: today);
+      container.listen(
+        positionDetailControllerProvider(result.leg.id),
+        (previous, next) {},
+      );
+      await container
+          .read(positionDetailControllerProvider(result.leg.id).notifier)
+          .load(now: today);
 
       expect(
         container.read(positionDetailControllerProvider(result.leg.id)).bucket,
         isA<BucketAssign>(),
       );
 
-      final controller = container.read(positionDetailControllerProvider(result.leg.id).notifier);
+      final controller = container.read(
+        positionDetailControllerProvider(result.leg.id).notifier,
+      );
       final ok = await controller.setAcceptsAssignment(false);
       expect(ok, isTrue);
 
       final updatedLeg = (await repo.getLeg(result.leg.id))!;
       expect(updatedLeg.acceptsAssignment, isFalse); // persisted
 
-      final state = container.read(positionDetailControllerProvider(result.leg.id));
+      final state = container.read(
+        positionDetailControllerProvider(result.leg.id),
+      );
       expect(state.bucket, isA<BucketRoll>());
-      expect((state.bucket as BucketRoll).reason, "Delta 0.85 at or above 0.70, and assignment isn't wanted here");
+      expect(
+        (state.bucket as BucketRoll).reason,
+        "Delta 0.85 at or above 0.70, and assignment isn't wanted here",
+      );
     },
   );
 
@@ -473,59 +591,98 @@ void main() {
         ),
       );
 
-      final container = ProviderContainer(overrides: [wheelRepositoryProvider.overrideWithValue(repo)]);
+      final container = ProviderContainer(
+        overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+      );
       addTearDown(container.dispose);
-      container.listen(positionDetailControllerProvider(result.leg.id), (previous, next) {});
-      await container.read(positionDetailControllerProvider(result.leg.id).notifier).load(now: today);
+      container.listen(
+        positionDetailControllerProvider(result.leg.id),
+        (previous, next) {},
+      );
+      await container
+          .read(positionDetailControllerProvider(result.leg.id).notifier)
+          .load(now: today);
 
-      final controller = container.read(positionDetailControllerProvider(result.leg.id).notifier);
-      final ok = await controller.setAcceptsAssignment(true); // already true by default
+      final controller = container.read(
+        positionDetailControllerProvider(result.leg.id).notifier,
+      );
+      final ok = await controller.setAcceptsAssignment(
+        true,
+      ); // already true by default
       expect(ok, isTrue);
-      expect(container.read(positionDetailControllerProvider(result.leg.id)).actionError, isNull);
+      expect(
+        container
+            .read(positionDetailControllerProvider(result.leg.id))
+            .actionError,
+        isNull,
+      );
     },
   );
 
-  test('S-122: edit-fees affordance fills the gap -- fills both fee fields, cycle recomputes', () async {
-    final repo = InMemoryWheelRepository();
-    final today = DateTime(2026, 1, 1);
-    final underlying = await repo.getOrCreateUnderlying('GAP');
-    final result = await repo.createCycle(
-      underlyingId: underlying.id,
-      firstLeg: NewLegInput(
-        optionType: OptionType.put,
-        strike: Decimal.parse('45'),
-        expiration: today.add(const Duration(days: 30)),
-        contracts: 1,
-        openedAt: today,
-        openCreditPerShare: Decimal.parse('0.60'),
-        ruleProfileVersionId: RuleProfileVersionIds.standardV1,
-      ),
-    );
-    await repo.closeLeg(
-      legId: result.leg.id,
-      reason: CloseReason.expiredWorthless,
-      closeDebitPerShare: Decimal.zero,
-      closedAt: today,
-      // closeFee left null -- the gap.
-    );
+  test(
+    'S-122: edit-fees affordance fills the gap -- fills both fee fields, cycle recomputes',
+    () async {
+      final repo = InMemoryWheelRepository();
+      final today = DateTime(2026, 1, 1);
+      final underlying = await repo.getOrCreateUnderlying('GAP');
+      final result = await repo.createCycle(
+        underlyingId: underlying.id,
+        firstLeg: NewLegInput(
+          optionType: OptionType.put,
+          strike: Decimal.parse('45'),
+          expiration: today.add(const Duration(days: 30)),
+          contracts: 1,
+          openedAt: today,
+          openCreditPerShare: Decimal.parse('0.60'),
+          ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+        ),
+      );
+      await repo.closeLeg(
+        legId: result.leg.id,
+        reason: CloseReason.expiredWorthless,
+        closeDebitPerShare: Decimal.zero,
+        closedAt: today,
+        // closeFee left null -- the gap.
+      );
 
-    final container = ProviderContainer(overrides: [wheelRepositoryProvider.overrideWithValue(repo)]);
-    addTearDown(container.dispose);
-    container.listen(positionDetailControllerProvider(result.leg.id), (previous, next) {});
-    await container.read(positionDetailControllerProvider(result.leg.id).notifier).load(now: today);
+      final container = ProviderContainer(
+        overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+      );
+      addTearDown(container.dispose);
+      container.listen(
+        positionDetailControllerProvider(result.leg.id),
+        (previous, next) {},
+      );
+      await container
+          .read(positionDetailControllerProvider(result.leg.id).notifier)
+          .load(now: today);
 
-    expect(container.read(positionDetailControllerProvider(result.leg.id)).cyclePnl!.hasFeeGap, isTrue);
+      expect(
+        container
+            .read(positionDetailControllerProvider(result.leg.id))
+            .cyclePnl!
+            .hasFeeGap,
+        isTrue,
+      );
 
-    final controller = container.read(positionDetailControllerProvider(result.leg.id).notifier);
-    final ok = await controller.updateLegFees(legId: result.leg.id, closeFee: Decimal.parse('0.65'));
-    expect(ok, isTrue);
+      final controller = container.read(
+        positionDetailControllerProvider(result.leg.id).notifier,
+      );
+      final ok = await controller.updateLegFees(
+        legId: result.leg.id,
+        closeFee: Decimal.parse('0.65'),
+      );
+      expect(ok, isTrue);
 
-    final updatedLeg = (await repo.getLeg(result.leg.id))!;
-    expect(updatedLeg.closeFee, Decimal.parse('0.65'));
+      final updatedLeg = (await repo.getLeg(result.leg.id))!;
+      expect(updatedLeg.closeFee, Decimal.parse('0.65'));
 
-    final state = container.read(positionDetailControllerProvider(result.leg.id));
-    expect(state.cyclePnl!.hasFeeGap, isFalse); // recomputed, gap closed
-  });
+      final state = container.read(
+        positionDetailControllerProvider(result.leg.id),
+      );
+      expect(state.cyclePnl!.hasFeeGap, isFalse); // recomputed, gap closed
+    },
+  );
 
   test(
     'S-103: fees excluded from capturedPct and every gate -- a leg with a recorded fee '
@@ -533,7 +690,11 @@ void main() {
     () async {
       final today = DateTime(2026, 1, 1);
 
-      Future<String> setUpLeg(InMemoryWheelRepository repo, {Decimal? openFee, Decimal? closeFee}) async {
+      Future<String> setUpLeg(
+        InMemoryWheelRepository repo, {
+        Decimal? openFee,
+        Decimal? closeFee,
+      }) async {
         final underlying = await repo.getOrCreateUnderlying('FEE');
         final result = await repo.createCycle(
           underlyingId: underlying.id,
@@ -552,7 +713,9 @@ void main() {
           NewSnapshotInput(
             legId: result.leg.id,
             takenAt: today,
-            optionMark: Decimal.parse('0.45'), // capturedPct 55% -> Gate 1 fires
+            optionMark: Decimal.parse(
+              '0.45',
+            ), // capturedPct 55% -> Gate 1 fires
             underlyingPrice: Decimal.parse('46'),
             deltaAsEntered: -0.10,
             deltaConvention: DeltaConvention.position,
@@ -563,25 +726,45 @@ void main() {
 
       final repoA = InMemoryWheelRepository(); // no fee recorded
       final legIdA = await setUpLeg(repoA);
-      final containerA = ProviderContainer(overrides: [wheelRepositoryProvider.overrideWithValue(repoA)]);
+      final containerA = ProviderContainer(
+        overrides: [wheelRepositoryProvider.overrideWithValue(repoA)],
+      );
       addTearDown(containerA.dispose);
-      containerA.listen(positionDetailControllerProvider(legIdA), (previous, next) {});
-      await containerA.read(positionDetailControllerProvider(legIdA).notifier).load(now: today);
+      containerA.listen(
+        positionDetailControllerProvider(legIdA),
+        (previous, next) {},
+      );
+      await containerA
+          .read(positionDetailControllerProvider(legIdA).notifier)
+          .load(now: today);
 
       final repoB = InMemoryWheelRepository(); // a $10 fee recorded
       final legIdB = await setUpLeg(repoB, openFee: Decimal.fromInt(1000));
-      final containerB = ProviderContainer(overrides: [wheelRepositoryProvider.overrideWithValue(repoB)]);
+      final containerB = ProviderContainer(
+        overrides: [wheelRepositoryProvider.overrideWithValue(repoB)],
+      );
       addTearDown(containerB.dispose);
-      containerB.listen(positionDetailControllerProvider(legIdB), (previous, next) {});
-      await containerB.read(positionDetailControllerProvider(legIdB).notifier).load(now: today);
+      containerB.listen(
+        positionDetailControllerProvider(legIdB),
+        (previous, next) {},
+      );
+      await containerB
+          .read(positionDetailControllerProvider(legIdB).notifier)
+          .load(now: today);
 
       final stateA = containerA.read(positionDetailControllerProvider(legIdA));
       final stateB = containerB.read(positionDetailControllerProvider(legIdB));
 
-      expect(stateA.capturedPct, stateB.capturedPct); // fee never nets into currentMark
+      expect(
+        stateA.capturedPct,
+        stateB.capturedPct,
+      ); // fee never nets into currentMark
       expect(stateA.bucket, isA<BucketClose>());
       expect(stateB.bucket, isA<BucketClose>());
-      expect((stateA.bucket as BucketClose).reason, (stateB.bucket as BucketClose).reason);
+      expect(
+        (stateA.bucket as BucketClose).reason,
+        (stateB.bucket as BucketClose).reason,
+      );
     },
   );
 
@@ -592,8 +775,12 @@ void main() {
       () async {
         final repo = InMemoryWheelRepository();
         final wallNow = DateTime.now();
-        final openedAt = wallNow.subtract(const Duration(days: 40)); // fixture: "opened 40 days ago"
-        final takenAt = wallNow.subtract(const Duration(days: 10)); // fixture: "backdated to 10 days ago"
+        final openedAt = wallNow.subtract(
+          const Duration(days: 40),
+        ); // fixture: "opened 40 days ago"
+        final takenAt = wallNow.subtract(
+          const Duration(days: 10),
+        ); // fixture: "backdated to 10 days ago"
         // dte-as-of-real-now ~= 2 (<= tailDteDays 3); dte-as-of-takenAt ~= 12
         // (past the tail window) -- the two reference times disagree on
         // whether Gate 4 fires, which is what exposes the defect.
@@ -613,10 +800,17 @@ void main() {
           ),
         );
 
-        final container = ProviderContainer(overrides: [wheelRepositoryProvider.overrideWithValue(repo)]);
+        final container = ProviderContainer(
+          overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+        );
         addTearDown(container.dispose);
-        container.listen(positionDetailControllerProvider(result.leg.id), (previous, next) {});
-        final controller = container.read(positionDetailControllerProvider(result.leg.id).notifier);
+        container.listen(
+          positionDetailControllerProvider(result.leg.id),
+          (previous, next) {},
+        );
+        final controller = container.read(
+          positionDetailControllerProvider(result.leg.id).notifier,
+        );
         await controller.load();
 
         final ok = await controller.updateSnapshot(
@@ -625,208 +819,486 @@ void main() {
           // negative, so Gate 1 never preempts Gate 4.
           optionMark: Decimal.parse('10.03'),
           underlyingPrice: Decimal.parse('40'),
-          deltaAsEntered: -0.10, // below assignThreshold and the roll band -- Gates 2/3 don't fire
+          deltaAsEntered:
+              -0.10, // below assignThreshold and the roll band -- Gates 2/3 don't fire
           deltaConvention: DeltaConvention.position,
           takenAt: takenAt,
         );
         expect(ok, isTrue);
 
-        final postSaveBucket = container.read(positionDetailControllerProvider(result.leg.id)).bucket;
+        final postSaveBucket = container
+            .read(positionDetailControllerProvider(result.leg.id))
+            .bucket;
 
         // Reopen: a fresh load() with no new snapshot (S-140's second trigger).
         await controller.load();
-        final reopenedBucket = container.read(positionDetailControllerProvider(result.leg.id)).bucket;
+        final reopenedBucket = container
+            .read(positionDetailControllerProvider(result.leg.id))
+            .bucket;
 
         expect(postSaveBucket, isNotNull);
-        expect(postSaveBucket, reopenedBucket); // same bucket type AND same reason
+        expect(
+          postSaveBucket,
+          reopenedBucket,
+        ); // same bucket type AND same reason
         expect(postSaveBucket, isA<BucketClose>());
         expect(postSaveBucket!.reason, contains('time value left'));
       },
     );
   });
 
-  group('S-142: backdated snapshot entry -- range-validated against [leg.openedAt, leg.expiration]', () {
-    late InMemoryWheelRepository repo;
-    late ProviderContainer container;
-    late String legId;
-    late DateTime openedAt;
-    late DateTime expiration;
+  group(
+    'S-142: backdated snapshot entry -- range-validated against [leg.openedAt, leg.expiration]',
+    () {
+      late InMemoryWheelRepository repo;
+      late ProviderContainer container;
+      late String legId;
+      late DateTime openedAt;
+      late DateTime expiration;
 
-    setUp(() async {
-      repo = InMemoryWheelRepository();
-      openedAt = DateTime(2026, 1, 1);
-      expiration = DateTime(2026, 1, 31);
-      final underlying = await repo.getOrCreateUnderlying('BACK');
+      setUp(() async {
+        repo = InMemoryWheelRepository();
+        openedAt = DateTime(2026, 1, 1);
+        expiration = DateTime(2026, 1, 31);
+        final underlying = await repo.getOrCreateUnderlying('BACK');
+        final result = await repo.createCycle(
+          underlyingId: underlying.id,
+          firstLeg: NewLegInput(
+            optionType: OptionType.put,
+            strike: Decimal.parse('45'),
+            expiration: expiration,
+            contracts: 1,
+            openedAt: openedAt,
+            openCreditPerShare: Decimal.parse('0.60'),
+            ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+          ),
+        );
+        legId = result.leg.id;
+
+        container = ProviderContainer(
+          overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+        );
+        addTearDown(container.dispose);
+        container.listen(
+          positionDetailControllerProvider(legId),
+          (previous, next) {},
+        );
+        await container
+            .read(positionDetailControllerProvider(legId).notifier)
+            .load(now: openedAt);
+      });
+
+      test(
+        'trigger A: takenAt before openedAt is rejected, submit blocked, range named',
+        () async {
+          final controller = container.read(
+            positionDetailControllerProvider(legId).notifier,
+          );
+          final ok = await controller.updateSnapshot(
+            optionMark: Decimal.parse('0.50'),
+            underlyingPrice: Decimal.parse('46'),
+            deltaAsEntered: -0.20,
+            deltaConvention: DeltaConvention.position,
+            takenAt: openedAt.subtract(const Duration(days: 1)),
+          );
+          expect(ok, isFalse);
+
+          final state = container.read(positionDetailControllerProvider(legId));
+          expect(state.snapshotError, isNotNull);
+          expect(state.snapshotError, contains('2026-01-01'));
+          expect(state.snapshotError, contains('2026-01-31'));
+          expect(await repo.getSnapshotsForLeg(legId), isEmpty);
+        },
+      );
+
+      test(
+        'trigger B: takenAt after expiration is rejected, submit blocked, range named',
+        () async {
+          final controller = container.read(
+            positionDetailControllerProvider(legId).notifier,
+          );
+          final ok = await controller.updateSnapshot(
+            optionMark: Decimal.parse('0.50'),
+            underlyingPrice: Decimal.parse('46'),
+            deltaAsEntered: -0.20,
+            deltaConvention: DeltaConvention.position,
+            takenAt: expiration.add(const Duration(days: 1)),
+          );
+          expect(ok, isFalse);
+
+          final state = container.read(positionDetailControllerProvider(legId));
+          expect(state.snapshotError, isNotNull);
+          expect(state.snapshotError, contains('2026-01-01'));
+          expect(state.snapshotError, contains('2026-01-31'));
+          expect(await repo.getSnapshotsForLeg(legId), isEmpty);
+        },
+      );
+
+      test(
+        'trigger C: takenAt inside [openedAt, expiration] persists normally',
+        () async {
+          final controller = container.read(
+            positionDetailControllerProvider(legId).notifier,
+          );
+          final ok = await controller.updateSnapshot(
+            optionMark: Decimal.parse('0.50'),
+            underlyingPrice: Decimal.parse('46'),
+            deltaAsEntered: -0.20,
+            deltaConvention: DeltaConvention.position,
+            takenAt: openedAt.add(const Duration(days: 5)),
+          );
+          expect(ok, isTrue);
+          expect(await repo.getSnapshotsForLeg(legId), hasLength(1));
+        },
+      );
+
+      test(
+        'C, continued: leaving the date field untouched defaults takenAt to now, and a leg whose '
+        'range straddles real now (the ordinary case) accepts the default',
+        () async {
+          final liveRepo = InMemoryWheelRepository();
+          final wallNow = DateTime.now();
+          final underlying = await liveRepo.getOrCreateUnderlying('LIVE');
+          final result = await liveRepo.createCycle(
+            underlyingId: underlying.id,
+            firstLeg: NewLegInput(
+              optionType: OptionType.put,
+              strike: Decimal.parse('45'),
+              expiration: wallNow.add(const Duration(days: 30)),
+              contracts: 1,
+              openedAt: wallNow.subtract(const Duration(days: 1)),
+              openCreditPerShare: Decimal.parse('0.60'),
+              ruleProfileVersionId: RuleProfileVersionIds.standardV1,
+            ),
+          );
+
+          final liveContainer = ProviderContainer(
+            overrides: [wheelRepositoryProvider.overrideWithValue(liveRepo)],
+          );
+          addTearDown(liveContainer.dispose);
+          liveContainer.listen(
+            positionDetailControllerProvider(result.leg.id),
+            (previous, next) {},
+          );
+          final controller = liveContainer.read(
+            positionDetailControllerProvider(result.leg.id).notifier,
+          );
+          await controller.load();
+          // No `takenAt` passed at all -- must default to `DateTime.now()`.
+          final ok = await controller.updateSnapshot(
+            optionMark: Decimal.parse('0.50'),
+            underlyingPrice: Decimal.parse('46'),
+            deltaAsEntered: -0.20,
+            deltaConvention: DeltaConvention.position,
+          );
+          expect(ok, isTrue);
+          expect(
+            await liveRepo.getSnapshotsForLeg(result.leg.id),
+            hasLength(1),
+          );
+        },
+      );
+    },
+  );
+
+  group('S-196: the audit pin on position detail', () {
+    test(
+      'leg A still classifies under its pinned v1 after v2 exists',
+      () async {
+        final repo = InMemoryWheelRepository();
+        final underlying = await repo.getOrCreateUnderlying('PIN');
+        final now = DateTime(2026, 1, 1);
+
+        Future<Leg> openLeg(String versionId) async {
+          final result = await repo.createCycle(
+            underlyingId: underlying.id,
+            firstLeg: NewLegInput(
+              optionType: OptionType.put,
+              strike: Decimal.parse('50'),
+              expiration: now.add(const Duration(days: 30)),
+              contracts: 1,
+              openedAt: now,
+              openCreditPerShare: Decimal.parse('1.00'),
+              ruleProfileVersionId: versionId,
+            ),
+          );
+          await repo.appendSnapshot(
+            NewSnapshotInput(
+              legId: result.leg.id,
+              takenAt: now,
+              optionMark: Decimal.parse('0.45'),
+              underlyingPrice: Decimal.parse('50'),
+              deltaAsEntered: -0.20,
+              deltaConvention: DeltaConvention.position,
+            ),
+          );
+          return result.leg;
+        }
+
+        // Leg A opens under v1; the edit lands after; leg B opens under v2.
+        final legA = await openLeg(RuleProfileVersionIds.standardV1);
+        final v2 = await repo.appendRuleProfileVersion(
+          profileId: RuleProfileIds.standard,
+          effectiveAt: now,
+          values: standardVersionInput(profitTargetPct: 60.0),
+        );
+        final legB = await openLeg(v2.id);
+
+        final container = ProviderContainer(
+          overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+        );
+        addTearDown(container.dispose);
+
+        Future<PositionDetailState> stateFor(Leg leg) async {
+          container.listen(
+            positionDetailControllerProvider(leg.id),
+            (previous, next) {},
+          );
+          await container
+              .read(positionDetailControllerProvider(leg.id).notifier)
+              .load(now: now);
+          return container.read(positionDetailControllerProvider(leg.id));
+        }
+
+        // Identical snapshots, different pins: 55% captured clears v1's 50%
+        // target and misses v2's 60%, so the bucket difference *is* the pin.
+        final stateA = await stateFor(legA);
+        expect(stateA.profile.versionId, RuleProfileVersionIds.standardV1);
+        expect(stateA.bucket, isA<BucketClose>());
+
+        final stateB = await stateFor(legB);
+        expect(stateB.profile.versionId, v2.id);
+        expect(stateB.bucket, isA<BucketLeave>());
+      },
+    );
+  });
+
+  group('S-327/S-335: the bucket comparison is a state fact, not a screen fact', () {
+    // Relative to the wall clock on purpose: `updateSnapshot` reclassifies
+    // through `load()` with real `now` (S-140), so a fixed calendar fixture
+    // would fall out of range and out of the tail window as the clock moves.
+    final wallNow = DateTime.now();
+    final openedAt = wallNow.subtract(const Duration(days: 20));
+
+    /// One leg under the Standard v1 profile with a single reading whose
+    /// numbers land in `Close` (50% captured, delta 0.25 inside the band).
+    /// Each trigger below gets its own book so an earlier save cannot be the
+    /// previous reading of a later one.
+    Future<(InMemoryWheelRepository, ProviderContainer, String)> book({
+      bool withPreviousReading = true,
+    }) async {
+      final repo = InMemoryWheelRepository();
+      final underlying = await repo.getOrCreateUnderlying('CMP');
       final result = await repo.createCycle(
         underlyingId: underlying.id,
         firstLeg: NewLegInput(
           optionType: OptionType.put,
           strike: Decimal.parse('45'),
-          expiration: expiration,
+          expiration: wallNow.add(const Duration(days: 40)),
           contracts: 1,
           openedAt: openedAt,
           openCreditPerShare: Decimal.parse('0.60'),
+          ivAtOpen: 40,
           ruleProfileVersionId: RuleProfileVersionIds.standardV1,
         ),
       );
-      legId = result.leg.id;
-
-      container = ProviderContainer(overrides: [wheelRepositoryProvider.overrideWithValue(repo)]);
-      addTearDown(container.dispose);
-      container.listen(positionDetailControllerProvider(legId), (previous, next) {});
-      await container.read(positionDetailControllerProvider(legId).notifier).load(now: openedAt);
-    });
-
-    test('trigger A: takenAt before openedAt is rejected, submit blocked, range named', () async {
-      final controller = container.read(positionDetailControllerProvider(legId).notifier);
-      final ok = await controller.updateSnapshot(
-        optionMark: Decimal.parse('0.50'),
-        underlyingPrice: Decimal.parse('46'),
-        deltaAsEntered: -0.20,
-        deltaConvention: DeltaConvention.position,
-        takenAt: openedAt.subtract(const Duration(days: 1)),
-      );
-      expect(ok, isFalse);
-
-      final state = container.read(positionDetailControllerProvider(legId));
-      expect(state.snapshotError, isNotNull);
-      expect(state.snapshotError, contains('2026-01-01'));
-      expect(state.snapshotError, contains('2026-01-31'));
-      expect(await repo.getSnapshotsForLeg(legId), isEmpty);
-    });
-
-    test('trigger B: takenAt after expiration is rejected, submit blocked, range named', () async {
-      final controller = container.read(positionDetailControllerProvider(legId).notifier);
-      final ok = await controller.updateSnapshot(
-        optionMark: Decimal.parse('0.50'),
-        underlyingPrice: Decimal.parse('46'),
-        deltaAsEntered: -0.20,
-        deltaConvention: DeltaConvention.position,
-        takenAt: expiration.add(const Duration(days: 1)),
-      );
-      expect(ok, isFalse);
-
-      final state = container.read(positionDetailControllerProvider(legId));
-      expect(state.snapshotError, isNotNull);
-      expect(state.snapshotError, contains('2026-01-01'));
-      expect(state.snapshotError, contains('2026-01-31'));
-      expect(await repo.getSnapshotsForLeg(legId), isEmpty);
-    });
-
-    test('trigger C: takenAt inside [openedAt, expiration] persists normally', () async {
-      final controller = container.read(positionDetailControllerProvider(legId).notifier);
-      final ok = await controller.updateSnapshot(
-        optionMark: Decimal.parse('0.50'),
-        underlyingPrice: Decimal.parse('46'),
-        deltaAsEntered: -0.20,
-        deltaConvention: DeltaConvention.position,
-        takenAt: openedAt.add(const Duration(days: 5)),
-      );
-      expect(ok, isTrue);
-      expect(await repo.getSnapshotsForLeg(legId), hasLength(1));
-    });
-
-    test(
-      'C, continued: leaving the date field untouched defaults takenAt to now, and a leg whose '
-      'range straddles real now (the ordinary case) accepts the default',
-      () async {
-        final liveRepo = InMemoryWheelRepository();
-        final wallNow = DateTime.now();
-        final underlying = await liveRepo.getOrCreateUnderlying('LIVE');
-        final result = await liveRepo.createCycle(
-          underlyingId: underlying.id,
-          firstLeg: NewLegInput(
-            optionType: OptionType.put,
-            strike: Decimal.parse('45'),
-            expiration: wallNow.add(const Duration(days: 30)),
-            contracts: 1,
-            openedAt: wallNow.subtract(const Duration(days: 1)),
-            openCreditPerShare: Decimal.parse('0.60'),
-            ruleProfileVersionId: RuleProfileVersionIds.standardV1,
-          ),
-        );
-
-        final liveContainer = ProviderContainer(overrides: [wheelRepositoryProvider.overrideWithValue(liveRepo)]);
-        addTearDown(liveContainer.dispose);
-        liveContainer.listen(positionDetailControllerProvider(result.leg.id), (previous, next) {});
-        final controller = liveContainer.read(positionDetailControllerProvider(result.leg.id).notifier);
-        await controller.load();
-        // No `takenAt` passed at all -- must default to `DateTime.now()`.
-        final ok = await controller.updateSnapshot(
-          optionMark: Decimal.parse('0.50'),
-          underlyingPrice: Decimal.parse('46'),
-          deltaAsEntered: -0.20,
-          deltaConvention: DeltaConvention.position,
-        );
-        expect(ok, isTrue);
-        expect(await liveRepo.getSnapshotsForLeg(result.leg.id), hasLength(1));
-      },
-    );
-  });
-
-  group('S-196: the audit pin on position detail', () {
-    test('leg A still classifies under its pinned v1 after v2 exists', () async {
-      final repo = InMemoryWheelRepository();
-      final underlying = await repo.getOrCreateUnderlying('PIN');
-      final now = DateTime(2026, 1, 1);
-
-      Future<Leg> openLeg(String versionId) async {
-        final result = await repo.createCycle(
-          underlyingId: underlying.id,
-          firstLeg: NewLegInput(
-            optionType: OptionType.put,
-            strike: Decimal.parse('50'),
-            expiration: now.add(const Duration(days: 30)),
-            contracts: 1,
-            openedAt: now,
-            openCreditPerShare: Decimal.parse('1.00'),
-            ruleProfileVersionId: versionId,
-          ),
-        );
+      if (withPreviousReading) {
         await repo.appendSnapshot(
           NewSnapshotInput(
             legId: result.leg.id,
-            takenAt: now,
-            optionMark: Decimal.parse('0.45'),
-            underlyingPrice: Decimal.parse('50'),
-            deltaAsEntered: -0.20,
+            takenAt: openedAt,
+            optionMark: Decimal.parse('0.30'),
+            underlyingPrice: Decimal.parse('46'),
+            deltaAsEntered: -0.25,
             deltaConvention: DeltaConvention.position,
+            iv: 21,
           ),
         );
-        return result.leg;
       }
-
-      // Leg A opens under v1; the edit lands after; leg B opens under v2.
-      final legA = await openLeg(RuleProfileVersionIds.standardV1);
-      final v2 = await repo.appendRuleProfileVersion(
-        profileId: RuleProfileIds.standard,
-        effectiveAt: now,
-        values: standardVersionInput(profitTargetPct: 60.0),
-      );
-      final legB = await openLeg(v2.id);
-
       final container = ProviderContainer(
         overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
       );
       addTearDown(container.dispose);
+      container.listen(
+        positionDetailControllerProvider(result.leg.id),
+        (previous, next) {},
+      );
+      await container
+          .read(positionDetailControllerProvider(result.leg.id).notifier)
+          .load();
+      return (repo, container, result.leg.id);
+    }
 
-      Future<PositionDetailState> stateFor(Leg leg) async {
-        container.listen(positionDetailControllerProvider(leg.id), (previous, next) {});
-        await container
-            .read(positionDetailControllerProvider(leg.id).notifier)
-            .load(now: now);
-        return container.read(positionDetailControllerProvider(leg.id));
+    /// The three readings, as `(mark, delta)` per `classify()`.
+    Future<bool> save(
+      ProviderContainer container,
+      String legId, {
+      required String mark,
+      required double delta,
+    }) => container
+        .read(positionDetailControllerProvider(legId).notifier)
+        .updateSnapshot(
+          optionMark: Decimal.parse(mark),
+          underlyingPrice: Decimal.parse('46'),
+          deltaAsEntered: delta,
+          deltaConvention: DeltaConvention.position,
+          takenAt: openedAt,
+        );
+
+    PositionDetailState read(ProviderContainer container, String legId) =>
+        container.read(positionDetailControllerProvider(legId));
+
+    test('(a) a reading that changes the bucket reports true', () async {
+      final (_, container, legId) = await book();
+      expect(
+        read(container, legId).bucket,
+        isA<BucketClose>(),
+        reason: 'the fixture reading must start in Close, not by assumption',
+      );
+
+      final ok = await save(container, legId, mark: '0.40', delta: -0.35);
+
+      expect(ok, isTrue);
+      expect(read(container, legId).bucket, isA<BucketRoll>());
+      expect(read(container, legId).lastSnapshotChangedBucket, isTrue);
+    });
+
+    test(
+      '(b) a reading that moves the captured % inside Close reports false',
+      () async {
+        final (_, container, legId) = await book();
+        final ok = await save(container, legId, mark: '0.12', delta: -0.21);
+
+        expect(ok, isTrue);
+        expect(read(container, legId).bucket, isA<BucketClose>());
+        expect(read(container, legId).lastSnapshotChangedBucket, isFalse);
+      },
+    );
+
+    test(
+      '(c) a first reading on a leg with no prior snapshot reports false',
+      () async {
+        final (_, container, legId) = await book(withPreviousReading: false);
+        expect(read(container, legId).bucket, isA<BucketUnknown>());
+
+        final ok = await save(container, legId, mark: '0.12', delta: -0.21);
+
+        expect(ok, isTrue);
+        expect(
+          read(container, legId).bucket,
+          isA<BucketClose>(),
+          reason: 'No data -> Close is not a change',
+        );
+        expect(read(container, legId).lastSnapshotChangedBucket, isFalse);
+      },
+    );
+
+    test(
+      'load() clears the flag to null in all three cases (S-335 replay guard)',
+      () async {
+        for (final changing in [true, false]) {
+          final (_, container, legId) = await book(
+            withPreviousReading: changing,
+          );
+          final controller = container.read(
+            positionDetailControllerProvider(legId).notifier,
+          );
+          await save(
+            container,
+            legId,
+            mark: changing ? '0.40' : '0.12',
+            delta: changing ? -0.35 : -0.21,
+          );
+          expect(read(container, legId).lastSnapshotChangedBucket, changing);
+
+          await controller.load();
+          expect(
+            read(container, legId).lastSnapshotChangedBucket,
+            isNull,
+            reason: 'a rebuild must not replay the haptic',
+          );
+          await controller.load();
+          expect(read(container, legId).lastSnapshotChangedBucket, isNull);
+        }
+      },
+    );
+
+    test(
+      'S-335: an identical second save does not re-fire -- nothing changed',
+      () async {
+        final (_, container, legId) = await book();
+        final controller = container.read(
+          positionDetailControllerProvider(legId).notifier,
+        );
+
+        await save(container, legId, mark: '0.40', delta: -0.35);
+        expect(read(container, legId).lastSnapshotChangedBucket, isTrue);
+
+        await controller.load();
+        expect(read(container, legId).lastSnapshotChangedBucket, isNull);
+
+        await save(container, legId, mark: '0.40', delta: -0.35);
+        expect(
+          read(container, legId).lastSnapshotChangedBucket,
+          isFalse,
+          reason: 'Roll -> Roll: the same numbers saved twice change nothing',
+        );
+      },
+    );
+
+    test('the widget layer reads the flag; it never computes it', () {
+      // Phase 5's Done Criterion verbatim: no file under `lib/features/`
+      // compares a `Bucket`'s `runtimeType` or calls `classify(`.
+      //
+      // `classify(` has no exception -- a screen that classifies is the
+      // defect this guards. Comment lines are skipped: a sentence that names
+      // the function is documentation, not a call.
+      final classifyHits = <String>[];
+      for (final file in _dartFilesUnder('lib/features')) {
+        for (final line in File(file).readAsLinesSync()) {
+          if (line.trimLeft().startsWith('//')) continue;
+          if (line.contains('classify(')) {
+            classifyHits.add('$file: ${line.trim()}');
+          }
+        }
       }
+      expect(
+        classifyHits,
+        isEmpty,
+        reason:
+            'a screen must read the bucket, never compute it:\n${classifyHits.join('\n')}',
+      );
 
-      // Identical snapshots, different pins: 55% captured clears v1's 50%
-      // target and misses v2's 60%, so the bucket difference *is* the pin.
-      final stateA = await stateFor(legA);
-      expect(stateA.profile.versionId, RuleProfileVersionIds.standardV1);
-      expect(stateA.bucket, isA<BucketClose>());
-
-      final stateB = await stateFor(legB);
-      expect(stateB.profile.versionId, v2.id);
-      expect(stateB.bucket, isA<BucketLeave>());
+      // `runtimeType` on a `Bucket` does exist in `lib/features/` before this
+      // wave -- `today_screen.dart`'s filter chips key on
+      // `count.bucket.runtimeType` as a *token*, and `paywall_route.dart`'s
+      // `hashCode` is unrelated to `Bucket` at all. Neither is a comparison,
+      // and neither is this wave's to rewrite (D-74: no restyling, no
+      // behaviour change). So the guard is a pinned allow-list of the
+      // non-comparison uses: any new occurrence -- the defect -- changes the
+      // set and fails.
+      const pinned = {
+        'lib/features/paywall/paywall_route.dart', // GoRoute.hashCode, unrelated
+        'lib/features/today/today_screen.dart', // the filter chips' type token
+      };
+      final actual = <String>{
+        for (final file in _dartFilesUnder('lib/features'))
+          if (File(file).readAsStringSync().contains('runtimeType')) file,
+      };
+      expect(
+        actual,
+        pinned,
+        reason:
+            'a new `Bucket.runtimeType` use in the widget layer means a screen is '
+            'comparing buckets instead of reading `lastSnapshotChangedBucket`',
+      );
     });
   });
+}
+
+/// Every `.dart` file under [root], recursively, as repo-relative paths.
+Iterable<String> _dartFilesUnder(String root) sync* {
+  for (final entity in Directory(root).listSync(recursive: true)) {
+    if (entity is File && entity.path.endsWith('.dart')) yield entity.path;
+  }
 }

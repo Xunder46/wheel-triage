@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:wheel_triage/core/app_router.dart';
+import 'package:wheel_triage/core/haptics/haptics.dart';
+import 'package:wheel_triage/core/purchases/purchase_gateway.dart';
 import 'package:wheel_triage/data/in_memory_wheel_repository.dart';
 import 'package:wheel_triage/data/wheel_repository.dart';
 import 'package:wheel_triage/domain/models/leg.dart';
@@ -17,10 +19,15 @@ import 'package:wheel_triage/features/positions/snapshot_sheet.dart';
 import 'package:wheel_triage/features/record/record_trade_screen.dart';
 import 'package:wheel_triage/features/screener/screener_screen.dart';
 import 'package:wheel_triage/features/today/today_screen.dart';
+import 'package:wheel_triage/features/portfolio/portfolio_screen.dart';
+import 'package:wheel_triage/state/entitlements/entitlement_providers.dart';
 import 'package:wheel_triage/state/repository_providers.dart';
 import 'package:wheel_triage/state/today/today_controller.dart';
 import 'package:wheel_triage/widgets/app_bottom_nav.dart';
 import 'package:wheel_triage/widgets/bucket_badge.dart';
+
+import '../../support/fake_purchase_gateway.dart';
+import '../../support/recording_haptics.dart';
 
 /// The reference's own book: 1 Assign, 1 Roll, 1 Close, 2 Leave (one of them
 /// aging), 1 No data, plus one leg past expiration that appears in neither
@@ -184,7 +191,14 @@ Future<InMemoryWheelRepository> _expiryBook({int wbdReadingAgeDays = 1}) async {
     spot: '12.60',
     readingAt: _fixtureNow.subtract(const Duration(days: 2)),
   );
-  await _addLeg(repo, ticker: 'XYZ', strike: '20', contracts: 1, dteDays: -5, credit: '0.80');
+  await _addLeg(
+    repo,
+    ticker: 'XYZ',
+    strike: '20',
+    contracts: 1,
+    dteDays: -5,
+    credit: '0.80',
+  );
   await _addLeg(
     repo,
     ticker: 'SOFI',
@@ -203,6 +217,7 @@ Future<void> _pumpToday(
   WidgetTester tester,
   InMemoryWheelRepository repo, {
   GoRouter? router,
+  List<Override> extraOverrides = const [],
 }) async {
   // The counts row, the aging line and six rows do not fit the default
   // 800x600 test surface.
@@ -213,7 +228,10 @@ Future<void> _pumpToday(
 
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [wheelRepositoryProvider.overrideWithValue(repo)],
+      overrides: [
+        wheelRepositoryProvider.overrideWithValue(repo),
+        ...extraOverrides,
+      ],
       child: MaterialApp.router(
         routerConfig: router ?? buildAppRouter(initialLocation: '/positions'),
       ),
@@ -234,6 +252,29 @@ void _expectCount(WidgetTester tester, String label, int count) {
     findsOneWidget,
     reason: 'the $label count should read $count',
   );
+}
+
+/// Portfolio's five count labels (`Roll 1`), in tree order. Scrolls first:
+/// the counts row is the last card in the list, and an unbuilt card has no
+/// labels.
+Future<List<String>> _portfolioCountLabels(WidgetTester tester) async {
+  await tester.dragUntilVisible(
+    find.text('No data'),
+    find.byType(ListView),
+    const Offset(0, -300),
+  );
+  await tester.pumpAndSettle();
+  return [
+        for (final widget in tester.widgetList<Semantics>(
+          find.byType(Semantics),
+        ))
+          ?widget.properties.label,
+      ]
+      .where(
+        (label) =>
+            RegExp(r'^(Assign|Roll|Close|Leave|No data) \d+$').hasMatch(label),
+      )
+      .toList();
 }
 
 void main() {
@@ -463,6 +504,138 @@ void main() {
         expect(find.byType(BucketBadge), findsNWidgets(2));
         expect(find.text('T'), findsOneWidget);
         expect(find.text('SBET'), findsOneWidget);
+      },
+    );
+  });
+
+  group('S-331: cross-screen liveness, and the haptic still fires once', () {
+    testWidgets(
+      'one save moves Today, Portfolio and the detail sheet, with exactly one call',
+      (tester) async {
+        final repo = InMemoryWheelRepository();
+        await _addLeg(
+          repo,
+          ticker: 'SOFI',
+          strike: '14',
+          contracts: 3,
+          dteDays: 4,
+          credit: '1.00',
+          mark: '0.45',
+          delta: -0.20,
+          ivAtOpen: 45,
+          openedAt: _fixtureNow.subtract(const Duration(days: 11)),
+          readingAt: _fixtureNow.subtract(const Duration(days: 11)),
+        ); // Close, 55% captured, aging
+        await _addLeg(
+          repo,
+          ticker: 'SOFI',
+          strike: '15',
+          contracts: 1,
+          dteDays: 25,
+          credit: '1.00',
+          mark: '0.70',
+          delta: -0.28,
+          ivAtOpen: 75,
+        ); // Leave, band 0.40 -- the second open leg on the same underlying
+
+        final haptics = RecordingHaptics();
+        await _pumpToday(
+          tester,
+          repo,
+          extraOverrides: [
+            hapticsProvider.overrideWithValue(haptics),
+            purchaseGatewayProvider.overrideWithValue(
+              FakePurchaseGateway(snapshot: const EntitlementSnapshot.active()),
+            ),
+          ],
+        );
+
+        // The store is answering with an active entitlement, but the gate
+        // reads the controller, not the gateway (S-277): refresh it.
+        await ProviderScope.containerOf(
+          tester.element(find.byType(MaterialApp)),
+        ).read(entitlementControllerProvider.notifier).refresh();
+        await tester.pumpAndSettle();
+
+        _expectCount(tester, 'Close', 1);
+        _expectCount(tester, 'Roll', 0);
+        _expectCount(tester, 'Leave', 1);
+
+        // Save a bucket-changing reading through the sheet opened from
+        // Today's own row.
+        await tester.tap(find.byKey(const ValueKey('today-aging-line')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(TextButton, 'Update'));
+        await tester.pumpAndSettle();
+        expect(find.byType(SnapshotSheet), findsOneWidget);
+
+        await tester.enterText(
+          find.widgetWithText(TextField, r'Option mark ($)'),
+          '0.90',
+        );
+        await tester.enterText(
+          find.widgetWithText(
+            TextField,
+            'Delta, as shown on your broker screen',
+          ),
+          '-0.52',
+        );
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.text('Save snapshot'));
+        await tester.tap(find.text('Save snapshot'));
+        await tester.pumpAndSettle();
+
+        expect(haptics.calls, ['bucketChanged']);
+        expect(find.byType(SnapshotSheet), findsNothing);
+        _expectCount(tester, 'Close', 0);
+        _expectCount(tester, 'Roll', 1);
+        _expectCount(tester, 'Leave', 1);
+        expect(
+          find.text('Delta 0.52 at or above the 0.35 band'),
+          findsOneWidget,
+        );
+
+        // Portfolio reads the same repository through its own controller:
+        // same bucket, one count moved between the two.
+        await tester.tap(find.text('Committed now'));
+        await tester.pumpAndSettle();
+        expect(find.byType(PortfolioScreen), findsOneWidget);
+        expect(
+          await _portfolioCountLabels(tester),
+          containsAll(<String>['Roll 1', 'Close 0', 'Leave 1']),
+        );
+
+        // Back to Today, then into the position's own detail sheet.
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Delta 0.52 at or above the 0.35 band'));
+        await tester.pumpAndSettle();
+        expect(find.byType(PositionDetailSheet), findsOneWidget);
+        // Scoped to the sheet: Today's own 'Roll' count chip is still mounted
+        // behind the pushed route.
+        expect(
+          find.descendant(
+            of: find.descendant(
+              of: find.byType(PositionDetailSheet),
+              matching: find.byType(BucketBadge),
+            ),
+            matching: find.text('Roll'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byType(PositionDetailSheet),
+            matching: find.text('Delta 0.52 at or above the 0.35 band'),
+          ),
+          findsOneWidget,
+        );
+
+        expect(
+          haptics.calls,
+          hasLength(1),
+          reason: 'navigating and re-reading add no calls',
+        );
       },
     );
   });
@@ -723,48 +896,63 @@ void main() {
       },
     );
 
-    testWidgets('the definition line names no percentage when no capital is set', (
-      tester,
-    ) async {
-      final repo = await _ledgerBook(now: DateTime.now());
-      await _pumpToday(tester, repo);
+    testWidgets(
+      'the definition line names no percentage when no capital is set',
+      (tester) async {
+        final repo = await _ledgerBook(now: DateTime.now());
+        await _pumpToday(tester, repo);
 
-      expect(
-        find.text(
-          '$kPremiumDefinitionLine Committed now: open puts at strike, '
-          'shares at wheel-adjusted basis.',
-        ),
-        findsOneWidget,
-      );
-    });
+        expect(
+          find.text(
+            '$kPremiumDefinitionLine Committed now: open puts at strike, '
+            'shares at wheel-adjusted basis.',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
   });
 
   group('S-247: concentration per underlying', () {
     const flagLine = 'INTC 27% of wheel capital · limit 25%';
 
-    testWidgets('flags the one underlying over the limit, as a neutral fact with no link', (
+    testWidgets(
+      'flags the one underlying over the limit, as a neutral fact with no link',
+      (tester) async {
+        final repo = await _ledgerBook(
+          now: DateTime.now(),
+          wheelCapital: '30000',
+        );
+        await _pumpToday(tester, repo);
+
+        expect(find.text(flagLine), findsOneWidget);
+        expect(find.text(kConcentrationInviteLine), findsNothing);
+        // SOFI is at 14%: named nowhere near the flag.
+        expect(find.textContaining('SOFI 14%'), findsNothing);
+        // A fact in the neutral surface colour -- no warning colour, no link
+        // to a portfolio view that does not exist yet (D-10).
+        final scheme = Theme.of(
+          tester.element(find.text(flagLine)),
+        ).colorScheme;
+        expect(
+          tester.widget<Text>(find.text(flagLine)).style?.color,
+          scheme.onSurfaceVariant,
+        );
+        expect(
+          find.ancestor(
+            of: find.text(flagLine),
+            matching: find.byType(InkWell),
+          ),
+          findsNothing,
+        );
+        expect(find.byIcon(Icons.warning_amber), findsNothing);
+        expect(find.byIcon(Icons.warning), findsNothing);
+      },
+    );
+
+    testWidgets('shows the invite line instead when wheel capital is not set', (
       tester,
     ) async {
-      final repo = await _ledgerBook(now: DateTime.now(), wheelCapital: '30000');
-      await _pumpToday(tester, repo);
-
-      expect(find.text(flagLine), findsOneWidget);
-      expect(find.text(kConcentrationInviteLine), findsNothing);
-      // SOFI is at 14%: named nowhere near the flag.
-      expect(find.textContaining('SOFI 14%'), findsNothing);
-      // A fact in the neutral surface colour -- no warning colour, no link
-      // to a portfolio view that does not exist yet (D-10).
-      final scheme = Theme.of(tester.element(find.text(flagLine))).colorScheme;
-      expect(tester.widget<Text>(find.text(flagLine)).style?.color, scheme.onSurfaceVariant);
-      expect(
-        find.ancestor(of: find.text(flagLine), matching: find.byType(InkWell)),
-        findsNothing,
-      );
-      expect(find.byIcon(Icons.warning_amber), findsNothing);
-      expect(find.byIcon(Icons.warning), findsNothing);
-    });
-
-    testWidgets('shows the invite line instead when wheel capital is not set', (tester) async {
       final repo = await _ledgerBook(now: DateTime.now());
       await _pumpToday(tester, repo);
 
@@ -772,7 +960,9 @@ void main() {
       expect(find.textContaining('of wheel capital · limit'), findsNothing);
     });
 
-    testWidgets('with two underlyings over the limit, largest share first', (tester) async {
+    testWidgets('with two underlyings over the limit, largest share first', (
+      tester,
+    ) async {
       final repo = await _ledgerBook(
         now: DateTime.now(),
         wheelCapital: '30000',
@@ -788,8 +978,13 @@ void main() {
       expect(find.text('\$20,000'), findsOneWidget);
     });
 
-    testWidgets('no flag when the limit is raised above every share', (tester) async {
-      final repo = await _ledgerBook(now: DateTime.now(), wheelCapital: '30000');
+    testWidgets('no flag when the limit is raised above every share', (
+      tester,
+    ) async {
+      final repo = await _ledgerBook(
+        now: DateTime.now(),
+        wheelCapital: '30000',
+      );
       await repo.updatePreferences(
         (await repo.getPreferences()).copyWith(concentrationLimitPct: 30.0),
       );
@@ -802,27 +997,44 @@ void main() {
   });
 
   group('S-248: a Settings edit reaches Today on arrival', () {
-    testWidgets('lowering the concentration limit rewrites the flag line', (tester) async {
-      final repo = await _ledgerBook(now: DateTime.now(), wheelCapital: '30000');
+    testWidgets('lowering the concentration limit rewrites the flag line', (
+      tester,
+    ) async {
+      final repo = await _ledgerBook(
+        now: DateTime.now(),
+        wheelCapital: '30000',
+      );
       await _pumpToday(tester, repo);
-      expect(find.text('INTC 27% of wheel capital · limit 25%'), findsOneWidget);
+      expect(
+        find.text('INTC 27% of wheel capital · limit 25%'),
+        findsOneWidget,
+      );
 
       await tester.tap(_navItem('Settings'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byKey(const ValueKey('concentration-limit')), '20');
+      await tester.enterText(
+        find.byKey(const ValueKey('concentration-limit')),
+        '20',
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(_navItem('Today'));
       await tester.pumpAndSettle();
       expect(find.text('INTC 27% of wheel capital · limit 25%'), findsNothing);
-      expect(find.text('INTC 27% of wheel capital · limit 20%'), findsOneWidget);
+      expect(
+        find.text('INTC 27% of wheel capital · limit 20%'),
+        findsOneWidget,
+      );
 
       // Raising it back above the share takes the line away entirely
       // (S-247's limit-raised case), and wheel capital is still set, so the
       // invitation line stays away too.
       await tester.tap(_navItem('Settings'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byKey(const ValueKey('concentration-limit')), '30');
+      await tester.enterText(
+        find.byKey(const ValueKey('concentration-limit')),
+        '30',
+      );
       await tester.pumpAndSettle();
 
       await tester.tap(_navItem('Today'));
@@ -843,7 +1055,10 @@ void main() {
       expect(find.text('SOFI \$14 put ×3'), findsOneWidget);
       expect(find.text('\$4,200 cash if assigned'), findsOneWidget);
       expect(find.text('T \$28 call ×1'), findsOneWidget);
-      expect(find.text('100 shares delivered at \$28 if assigned'), findsOneWidget);
+      expect(
+        find.text('100 shares delivered at \$28 if assigned'),
+        findsOneWidget,
+      );
 
       // The card's caption is the latest date it covers.
       final last = _fixtureNow.add(const Duration(days: 4));
@@ -860,57 +1075,59 @@ void main() {
       expect(find.text('WBD \$11 put ×1'), findsOneWidget);
     });
 
-    testWidgets('two expiration dates are labelled on their own groups, earliest first', (
-      tester,
-    ) async {
-      final repo = InMemoryWheelRepository();
-      await _addLeg(
-        repo,
-        ticker: 'LATE',
-        strike: '10',
-        contracts: 1,
-        dteDays: 6,
-        credit: '0.50',
-      );
-      await _addLeg(
-        repo,
-        ticker: 'SOON',
-        strike: '20',
-        contracts: 1,
-        dteDays: 2,
-        credit: '0.50',
-      );
-      await _pumpToday(tester, repo);
+    testWidgets(
+      'two expiration dates are labelled on their own groups, earliest first',
+      (tester) async {
+        final repo = InMemoryWheelRepository();
+        await _addLeg(
+          repo,
+          ticker: 'LATE',
+          strike: '10',
+          contracts: 1,
+          dteDays: 6,
+          credit: '0.50',
+        );
+        await _addLeg(
+          repo,
+          ticker: 'SOON',
+          strike: '20',
+          contracts: 1,
+          dteDays: 2,
+          credit: '0.50',
+        );
+        await _pumpToday(tester, repo);
 
-      final soon = _fixtureNow.add(const Duration(days: 2));
-      final late = _fixtureNow.add(const Duration(days: 6));
-      // The caption carries the latest date; each group carries its own, so
-      // the latest date appears twice and the earlier one once.
-      expect(find.text(_weekdayShortText(late)), findsNWidgets(2));
-      expect(find.text(_weekdayShortText(soon)), findsOneWidget);
-      expect(
-        tester.getTopLeft(find.text('SOON \$20 put ×1')).dy <
-            tester.getTopLeft(find.text('LATE \$10 put ×1')).dy,
-        isTrue,
-      );
-    });
+        final soon = _fixtureNow.add(const Duration(days: 2));
+        final late = _fixtureNow.add(const Duration(days: 6));
+        // The caption carries the latest date; each group carries its own, so
+        // the latest date appears twice and the earlier one once.
+        expect(find.text(_weekdayShortText(late)), findsNWidgets(2));
+        expect(find.text(_weekdayShortText(soon)), findsOneWidget);
+        expect(
+          tester.getTopLeft(find.text('SOON \$20 put ×1')).dy <
+              tester.getTopLeft(find.text('LATE \$10 put ×1')).dy,
+          isTrue,
+        );
+      },
+    );
 
-    testWidgets('there is no card at all when nothing expires inside the window', (
-      tester,
-    ) async {
-      final repo = InMemoryWheelRepository();
-      await _addLeg(
-        repo,
-        ticker: 'FAR',
-        strike: '20',
-        contracts: 1,
-        dteDays: 30,
-        credit: '0.50',
-      );
-      await _pumpToday(tester, repo);
+    testWidgets(
+      'there is no card at all when nothing expires inside the window',
+      (tester) async {
+        final repo = InMemoryWheelRepository();
+        await _addLeg(
+          repo,
+          ticker: 'FAR',
+          strike: '20',
+          contracts: 1,
+          dteDays: 30,
+          credit: '0.50',
+        );
+        await _pumpToday(tester, repo);
 
-      expect(find.text('Expiring this week'), findsNothing);
-    });
+        expect(find.text('Expiring this week'), findsNothing);
+      },
+    );
   });
 
   group('S-251: the "Past expiration, still open" card', () {
@@ -976,33 +1193,36 @@ void main() {
   });
 
   group('S-252: "Mark all expired"', () {
-    testWidgets('confirms, then records the eligible leg on its expiration date', (
-      tester,
-    ) async {
-      final repo = await _expiryBook();
-      await _pumpToday(tester, repo);
+    testWidgets(
+      'confirms, then records the eligible leg on its expiration date',
+      (tester) async {
+        final repo = await _expiryBook();
+        await _pumpToday(tester, repo);
 
-      await tester.tap(find.byKey(const ValueKey('mark-all-expired')));
-      await tester.pumpAndSettle();
-      expect(find.text('Mark all expired?'), findsOneWidget);
+        await tester.tap(find.byKey(const ValueKey('mark-all-expired')));
+        await tester.pumpAndSettle();
+        expect(find.text('Mark all expired?'), findsOneWidget);
 
-      await tester.tap(find.byKey(const ValueKey('confirm-mark-all-expired')));
-      await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('confirm-mark-all-expired')),
+        );
+        await tester.pumpAndSettle();
 
-      // The one eligible leg is gone; the two left out are untouched.
-      expect(find.text('WBD \$11 put ×1'), findsNothing);
-      expect(find.text('Mark all expired (1)'), findsNothing);
-      expect(find.text('AAL \$13 put ×2'), findsOneWidget);
-      expect(find.text('XYZ \$20 put ×1'), findsOneWidget);
+        // The one eligible leg is gone; the two left out are untouched.
+        expect(find.text('WBD \$11 put ×1'), findsNothing);
+        expect(find.text('Mark all expired (1)'), findsNothing);
+        expect(find.text('AAL \$13 put ×2'), findsOneWidget);
+        expect(find.text('XYZ \$20 put ×1'), findsOneWidget);
 
-      final wbd = (await repo.getAllLegs()).firstWhere(
-        (leg) => leg.closedAt != null,
-      );
-      expect(wbd.closeReason, CloseReason.expiredWorthless);
-      expect(wbd.closedAt, wbd.expiration);
-      expect(wbd.closeDebitPerShare, Decimal.zero);
-      expect(wbd.closeFee, isNull);
-    });
+        final wbd = (await repo.getAllLegs()).firstWhere(
+          (leg) => leg.closedAt != null,
+        );
+        expect(wbd.closeReason, CloseReason.expiredWorthless);
+        expect(wbd.closedAt, wbd.expiration);
+        expect(wbd.closeDebitPerShare, Decimal.zero);
+        expect(wbd.closeFee, isNull);
+      },
+    );
   });
 
   group('S-254: past-expiration legs are only on the card', () {
@@ -1028,7 +1248,10 @@ void main() {
       // ...they are on the card instead, and nowhere else.
       expect(find.text('Past expiration, still open'), findsOneWidget);
       expect(find.text('Expiring this week'), findsOneWidget);
-      expect(find.byKey(const ValueKey('past-expiration-card')), findsOneWidget);
+      expect(
+        find.byKey(const ValueKey('past-expiration-card')),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const ValueKey('expiring-this-week-card')),
         findsOneWidget,
@@ -1087,7 +1310,9 @@ Future<InMemoryWheelRepository> _ledgerBook({
   final repo = InMemoryWheelRepository();
   if (wheelCapital != null) {
     await repo.updatePreferences(
-      (await repo.getPreferences()).copyWith(wheelCapital: Decimal.parse(wheelCapital)),
+      (await repo.getPreferences()).copyWith(
+        wheelCapital: Decimal.parse(wheelCapital),
+      ),
     );
   }
 

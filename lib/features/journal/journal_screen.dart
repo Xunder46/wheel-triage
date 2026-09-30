@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../state/journal/journal_controller.dart';
 import '../../widgets/cycle_summary_card.dart';
 import '../../widgets/journal_row.dart';
+import '../../widgets/label_value_row.dart';
 
 /// §4.4's Journal screen: closed cycles newest-first, plus a factual
 /// aggregates section. Descriptive statistics about the user's own history
@@ -32,7 +33,10 @@ class JournalScreen extends ConsumerWidget {
           ),
         ],
       ),
-      body: RefreshIndicator(onRefresh: controller.load, child: _Body(state: state)),
+      body: RefreshIndicator(
+        onRefresh: controller.load,
+        child: _Body(state: state),
+      ),
       bottomNavigationBar: const AppBottomNav(currentPath: '/journal'),
     );
   }
@@ -54,7 +58,10 @@ class _Body extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.all(24),
             child: Center(
-              child: Text(state.error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              child: Text(
+                state.error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
             ),
           ),
         ],
@@ -134,40 +141,50 @@ class _AggregatesSection extends StatelessWidget {
           children: [
             Text('Aggregates', style: textTheme.titleSmall),
             const SizedBox(height: 8),
-            _stat(context, 'Win rate', '${(aggregates.winRate * 100).toStringAsFixed(0)}%'),
-            _stat(context, 'Average days in cycle', aggregates.averageDaysInCycle.toStringAsFixed(0)),
-            _stat(
-              context,
-              'Average premium capture (median)',
-              aggregates.medianPremiumCapturePct == null
+            LabelValueRow(
+              label: 'Win rate',
+              value: '${(aggregates.winRate * 100).toStringAsFixed(0)}%',
+            ),
+            LabelValueRow(
+              label: 'Average days in cycle',
+              value: aggregates.averageDaysInCycle.toStringAsFixed(0),
+            ),
+            LabelValueRow(
+              label: 'Average premium capture (median)',
+              value: aggregates.medianPremiumCapturePct == null
                   ? '--'
                   : '${aggregates.medianPremiumCapturePct!.toStringAsFixed(0)}%',
+              spokenValue: aggregates.medianPremiumCapturePct == null
+                  ? 'not available'
+                  : null,
             ),
-            _stat(context, 'Total premium collected', '\$${aggregates.totalPremiumCollected.toStringAsFixed(2)}'),
-            _stat(context, 'Total fees paid', '\$${aggregates.totalFeesPaid.toStringAsFixed(2)}'),
+            LabelValueRow(
+              label: 'Total premium collected',
+              value: '\$${aggregates.totalPremiumCollected.toStringAsFixed(2)}',
+            ),
+            LabelValueRow(
+              label: 'Total fees paid',
+              value: '\$${aggregates.totalFeesPaid.toStringAsFixed(2)}',
+            ),
             const SizedBox(height: 8),
             Text('Net result by underlying', style: textTheme.labelLarge),
             for (final entry in aggregates.netResultByUnderlying.entries)
-              _stat(context, entry.key, '\$${entry.value.toStringAsFixed(2)}'),
+              LabelValueRow(
+                label: entry.key,
+                value: '\$${entry.value.toStringAsFixed(2)}',
+              ),
             const SizedBox(height: 8),
             Text('Roll-count distribution', style: textTheme.labelLarge),
-            for (final entry in (aggregates.rollCountDistribution.entries.toList()
-              ..sort((a, b) => a.key.compareTo(b.key))))
-              _stat(context, '${entry.key} roll${entry.key == 1 ? '' : 's'}', '${entry.value} cycle${entry.value == 1 ? '' : 's'}'),
+            for (final entry
+                in (aggregates.rollCountDistribution.entries.toList()
+                  ..sort((a, b) => a.key.compareTo(b.key))))
+              LabelValueRow(
+                label: '${entry.key} roll${entry.key == 1 ? '' : 's'}',
+                value: '${entry.value} cycle${entry.value == 1 ? '' : 's'}',
+              ),
           ],
         ),
       ),
     );
   }
-
-  Widget _stat(BuildContext context, String label, String value) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 2),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
-      ],
-    ),
-  );
 }

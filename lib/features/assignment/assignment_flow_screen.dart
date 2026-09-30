@@ -29,7 +29,9 @@ class AssignmentFlowScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(assignmentFlowControllerProvider(legId));
-    final controller = ref.read(assignmentFlowControllerProvider(legId).notifier);
+    final controller = ref.read(
+      assignmentFlowControllerProvider(legId).notifier,
+    );
 
     if (state.isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -38,7 +40,9 @@ class AssignmentFlowScreen extends ConsumerWidget {
     if (leg == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Mark assigned')),
-        body: Center(child: Text(state.error ?? 'This position no longer exists.')),
+        body: Center(
+          child: Text(state.error ?? 'This position no longer exists.'),
+        ),
       );
     }
 
@@ -73,9 +77,14 @@ class _CallAwayFlowState extends State<_CallAwayFlow> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('This covered call was assigned. Shares were called away and the cycle is closed.'),
+            const Text(
+              'This covered call was assigned. Shares were called away and the cycle is closed.',
+            ),
             const SizedBox(height: 16),
-            FilledButton(onPressed: () => context.go('/positions'), child: const Text('Back to positions')),
+            FilledButton(
+              onPressed: () => context.go('/positions'),
+              child: const Text('Back to positions'),
+            ),
           ],
         ),
       );
@@ -85,14 +94,20 @@ class _CallAwayFlowState extends State<_CallAwayFlow> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('Mark \$${state.leg!.strike} ${state.leg!.optionType.name} assigned?'),
+          Text(
+            'Mark \$${state.leg!.strike} ${state.leg!.optionType.name} assigned?',
+          ),
           const SizedBox(height: 8),
-          const Text('Shares will be sold at the strike and this cycle will close.'),
+          const Text(
+            'Shares will be sold at the strike and this cycle will close.',
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: _feeController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Close fee (\$, optional)'),
+            decoration: const InputDecoration(
+              labelText: 'Close fee (\$, optional)',
+            ),
           ),
           const SizedBox(height: 16),
           FilledButton(
@@ -106,7 +121,10 @@ class _CallAwayFlowState extends State<_CallAwayFlow> {
           if (state.error != null)
             Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: Text(state.error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              child: Text(
+                state.error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
             ),
         ],
       ),
@@ -148,20 +166,29 @@ class _PutAssignmentFlowState extends State<_PutAssignmentFlow> {
           ),
           const SizedBox(height: 12),
           const Text('Contracts assigned'),
-          TextField(controller: _contractsController, keyboardType: TextInputType.number),
+          TextField(
+            controller: _contractsController,
+            keyboardType: TextInputType.number,
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: _feeController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(labelText: 'Close fee, on the put (\$, optional)'),
+            decoration: const InputDecoration(
+              labelText: 'Close fee, on the put (\$, optional)',
+            ),
           ),
           const SizedBox(height: 16),
           FilledButton(
             onPressed: state.isSubmitting
                 ? null
                 : () {
-                    final strike = Decimal.tryParse(_strikeController.text.trim());
-                    final contracts = int.tryParse(_contractsController.text.trim());
+                    final strike = Decimal.tryParse(
+                      _strikeController.text.trim(),
+                    );
+                    final contracts = int.tryParse(
+                      _contractsController.text.trim(),
+                    );
                     if (strike == null || contracts == null) return;
                     widget.controller.confirmPutAssignment(
                       assignmentStrike: strike,
@@ -174,7 +201,10 @@ class _PutAssignmentFlowState extends State<_PutAssignmentFlow> {
           if (state.error != null)
             Padding(
               padding: const EdgeInsets.only(top: 12),
-              child: Text(state.error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              child: Text(
+                state.error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
             ),
         ],
       );
@@ -185,8 +215,10 @@ class _PutAssignmentFlowState extends State<_PutAssignmentFlow> {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        Text('${state.createdShareLot?.contracts != null ? state.createdShareLot!.contracts * 100 : 0} '
-            'shares acquired at \$${state.createdShareLot?.assignmentStrike}.'),
+        Text(
+          '${state.createdShareLot?.contracts != null ? state.createdShareLot!.contracts * 100 : 0} '
+          'shares acquired at \$${state.createdShareLot?.assignmentStrike}.',
+        ),
         const SizedBox(height: 8),
         const Text('This cycle is now holding shares.'),
         const SizedBox(height: 16),
@@ -199,11 +231,17 @@ class _PutAssignmentFlowState extends State<_PutAssignmentFlow> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Wheel-adjusted basis: \$${state.wheelBasisValue}'),
+                    Flexible(
+                      child: Text(
+                        'Wheel-adjusted basis: \$${state.wheelBasisValue}',
+                      ),
+                    ),
                     const HelpChip(topicId: 'wheel_basis'),
                   ],
                 ),
-                const Text('The management number -- use this for the covered-call strike floor.'),
+                const Text(
+                  'The management number -- use this for the covered-call strike floor.',
+                ),
                 const SizedBox(height: 8),
                 Text('Tax basis: \$${state.taxBasisValue}'),
                 const Text('The reporting number.'),
@@ -252,7 +290,9 @@ class _CoveredCallFormState extends ConsumerState<_CoveredCallForm> {
   );
   final TextEditingController _creditController = TextEditingController();
   final TextEditingController _dteController = TextEditingController();
-  final TextEditingController _contractsController = TextEditingController(text: '1');
+  final TextEditingController _contractsController = TextEditingController(
+    text: '1',
+  );
   final TextEditingController _feeController = TextEditingController();
 
   // S-125: asked fresh for this new leg -- NEVER inherited from the put
@@ -270,7 +310,11 @@ class _CoveredCallFormState extends ConsumerState<_CoveredCallForm> {
   @override
   Widget build(BuildContext context) {
     final totalPerContract =
-        ref.watch(preferencesControllerProvider).valueOrNull?.totalPerContractToggle ?? false;
+        ref
+            .watch(preferencesControllerProvider)
+            .valueOrNull
+            ?.totalPerContractToggle ??
+        false;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -286,9 +330,13 @@ class _CoveredCallFormState extends ConsumerState<_CoveredCallForm> {
             Expanded(
               child: TextField(
                 controller: _creditController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: InputDecoration(
-                  labelText: totalPerContract ? 'Credit (\$ total for contract)' : 'Credit (\$ per share)',
+                  labelText: totalPerContract
+                      ? 'Credit (\$ total for contract)'
+                      : 'Credit (\$ per share)',
                 ),
               ),
             ),
@@ -328,19 +376,23 @@ class _CoveredCallFormState extends ConsumerState<_CoveredCallForm> {
             padding: const EdgeInsets.only(bottom: 4),
             child: Text(
               'Not a Friday -- index and month-end products legitimately differ.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.tertiary),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.tertiary,
+              ),
             ),
           ),
         TextField(
           controller: _dteController,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'DTE (days) -- moves the expiration above'),
+          decoration: const InputDecoration(
+            labelText: 'DTE (days) -- moves the expiration above',
+          ),
           onChanged: (text) {
             final days = int.tryParse(text.trim());
             if (days == null) return;
-            setState(() => _expiration = DateTime.now().add(Duration(days: days)));
+            setState(
+              () => _expiration = DateTime.now().add(Duration(days: days)),
+            );
           },
         ),
         TextField(
@@ -351,7 +403,9 @@ class _CoveredCallFormState extends ConsumerState<_CoveredCallForm> {
         TextField(
           controller: _feeController,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: const InputDecoration(labelText: 'Open fee (\$, optional)'),
+          decoration: const InputDecoration(
+            labelText: 'Open fee (\$, optional)',
+          ),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
@@ -370,7 +424,10 @@ class _CoveredCallFormState extends ConsumerState<_CoveredCallForm> {
         if (_localError != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Text(_localError!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            child: Text(
+              _localError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
         const SizedBox(height: 8),
         FilledButton(
@@ -392,8 +449,11 @@ class _CoveredCallFormState extends ConsumerState<_CoveredCallForm> {
               // state is already updated synchronously by `openCoveredCall`
               // before it returns.
               setState(
-                () => _localError =
-                    ref.read(assignmentFlowControllerProvider(widget.state.leg!.id)).error,
+                () => _localError = ref
+                    .read(
+                      assignmentFlowControllerProvider(widget.state.leg!.id),
+                    )
+                    .error,
               );
             }
           },

@@ -95,7 +95,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         exportReminderDue(
           lastExportAt: prefs.lastExportAt,
           earliestOpenPositionOpenedAt: earliestOpenedAt,
-          hasOpenPositions: state.items.isNotEmpty || state.pastExpiration.isNotEmpty,
+          hasOpenPositions:
+              state.items.isNotEmpty || state.pastExpiration.isNotEmpty,
           exportReminderDismissed: prefs.exportReminderDismissed,
           now: DateTime.now(),
         );
@@ -108,7 +109,9 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
           children: [
             Text(
               weekdayDateText(DateTime.now()),
-              style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              style: textTheme.bodySmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
             ),
             Text('Today', style: textTheme.titleLarge),
           ],
@@ -155,7 +158,10 @@ class _Body extends ConsumerWidget {
       );
     }
     if (state.items.isEmpty && state.pastExpiration.isEmpty) {
-      return RefreshIndicator(onRefresh: controller.load, child: const _EmptyState());
+      return RefreshIndicator(
+        onRefresh: controller.load,
+        child: const _EmptyState(),
+      );
     }
 
     return RefreshIndicator(
@@ -253,16 +259,21 @@ class _CountChip extends StatelessWidget {
                 '$count',
                 style: textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w700,
-                  color: selected ? scheme.onPrimaryContainer : scheme.onSurface,
+                  color: selected
+                      ? scheme.onPrimaryContainer
+                      : scheme.onSurface,
                 ),
               ),
               const SizedBox(height: 2),
+              // No `maxLines`/ellipsis: the bucket names are short and a
+              // truncated "Assign" is worse than a second line (D-63).
               Text(
                 label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
                 style: textTheme.labelSmall?.copyWith(
-                  color: selected ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+                  color: selected
+                      ? scheme.onPrimaryContainer
+                      : scheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -276,7 +287,11 @@ class _CountChip extends StatelessWidget {
 /// D-11's aging line: an overlapping count that names the legs and dates it
 /// counts, and filters the list to those legs when tapped.
 class _AgingLine extends StatelessWidget {
-  const _AgingLine({required this.line, required this.active, required this.onTap});
+  const _AgingLine({
+    required this.line,
+    required this.active,
+    required this.onTap,
+  });
 
   final String line;
   final bool active;
@@ -302,21 +317,27 @@ class _AgingLine extends StatelessWidget {
               Icon(
                 Icons.schedule,
                 size: 16,
-                color: active ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+                color: active
+                    ? scheme.onPrimaryContainer
+                    : scheme.onSurfaceVariant,
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   line,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: active ? scheme.onPrimaryContainer : scheme.onSurface,
+                    color: active
+                        ? scheme.onPrimaryContainer
+                        : scheme.onSurface,
                   ),
                 ),
               ),
               Icon(
                 Icons.chevron_right,
                 size: 18,
-                color: active ? scheme.onPrimaryContainer : scheme.onSurfaceVariant,
+                color: active
+                    ? scheme.onPrimaryContainer
+                    : scheme.onSurfaceVariant,
               ),
             ],
           ),
@@ -385,14 +406,18 @@ class _LedgerStrip extends ConsumerWidget {
           const SizedBox(height: 6),
           Text(
             state.ledgerDefinitionLine,
-            style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            style: textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
           ),
           for (final flag in state.concentrationFlags)
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Text(
                 concentrationFlagLine(flag),
-                style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                style: textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
             ),
           if (capital == null)
@@ -400,7 +425,9 @@ class _LedgerStrip extends ConsumerWidget {
               padding: const EdgeInsets.only(top: 2),
               child: Text(
                 kConcentrationInviteLine,
-                style: textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                style: textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
+                ),
               ),
             ),
         ],
@@ -426,27 +453,32 @@ class _LedgerTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final tile = Column(
+    // D-62: the tile is the smallest widget holding both the ledger line's
+    // name and its amount, so the number is never read out on its own. No
+    // `maxLines`/ellipsis anywhere: a wrapped tile beats a truncated figure
+    // (D-63).
+    final tile = Semantics(
+      label: '$label $value',
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             label,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+            style: textTheme.labelSmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 2),
           Text(
             value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
             style: textTheme.titleSmall?.copyWith(
               fontWeight: FontWeight.w600,
               color: scheme.onSurface,
             ),
           ),
         ],
+      ),
     );
     if (onTap == null) return Expanded(child: tile);
     return Expanded(
@@ -496,7 +528,9 @@ class _ListHeader extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(
                     todaySortLabel(state.sort),
-                    style: textTheme.labelLarge?.copyWith(color: scheme.onSurface),
+                    style: textTheme.labelLarge?.copyWith(
+                      color: scheme.onSurface,
+                    ),
                   ),
                 ],
               ),

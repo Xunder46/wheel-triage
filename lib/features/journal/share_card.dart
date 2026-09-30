@@ -53,151 +53,173 @@ class ShareCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final figures = shareCardFigures(cycles);
 
-    return SizedBox(
-      width: width,
-      height: height,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: scheme.surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: scheme.outlineVariant),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _Eyebrow('Wheel Triage', scheme: scheme, textTheme: textTheme),
-                  _Eyebrow('Monthly ledger', scheme: scheme, textTheme: textTheme),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                monthYear,
-                style: textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w700,
-                  color: scheme.onSurface,
+    // The card is a fixed 360 x 450 export surface (S-309), not a screen: it
+    // cannot reflow, so it is laid out at its design text scale rather than
+    // the app's accessibility scale. Without this the card's copy overflows
+    // its own fixed box at the largest text size and the exported PNG is
+    // wrong (S-313). The footer already scales down for the same reason.
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: scheme.surface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: scheme.outlineVariant),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _Eyebrow(
+                      'Wheel Triage',
+                      scheme: scheme,
+                      textTheme: textTheme,
+                    ),
+                    _Eyebrow(
+                      'Monthly ledger',
+                      scheme: scheme,
+                      textTheme: textTheme,
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 10),
-              _Figure(
-                label: 'Return on capital',
-                value: percentText(figures.returnOnCapitalPct),
-                scheme: scheme,
-                textTheme: textTheme,
-              ),
-              const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _Figure(
-                      label: 'Cycles closed',
-                      value: '${figures.cyclesClosed}',
-                      scheme: scheme,
-                      textTheme: textTheme,
-                    ),
+                const SizedBox(height: 12),
+                Text(
+                  monthYear,
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: scheme.onSurface,
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: _Figure(
-                      label: 'Closed positive',
-                      value: figures.closedPositiveText,
-                      scheme: scheme,
-                      textTheme: textTheme,
+                ),
+                const SizedBox(height: 10),
+                _Figure(
+                  label: 'Return on capital',
+                  value: percentText(figures.returnOnCapitalPct),
+                  scheme: scheme,
+                  textTheme: textTheme,
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _Figure(
+                        label: 'Cycles closed',
+                        value: '${figures.cyclesClosed}',
+                        scheme: scheme,
+                        textTheme: textTheme,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _Figure(
-                      label: 'Average days in cycle',
-                      value: figures.averageDaysInCycle?.toString() ?? '--',
-                      scheme: scheme,
-                      textTheme: textTheme,
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: _Figure(
+                        label: 'Closed positive',
+                        value: figures.closedPositiveText,
+                        scheme: scheme,
+                        textTheme: textTheme,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: _Figure(
-                      label: 'Median premium capture',
-                      value: figures.medianPremiumCapturePct == null
-                          ? '--'
-                          : percentText(figures.medianPremiumCapturePct, decimals: 0),
-                      scheme: scheme,
-                      textTheme: textTheme,
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _Figure(
+                        label: 'Average days in cycle',
+                        value: figures.averageDaysInCycle?.toString() ?? '--',
+                        scheme: scheme,
+                        textTheme: textTheme,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              // The two footer paragraphs are the card's longest copy and the
-              // only part whose height depends on the font the platform
-              // resolves. `Flexible` bounds the box and `FittedBox` scales the
-              // copy down rather than letting it overflow the fixed 360 x 450
-              // surface, so the card is always exactly the size the export
-              // contract names (S-309) and the disclaimer is still rendered
-              // verbatim (D-54).
-              Flexible(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.topLeft,
-                  child: SizedBox(
-                    width: 320,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          shareCardDefinitionLine(monthYear: monthYear, cycles: cycles),
-                          style: textTheme.labelSmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                            height: 1.3,
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: _Figure(
+                        label: 'Median premium capture',
+                        value: figures.medianPremiumCapturePct == null
+                            ? '--'
+                            : percentText(
+                                figures.medianPremiumCapturePct,
+                                decimals: 0,
+                              ),
+                        scheme: scheme,
+                        textTheme: textTheme,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                // The two footer paragraphs are the card's longest copy and the
+                // only part whose height depends on the font the platform
+                // resolves. `Flexible` bounds the box and `FittedBox` scales the
+                // copy down rather than letting it overflow the fixed 360 x 450
+                // surface, so the card is always exactly the size the export
+                // contract names (S-309) and the disclaimer is still rendered
+                // verbatim (D-54).
+                Flexible(
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.topLeft,
+                    child: SizedBox(
+                      width: 320,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            shareCardDefinitionLine(
+                              monthYear: monthYear,
+                              cycles: cycles,
+                            ),
+                            style: textTheme.labelSmall?.copyWith(
+                              color: scheme.onSurfaceVariant,
+                              height: 1.3,
+                            ),
                           ),
-                        ),
-                        // D-52 puts both toggle lines directly under the
-                        // definition paragraph, above the disclaimer.
-                        if (showDollars) ...[
+                          // D-52 puts both toggle lines directly under the
+                          // definition paragraph, above the disclaimer.
+                          if (showDollars) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              netResultLine(cycles: cycles),
+                              style: textTheme.labelSmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                          if (showTickers) ...[
+                            const SizedBox(height: 6),
+                            Text(
+                              cardTickerLine(cycles),
+                              style: textTheme.labelSmall?.copyWith(
+                                color: scheme.onSurfaceVariant,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 6),
                           Text(
-                            netResultLine(cycles: cycles),
+                            kAppDisclaimer,
                             style: textTheme.labelSmall?.copyWith(
                               color: scheme.onSurfaceVariant,
                               height: 1.3,
                             ),
                           ),
                         ],
-                        if (showTickers) ...[
-                          const SizedBox(height: 6),
-                          Text(
-                            cardTickerLine(cycles),
-                            style: textTheme.labelSmall?.copyWith(
-                              color: scheme.onSurfaceVariant,
-                              height: 1.3,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: 6),
-                        Text(
-                          kAppDisclaimer,
-                          style: textTheme.labelSmall?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                            height: 1.3,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -240,17 +262,29 @@ class _Figure extends StatelessWidget {
   final TextTheme textTheme;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Container(height: 1, color: scheme.outlineVariant),
-      const SizedBox(height: 8),
-      Text(label, style: textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant)),
-      const SizedBox(height: 2),
-      Text(
-        value,
-        style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700, color: scheme.onSurface),
-      ),
-    ],
+  Widget build(BuildContext context) => Semantics(
+    // D-62: the smallest widget holding both the quantity's visible label and
+    // its value. The card is a preview a user reads with VoiceOver as well as
+    // an image, so its five figures are labelled like any other number.
+    label: '$label $value',
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(height: 1, color: scheme.outlineVariant),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            color: scheme.onSurface,
+          ),
+        ),
+      ],
+    ),
   );
 }
