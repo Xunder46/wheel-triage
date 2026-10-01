@@ -1,7 +1,6 @@
 # Agent Templates
 
-Portable, project-agnostic starting points for a five-agent build pipeline plus a
-standalone prompt-pack author. Copy the ones you want into a new project's
+Portable, project-agnostic starting points for a five-agent build pipeline. Copy the ones you want into a new project's
 `.claude/agents/`, fill in the **Project Variables** block at the top of each
 file, and delete whatever does not apply.
 
@@ -25,8 +24,6 @@ conductor ──▶ data-architect ──▶ developer ──▶ code-reviewer �
 - **developer** — owns application logic, state, UI, navigation, and tests.
 - **code-reviewer** — verifies against the plan and the conventions doc. Assesses
   and plans fixes; does not implement them. Terminal human checkpoint.
-- **prompt-engineer** — standalone. Turns intent into a phased prompt pack for a
-  different agent or a different tool to execute.
 
 ## Setup, in order
 

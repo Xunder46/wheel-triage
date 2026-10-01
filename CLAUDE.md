@@ -329,6 +329,16 @@ history.
 plan file is the contract between them; they coordinate through it rather than
 through chat history.
 
+**Copilot editions live in `.github/`.** `/feature` runs agents through GitHub
+Copilot CLI using `.github/agents/<name>.agent.md` (Copilot tool names, project
+values already resolved), which Copilot prefers over `.claude/agents/`. Each run
+gets only the permissions in `.github/copilot/permissions/` (common + per agent);
+the runner never passes `--allow-all-tools`. Copilot agents' only shell command
+is the gateway `.github/copilot/scripts/macos/gateway.sh` (checks in
+`.github/copilot/gateway.conf`: lint, test, build, codegen, pub-get, format).
+Copilot auto-approves some read-only commands and misses `~` paths, which is why
+`common.flags` denies them explicitly — do not trim that list.
+
 **These templates ship with unresolved `{{PLACEHOLDER}}` variables.** Resolve them
 in the invoking prompt — `{{PLANS_ROOT}}/<feature>-plan.md` is
 `docs/plans/wheel-triage-plan.md`, `{{LINT_CMD}}` is `flutter analyze`,

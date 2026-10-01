@@ -25,11 +25,20 @@ Feature request: $ARGUMENTS
 - Max total agent time for one run: 90 minutes
 - Check-in interval: start every agent with `WAIT_MINUTES=15` so the runner returns every 15 minutes
 
-Agent names are the file names in `.github/agents/` without `.agent.md`.
+Agent names are the file names in `.github/agents/` without `.agent.md` (the Copilot editions; Copilot
+prefers them over `.claude/agents/`). Every run gets exactly the permissions in
+`.github/copilot/permissions/common.flags` + `<agent>.flags`; the only shell command agents may run is
+the gateway, `.github/copilot/scripts/macos/gateway.sh` (checks in `.github/copilot/gateway.conf`).
 
 ## Hard rules
 
-1. Never edit `.github/agents/**`, any agent or Copilot instruction file, or anything under `.claude/`.
+1. Never edit `.github/agents/**`, `.github/copilot/**`, any agent or Copilot instruction file, or anything
+   under `.claude/`.
+1a. **Never grant an agent all tools.** Never pass `--allow-all-tools`, `--allow-all`, `--yolo`,
+   `--allow-all-paths` or `--allow-all-urls`, never call `copilot` directly, and never widen a permission
+   profile to get a run through. Agents run only through the runner, which applies the profiles and
+   refuses allow-all. A denied command or write reported by an agent is a finding: log friction, and if
+   the work truly needs it, stop and ask the user.
 2. Never write or edit product code or tests. Every code change goes through the developer agent.
    The only files you create or edit are under `.work/`.
 3. Friction is record-only. Append entries to `.work/friction.md` in the format below. Do not fix,
@@ -73,10 +82,9 @@ before development and validate its output the same way.
 
 ### 3. Implement
 Write `.work/<slug>/brief-dev.md`: path to the approved plan, "implement the plan exactly",
-"do not commit, push, or switch branches", "run flutter analyze and flutter test before finishing",
-"wrap any command that can run long (`dart run build_runner`, `flutter pub get`, `flutter test`) in
-`perl -e 'alarm 300; exec @ARGV' <cmd>` (900 for the full test suite; macOS has no `timeout`) and treat a timeout as a failure to
-diagnose, never wait on it".
+"do not commit, push, or switch branches", "run the gateway's lint and test checks before finishing",
+"run every command through the gateway (`.github/copilot/scripts/macos/gateway.sh lint|test|build|codegen|pub-get|format <paths>`; each has
+its own timeout) and treat exit 124 as a failure to diagnose, never re-run it unchanged".
 Run the developer.
 
 ### 4. Verify (you)
@@ -137,7 +145,8 @@ Check on a run when the user asks, or when it has passed ~15 minutes with no new
 Look for a hung child process: `ps -eo pid,etime,pcpu,command | grep -E "build_runner|flutter|dart"`.
 A child running 10+ minutes at ~0% CPU is hung. Kill that child process only (never the runner
 or the agent), log friction, and tell the user. If the same command hangs twice, stop the run
-and re-brief the developer with a `perl alarm` timeout wrapper and the fix for the cause.
+and re-brief the developer with the fix for the cause (agents' commands already run under the gateway's
+timeouts in `.github/copilot/gateway.conf`).
 Known cause: `dart run build_runner` hangs while the unused code-gen packages
 (`riverpod_generator`, `riverpod_lint`, `custom_lint`) are still in `pubspec.yaml`; remove them first.
 
@@ -159,15 +168,18 @@ fix fails twice, stop and report instead of re-running".
 ## Standard brief footer (paste into every developer / data-architect / reviewer brief)
 
 ```
-Shell rules: macOS has no `timeout`; use `perl -e 'alarm N; exec @ARGV' <cmd>` (300 for build_runner,
-pub get, iOS build; 900 for the full `flutter test`). Never truncate test output (no head/sed -n on
-failures); use `--reporter expanded` when debugging. If a fix fails twice, stop and report; never
-re-run the same command a third time. Do not commit, push or switch branches; do not touch .claude/
-or .github/. NEVER run `dart format` on a directory or the tree (the repo is not format-clean; a run that did so
-reformatted ~180 files) — format only files you created, by explicit path. Update the plan's Progress table and
-Assumption Log as phases complete.
-Before finishing: flutter analyze clean, full flutter test green, the CLAUDE.md tone grep empty,
-`grep -rl "package:flutter" lib/domain/rules/` empty, and the plan's own residue sweeps.
+Shell rules: your only shell command is the gateway, `.github/copilot/scripts/macos/gateway.sh` (`list` shows the checks:
+lint, test, build, codegen, pub-get, format; each has its own timeout; extra arguments such as a test
+path or `--reporter expanded` are passed through). Every other command is denied by policy: read and
+search with your view/grep/glob tools, and never look for a workaround to a denial — report it under
+Open questions. Exit 124 = timed out: diagnose, never re-run unchanged. If a fix fails twice, stop and
+report; never run the same failing check a third time. Do not commit, push or switch branches; do not
+touch .claude/, .github/agents/, .github/copilot/ or AGENTS.md/CLAUDE.md. Format only files you created
+or changed, by explicit path (`format <paths>`; the gateway refuses it without paths — the repo is not
+format-clean). Update the plan's Progress table and Assumption Log as phases complete.
+Before finishing: gateway `lint` clean, full gateway `test` green (paste the real counts), the CLAUDE.md
+tone grep and `package:flutter` under lib/domain/rules/ both empty (check with your grep tool), and the
+plan's own residue sweeps (run them with your grep tool, not the shell).
 ```
 
 Multi-phase plans: run the data-architect for the data phases first, verify and commit them, then one

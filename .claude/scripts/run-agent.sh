@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Runs a GitHub Copilot CLI custom agent in the background, waits for it to finish, and prints a
+# Runs a GitHub Copilot CLI custom agent (.github/agents/<agent>.agent.md) in the background, waits for it to finish, and prints a
 # compact summary for the governing Claude Code session. Claude reads the summary, not the full log.
 #
 # Usage (from the repo root):
@@ -16,17 +16,35 @@ set -euo pipefail
 WAIT_MINUTES="${WAIT_MINUTES:-50}"
 TAIL_LINES=40
 POLL_SECONDS=15
-# Flags for every Copilot CLI run. Agents may edit files and run commands, but git history
-# belongs to the governor (Claude), so commits, pushes, resets and branch switching are denied.
-COPILOT_FLAGS=(
-  --allow-all-tools
-  --no-ask-user
-  "--deny-tool=shell(git commit)"
-  "--deny-tool=shell(git push)"
-  "--deny-tool=shell(git reset)"
-  "--deny-tool=shell(git switch)"
-  "--deny-tool=shell(git checkout)"
-)
+# Tool permissions come ONLY from .github/copilot/permissions/common.flags + <agent>.flags. The runner
+# never passes --allow-all-tools, refuses to run an agent with no profile, and refuses any profile that
+# grants everything or lets an interpreter run arbitrary code. Agents are the Copilot editions in
+# .github/agents/<agent>.agent.md (they take precedence over .claude/agents/ in Copilot).
+PERM_FLAGS=()
+load_permissions() {
+  local agent="$1" file line dir
+  dir="$(git rev-parse --show-toplevel)/.github/copilot/permissions"
+  PERM_FLAGS=()
+  for file in "$dir/common.flags" "$dir/$agent.flags"; do
+    [[ -f $file ]] || { echo "No permission profile: .github/copilot/permissions/$(basename "$file") — refusing to run '$agent'." >&2; exit 2; }
+    while IFS= read -r line || [[ -n $line ]]; do
+      line="$(printf '%s' "$line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+      [[ -z $line || $line == \#* ]] && continue
+      case "$line" in
+        --allow-all-tools*|--allow-all|--allow-all=*|--yolo*|--allow-all-paths*|--allow-all-urls*)
+          echo "Refusing to run: $(basename "$file") grants everything ($line). Grant tools one by one." >&2; exit 2 ;;
+        *"shell(bash"*|*"shell(sh"*|*"shell(zsh"*|*"shell(fish"*|*"shell(pwsh"*|*"shell(powershell"*|*"shell(cmd"*|\
+        *"shell(python"*|*"shell(node"*|*"shell(perl"*|*"shell(ruby"*|*"shell(env"*|*"shell(xargs"*|*"shell(eval"*|*"shell(exec"*)
+          case "$line" in --deny-tool=*) ;; *)
+            echo "Refusing to run: $(basename "$file") allows an interpreter ($line). Add a gateway check instead." >&2; exit 2 ;;
+          esac ;;
+        --*) ;;
+        *) echo "Refusing to run: $(basename "$file") has a line that is not a flag: $line" >&2; exit 2 ;;
+      esac
+      PERM_FLAGS+=("$line")
+    done < "$file"
+  done
+}
 # Wrapper each Copilot run goes through. with-opencode.sh adds the session header OpenCode Go needs.
 # Set to "" to call copilot directly (for providers that don't need it).
 COPILOT_WRAPPER="with-opencode.sh"
@@ -64,7 +82,8 @@ worker() {
   prompt_file="$(cat "$dir/prompt_file")"
   model="$(cat "$dir/model")"
   local prompt="Your task brief is in the file ${prompt_file}. Read the whole file and carry it out. You cannot ask the user questions in this run. If something is unclear, make the most reasonable choice and list each such choice under an Open questions heading at the end of your final response."
-  local args=(-p "$prompt" --agent "$agent" "${COPILOT_FLAGS[@]}")
+  load_permissions "$agent"
+  local args=(-p "$prompt" --agent "$agent" --no-ask-user "${PERM_FLAGS[@]}")
   if [[ -n $model ]]; then args+=(--model "$model"); fi
   export OPENCODE_SESSION="copilot-$(basename "$dir")"   # one stable session per run
   set +e
@@ -85,6 +104,12 @@ start_run() {
   if [[ ! -f $abs ]]; then echo "Prompt file not found: $prompt_file" >&2; exit 2; fi
   abs="$(cd "$(dirname "$abs")" && pwd)/$(basename "$abs")"
   local rel="${abs#"$REPO_ROOT"/}"
+
+  if [[ ! -f $REPO_ROOT/.github/agents/$agent.agent.md ]]; then
+    echo "No Copilot agent .github/agents/$agent.agent.md — refusing to run (the .claude/ edition has no Copilot permissions)." >&2
+    exit 2
+  fi
+  load_permissions "$agent"   # validate now, so a bad profile fails before anything starts
 
   local id dir
   id="$(date +%Y%m%d-%H%M%S)-$(printf '%s' "$agent" | tr -cd 'A-Za-z0-9_-')"

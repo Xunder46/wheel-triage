@@ -3,7 +3,7 @@ description: Plan a feature or fix without implementing it. Produces the shared 
 argument-hint: <what you want built or fixed>
 ---
 
-Invoke the `conductor` subagent to plan this request:
+Invoke the `conductor` or `conductor-v2` as necessary subagent to plan this request:
 
 $ARGUMENTS
 
